@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: '/produtos', label: 'Estoque', perfis: ['ADMIN', 'VENDEDOR'] },
   { to: '/bandejas', label: 'Bandejas', perfis: ['ADMIN', 'VENDEDOR'] },
   { to: '/vendas', label: 'Vendas', perfis: ['ADMIN', 'VENDEDOR'] },
+  { to: '/ecommerce', label: 'E-commerce', perfis: ['ADMIN', 'VENDEDOR'] },
   { to: '/financeiro', label: 'Financeiro', perfis: ['ADMIN'] },
 ];
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
@@ -12,18 +13,11 @@ function formatBRL(valor) {
 }
 
 export function Vendas() {
+  const navigate = useNavigate();
   const [vendas, setVendas] = useState([]);
-  const [clientes, setClientes] = useState([]);
-  const [produtos, setProdutos] = useState([]);
   const [filtroStatus, setFiltroStatus] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
-
-  const [modalNova, setModalNova] = useState(false);
-  const [clienteId, setClienteId] = useState('');
-  const [desconto, setDesconto] = useState(0);
-  const [itens, setItens] = useState([{ produtoId: '', quantidade: 1 }]);
-  const [salvandoVenda, setSalvandoVenda] = useState(false);
 
   const [modalConfirmar, setModalConfirmar] = useState(null);
   const [formaPagamento, setFormaPagamento] = useState('PIX');
@@ -39,48 +33,6 @@ export function Vendas() {
   }
 
   useEffect(carregar, [filtroStatus]);
-
-  useEffect(() => {
-    api.get('/clientes').then(setClientes).catch(() => {});
-    api.get('/produtos').then(setProdutos).catch(() => {});
-  }, []);
-
-  function abrirNovaVenda() {
-    setClienteId('');
-    setDesconto(0);
-    setItens([{ produtoId: '', quantidade: 1 }]);
-    setModalNova(true);
-  }
-
-  function atualizarItem(index, campo, valor) {
-    setItens((atual) => atual.map((it, i) => (i === index ? { ...it, [campo]: valor } : it)));
-  }
-
-  function adicionarLinha() {
-    setItens((atual) => [...atual, { produtoId: '', quantidade: 1 }]);
-  }
-
-  function removerLinha(index) {
-    setItens((atual) => atual.filter((_, i) => i !== index));
-  }
-
-  async function salvarVenda(e) {
-    e.preventDefault();
-    setSalvandoVenda(true);
-    try {
-      await api.post('/vendas', {
-        clienteId: Number(clienteId),
-        desconto: Number(desconto) || 0,
-        itens: itens.filter((i) => i.produtoId).map((i) => ({ produtoId: Number(i.produtoId), quantidade: Number(i.quantidade) })),
-      });
-      setModalNova(false);
-      carregar();
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setSalvandoVenda(false);
-    }
-  }
 
   function abrirConfirmar(venda) {
     setModalConfirmar(venda);
@@ -116,14 +68,10 @@ export function Vendas() {
     setComprovante(data);
   }
 
-  const totalPreview = itens.reduce((soma, i) => {
-    const produto = produtos.find((p) => p.id === Number(i.produtoId));
-    return soma + (produto ? Number(produto.precoVenda) * Number(i.quantidade || 0) : 0);
-  }, 0) - Number(desconto || 0);
-
   const columns = [
     { key: 'id', header: '#' },
     { key: 'cliente', header: 'Cliente', render: (v) => v.cliente.nome },
+    { key: 'vendedor', header: 'Vendedor', render: (v) => v.vendedor?.nome || 'Loja Online' },
     { key: 'status', header: 'Status', render: (v) => <span className={`badge ${STATUS_BADGE[v.status]}`}>{STATUS_LABEL[v.status]}</span> },
     { key: 'formaPagamento', header: 'Pagamento', render: (v) => v.formaPagamento || '—' },
     { key: 'total', header: 'Total', render: (v) => formatBRL(v.total) },
@@ -154,7 +102,7 @@ export function Vendas() {
           <h1>Vendas</h1>
           <p>Venda rápida, orçamentos e emissão de comprovante.</p>
         </div>
-        <button className="btn btn-primary" onClick={abrirNovaVenda}>+ Nova venda</button>
+        <button className="btn btn-primary" onClick={() => navigate('/ecommerce')}>+ Nova venda</button>
       </div>
 
       <div className="toolbar">
@@ -170,53 +118,6 @@ export function Vendas() {
 
       {carregando ? <p className="text-muted">Carregando...</p> : (
         <Table columns={columns} rows={vendas} rowKey={(v) => v.id} />
-      )}
-
-      {modalNova && (
-        <Modal title="Nova venda / orçamento" onClose={() => setModalNova(false)}>
-          <form onSubmit={salvarVenda}>
-            <div className="field" style={{ marginBottom: 14 }}>
-              <label>Cliente *</label>
-              <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} required>
-                <option value="">Selecione um cliente</option>
-                {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </select>
-            </div>
-
-            <div className="section-title" style={{ marginTop: 0 }}>Itens</div>
-            {itens.map((item, index) => (
-              <div className="cart-line" key={index}>
-                <div className="field" style={{ flex: 2 }}>
-                  <label>Produto</label>
-                  <select value={item.produtoId} onChange={(e) => atualizarItem(index, 'produtoId', e.target.value)} required>
-                    <option value="">Selecione</option>
-                    {produtos.map((p) => <option key={p.id} value={p.id}>{p.nome} — {formatBRL(p.precoVenda)}</option>)}
-                  </select>
-                </div>
-                <div className="field" style={{ flex: 1 }}>
-                  <label>Qtd</label>
-                  <input type="number" min="1" value={item.quantidade} onChange={(e) => atualizarItem(index, 'quantidade', e.target.value)} required />
-                </div>
-                {itens.length > 1 && (
-                  <button type="button" className="btn btn-danger btn-sm" onClick={() => removerLinha(index)}>Remover</button>
-                )}
-              </div>
-            ))}
-            <button type="button" className="btn btn-secondary btn-sm" onClick={adicionarLinha} style={{ marginBottom: 16 }}>+ Adicionar item</button>
-
-            <div className="field" style={{ maxWidth: 200 }}>
-              <label>Desconto (R$)</label>
-              <input type="number" min="0" step="0.01" value={desconto} onChange={(e) => setDesconto(e.target.value)} />
-            </div>
-
-            <p style={{ marginTop: 16, fontWeight: 600 }}>Total estimado: {formatBRL(totalPreview)}</p>
-
-            <div className="modal-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => setModalNova(false)}>Cancelar</button>
-              <button type="submit" className="btn btn-primary" disabled={salvandoVenda}>{salvandoVenda ? 'Salvando...' : 'Salvar orçamento'}</button>
-            </div>
-          </form>
-        </Modal>
       )}
 
       {modalConfirmar && (

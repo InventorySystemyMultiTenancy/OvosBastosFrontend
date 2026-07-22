@@ -9,6 +9,8 @@ import { Produtos } from './pages/Produtos';
 import { Bandejas } from './pages/Bandejas';
 import { Vendas } from './pages/Vendas';
 import { Financeiro } from './pages/Financeiro';
+import { Loja } from './pages/Loja';
+import { Ecommerce } from './pages/Ecommerce';
 
 function App() {
   return (
@@ -16,6 +18,7 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/loja" element={<Loja />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
@@ -26,6 +29,7 @@ function App() {
                 <Route path="/produtos" element={<Produtos />} />
                 <Route path="/bandejas" element={<Bandejas />} />
                 <Route path="/vendas" element={<Vendas />} />
+                <Route path="/ecommerce" element={<Ecommerce />} />
               </Route>
 
               <Route element={<ProtectedRoute perfis={['ADMIN']} />}>
