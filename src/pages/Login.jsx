@@ -16,7 +16,7 @@ export function Login() {
     setCarregando(true);
     try {
       await login(email, senha);
-      navigate('/');
+      navigate('/admin');
     } catch (err) {
       setErro(err.message);
     } finally {

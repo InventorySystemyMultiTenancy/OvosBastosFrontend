@@ -1,9 +1,7 @@
 import { useEffect, useRef } from 'react';
 
-export function ScrollVideoHero({ videoSrc = '/videoeggscroll.mp4', heightVh = 260, title, tagline }) {
-  const wrapperRef = useRef(null);
+export function ScrollVideoBackground({ videoSrc = '/videoeggscroll.mp4' }) {
   const videoRef = useRef(null);
-  const overlayRef = useRef(null);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -12,6 +10,7 @@ export function ScrollVideoHero({ videoSrc = '/videoeggscroll.mp4', heightVh = 2
     let durationReady = false;
     let pendingProgress = 0;
     let cleanup;
+    let cancelled = false;
 
     const markReady = () => {
       if (durationReady) return;
@@ -30,17 +29,17 @@ export function ScrollVideoHero({ videoSrc = '/videoeggscroll.mp4', heightVh = 2
     // se o vídeo já veio do cache, 'loadedmetadata' pode já ter disparado antes deste listener existir
     if (video.readyState >= 1) markReady();
 
-    let cancelled = false;
-
     (async () => {
       const { default: gsap } = await import('gsap');
       const { ScrollTrigger } = await import('gsap/ScrollTrigger');
-      if (cancelled || !wrapperRef.current) return;
+      if (cancelled) return;
 
       gsap.registerPlugin(ScrollTrigger);
 
+      // A altura real da página inteira (header + categorias + grid + footer) é a
+      // timeline do vídeo — sem wrapper artificial, o scroll do catálogo todo é o scrubber.
       const trigger = ScrollTrigger.create({
-        trigger: wrapperRef.current,
+        trigger: document.documentElement,
         start: 'top top',
         end: 'bottom bottom',
         scrub: true,
@@ -51,13 +50,6 @@ export function ScrollVideoHero({ videoSrc = '/videoeggscroll.mp4', heightVh = 2
           if (durationReady && video.duration) {
             // nunca seekar exatamente na duration: alguns browsers travam no último frame
             video.currentTime = Math.min(progress * video.duration, video.duration - 0.05);
-          }
-
-          if (overlayRef.current) {
-            const fadeOutStart = 0.15;
-            const opacity = progress < fadeOutStart ? 1 : Math.max(1 - (progress - fadeOutStart) / 0.35, 0);
-            overlayRef.current.style.opacity = String(opacity);
-            overlayRef.current.style.transform = `translateY(${progress * -60}px)`;
           }
         },
       });
@@ -73,18 +65,13 @@ export function ScrollVideoHero({ videoSrc = '/videoeggscroll.mp4', heightVh = 2
   }, [videoSrc]);
 
   return (
-    <div ref={wrapperRef} className="ecommerce-hero-wrapper" style={{ height: `${heightVh}vh` }}>
-      <div className="ecommerce-hero-sticky">
-        <video ref={videoRef} src={videoSrc} muted playsInline preload="auto" className="ecommerce-hero-video" />
-        <div className="ecommerce-hero-gradient" />
-        {(title || tagline) && (
-          <div ref={overlayRef} className="ecommerce-hero-overlay">
-            {title && <h1>{title}</h1>}
-            {tagline && <p>{tagline}</p>}
-          </div>
-        )}
-        <div className="ecommerce-hero-scrollhint">role para ver os produtos ↓</div>
-      </div>
-    </div>
+    <video
+      ref={videoRef}
+      src={videoSrc}
+      muted
+      playsInline
+      preload="auto"
+      className="ecommerce-bg-video"
+    />
   );
 }

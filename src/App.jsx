@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { Layout } from './components/Layout';
@@ -9,34 +9,38 @@ import { Produtos } from './pages/Produtos';
 import { Bandejas } from './pages/Bandejas';
 import { Vendas } from './pages/Vendas';
 import { Financeiro } from './pages/Financeiro';
-import { Loja } from './pages/Loja';
-import { Ecommerce } from './pages/Ecommerce';
+import { Catalogo } from './pages/Catalogo';
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/loja" element={<Loja />} />
+          <Route path="/" element={<Catalogo />} />
 
-          <Route element={<ProtectedRoute />}>
+          <Route path="/admin/login" element={<Login />} />
+
+          <Route path="/admin" element={<ProtectedRoute />}>
             <Route element={<Layout />}>
-              <Route path="/" element={<Dashboard />} />
+              <Route index element={<Dashboard />} />
 
               <Route element={<ProtectedRoute perfis={['ADMIN', 'VENDEDOR']} />}>
-                <Route path="/clientes" element={<Clientes />} />
-                <Route path="/produtos" element={<Produtos />} />
-                <Route path="/bandejas" element={<Bandejas />} />
-                <Route path="/vendas" element={<Vendas />} />
-                <Route path="/ecommerce" element={<Ecommerce />} />
+                <Route path="clientes" element={<Clientes />} />
+                <Route path="produtos" element={<Produtos />} />
+                <Route path="bandejas" element={<Bandejas />} />
+                <Route path="vendas" element={<Vendas />} />
               </Route>
 
               <Route element={<ProtectedRoute perfis={['ADMIN']} />}>
-                <Route path="/financeiro" element={<Financeiro />} />
+                <Route path="financeiro" element={<Financeiro />} />
               </Route>
             </Route>
           </Route>
+
+          {/* Compatibilidade com links/rotas antigas */}
+          <Route path="/login" element={<Navigate to="/admin/login" replace />} />
+          <Route path="/loja" element={<Navigate to="/" replace />} />
+          <Route path="/ecommerce" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

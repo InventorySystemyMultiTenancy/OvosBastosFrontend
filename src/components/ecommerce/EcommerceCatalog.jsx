@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
-import { ScrollVideoHero } from './ScrollVideoHero';
+import { useAuth } from '../../context/AuthContext';
+import { ScrollVideoBackground } from './ScrollVideoBackground';
+import { CatalogHeader } from './CatalogHeader';
+import { CatalogFooter } from './CatalogFooter';
 
 const FORMAS_BASE = [
   { id: 'PIX', label: 'Pix', icon: '💠' },
@@ -62,14 +65,25 @@ function ProdutoCard({ produto, quantidadeNoCarrinho, onAdicionar, onRemover }) 
   );
 }
 
-export function EcommerceCatalog({ mode }) {
+export function EcommerceCatalog() {
   const navigate = useNavigate();
-  const isStaff = mode === 'staff';
+  const { usuario } = useAuth();
+  const isStaff = !!usuario;
+  const chaveCarrinho = isStaff ? 'eggcontrol_carrinho_staff' : 'eggcontrol_carrinho_publico';
 
   const [produtos, setProdutos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
-  const [carrinho, setCarrinho] = useState([]);
+  const [carrinho, setCarrinho] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(chaveCarrinho) || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const [categoriaAtiva, setCategoriaAtiva] = useState('Todos');
+  const [busca, setBusca] = useState('');
 
   const [checkoutAberto, setCheckoutAberto] = useState(false);
   const [nomeCliente, setNomeCliente] = useState('');
@@ -92,7 +106,25 @@ export function EcommerceCatalog({ mode }) {
   }, [isStaff]);
 
   useEffect(() => {
-    if (carregando || produtos.length === 0 || !gridRef.current) return;
+    localStorage.setItem(chaveCarrinho, JSON.stringify(carrinho));
+  }, [carrinho, chaveCarrinho]);
+
+  const categorias = useMemo(() => {
+    const tipos = Array.from(new Set(produtos.map((p) => p.tipo).filter(Boolean)));
+    return ['Todos', ...tipos];
+  }, [produtos]);
+
+  const produtosFiltrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    return produtos.filter((p) => {
+      const bateCategoria = categoriaAtiva === 'Todos' || p.tipo === categoriaAtiva;
+      const bateBusca = !termo || p.nome.toLowerCase().includes(termo) || (p.tipo || '').toLowerCase().includes(termo);
+      return bateCategoria && bateBusca;
+    });
+  }, [produtos, categoriaAtiva, busca]);
+
+  useEffect(() => {
+    if (carregando || produtosFiltrados.length === 0 || !gridRef.current) return;
     let cancelled = false;
     (async () => {
       const { default: gsap } = await import('gsap');
@@ -106,7 +138,7 @@ export function EcommerceCatalog({ mode }) {
     return () => {
       cancelled = true;
     };
-  }, [carregando, produtos]);
+  }, [carregando, produtosFiltrados]);
 
   function quantidadeNoCarrinho(produtoId) {
     return carrinho.find((i) => i.produtoId === produtoId)?.quantidade || 0;
@@ -175,43 +207,50 @@ export function EcommerceCatalog({ mode }) {
   }
 
   return (
-    <div className="ecommerce-root">
-      <ScrollVideoHero
-        heightVh={isStaff ? 140 : 260}
-        title={isStaff ? 'Nova venda' : 'Ovos fresquinhos, direto pra sua mesa'}
-        tagline={
-          isStaff
-            ? 'Monte o pedido do cliente e finalize com o nome dele — sem precisar cadastrar nada antes.'
-            : 'Caixas e dúzias separadas do estoque na hora. Sem cadastro: só o seu nome pra finalizar.'
-        }
-      />
+    <div className="catalogo-theme ecommerce-page-shell">
+      <ScrollVideoBackground videoSrc="/videoeggscroll.mp4" />
 
-      <section className="ecommerce-catalog-section">
-        <div className="page-header">
-          <div>
-            <h2>Catálogo</h2>
-            <p>{isStaff ? 'Estoque em tempo real do sistema.' : 'Escolha as caixas de ovos disponíveis em estoque.'}</p>
+      <div className="ecommerce-content">
+        <CatalogHeader
+          categorias={categorias}
+          categoriaAtiva={categoriaAtiva}
+          onCategoria={setCategoriaAtiva}
+          busca={busca}
+          onBusca={setBusca}
+          isStaff={isStaff}
+        />
+
+        <main className="ecommerce-catalog-section">
+          <div className="page-header">
+            <div>
+              <h2>Catálogo</h2>
+              <p>{isStaff ? 'Estoque em tempo real do sistema.' : 'Caixas e dúzias separadas do estoque na hora. Sem cadastro: só o seu nome pra finalizar.'}</p>
+            </div>
           </div>
-        </div>
 
-        {erro && <div className="alert-box">{erro}</div>}
+          {erro && <div className="alert-box">{erro}</div>}
 
-        {carregando ? (
-          <p className="text-muted">Carregando catálogo...</p>
-        ) : (
-          <div className="ecommerce-grid" ref={gridRef}>
-            {produtos.map((p) => (
-              <ProdutoCard
-                key={p.id}
-                produto={p}
-                quantidadeNoCarrinho={quantidadeNoCarrinho(p.id)}
-                onAdicionar={adicionar}
-                onRemover={remover}
-              />
-            ))}
-          </div>
-        )}
-      </section>
+          {carregando ? (
+            <p className="text-muted">Carregando catálogo...</p>
+          ) : produtosFiltrados.length === 0 ? (
+            <p className="text-muted">Nenhum produto encontrado.</p>
+          ) : (
+            <div className="ecommerce-grid" ref={gridRef}>
+              {produtosFiltrados.map((p) => (
+                <ProdutoCard
+                  key={p.id}
+                  produto={p}
+                  quantidadeNoCarrinho={quantidadeNoCarrinho(p.id)}
+                  onAdicionar={adicionar}
+                  onRemover={remover}
+                />
+              ))}
+            </div>
+          )}
+        </main>
+
+        <CatalogFooter />
+      </div>
 
       {carrinho.length > 0 && !checkoutAberto && (
         <div className="ecommerce-cart-bar">
@@ -240,7 +279,7 @@ export function EcommerceCatalog({ mode }) {
                 <p className="ecommerce-success-total">Total: {formatBRL(pedidoConcluido.total)}</p>
                 <div className="modal-actions">
                   {isStaff && (
-                    <button type="button" className="btn btn-secondary" onClick={() => navigate('/vendas')}>Ver em Vendas</button>
+                    <button type="button" className="btn btn-secondary" onClick={() => navigate('/admin/vendas')}>Ver em Vendas</button>
                   )}
                   <button type="button" className="btn btn-primary" onClick={fecharCheckout}>Novo pedido</button>
                 </div>

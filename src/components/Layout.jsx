@@ -2,13 +2,12 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', perfis: ['ADMIN', 'VENDEDOR', 'ENTREGADOR'] },
-  { to: '/clientes', label: 'Clientes', perfis: ['ADMIN', 'VENDEDOR'] },
-  { to: '/produtos', label: 'Estoque', perfis: ['ADMIN', 'VENDEDOR'] },
-  { to: '/bandejas', label: 'Bandejas', perfis: ['ADMIN', 'VENDEDOR'] },
-  { to: '/vendas', label: 'Vendas', perfis: ['ADMIN', 'VENDEDOR'] },
-  { to: '/ecommerce', label: 'E-commerce', perfis: ['ADMIN', 'VENDEDOR'] },
-  { to: '/financeiro', label: 'Financeiro', perfis: ['ADMIN'] },
+  { to: '/admin', label: 'Dashboard', perfis: ['ADMIN', 'VENDEDOR', 'ENTREGADOR'] },
+  { to: '/admin/clientes', label: 'Clientes', perfis: ['ADMIN', 'VENDEDOR'] },
+  { to: '/admin/produtos', label: 'Estoque', perfis: ['ADMIN', 'VENDEDOR'] },
+  { to: '/admin/bandejas', label: 'Bandejas', perfis: ['ADMIN', 'VENDEDOR'] },
+  { to: '/admin/vendas', label: 'Vendas', perfis: ['ADMIN', 'VENDEDOR'] },
+  { to: '/admin/financeiro', label: 'Financeiro', perfis: ['ADMIN'] },
 ];
 
 const PERFIL_LABEL = { ADMIN: 'Administrador', VENDEDOR: 'Vendedor', ENTREGADOR: 'Entregador' };
@@ -22,12 +21,16 @@ export function Layout() {
         <div className="sidebar-brand">🥚 EggControl</div>
         <div className="sidebar-tagline">Gestão de distribuidoras de ovos</div>
 
+        <NavLink to="/" className="sidebar-link-catalogo">
+          ← Voltar ao catálogo
+        </NavLink>
+
         <nav className="sidebar-nav">
           {NAV_ITEMS.filter((item) => item.perfis.includes(usuario?.perfil)).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.to === '/'}
+              end={item.to === '/admin'}
               className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
             >
               {item.label}

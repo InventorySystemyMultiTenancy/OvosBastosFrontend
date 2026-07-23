@@ -93,6 +93,25 @@ a {
   margin-bottom: 28px;
 }
 
+.sidebar-link-catalogo {
+  display: block;
+  margin-bottom: 20px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px dashed rgba(255, 255, 255, 0.4);
+  color: #fff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.sidebar-link-catalogo:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
 .sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -470,101 +489,167 @@ tbody tr:hover {
   margin-bottom: 16px;
 }
 
-/* ---------- E-commerce ---------- */
+/* ---------- E-commerce / Catálogo (site principal) ---------- */
 
-.ecommerce-public-page {
+.catalogo-theme {
+  --color-bg: #fff6e5;
+  --color-surface: rgba(255, 250, 240, 0.86);
+  --color-text: #3b2418;
+  --color-text-muted: #8a6a52;
+  --color-border: #e8d9c0;
+}
+
+.ecommerce-page-shell {
+  position: relative;
   min-height: 100vh;
-  background: var(--color-bg);
+  color: var(--color-text);
 }
 
-.ecommerce-root {
-  position: relative;
-}
+/* Vídeo de fundo fixo, atrás de todo o catálogo (header, grid, footer) */
 
-/* Hero de vídeo scroll-scrubbed */
-
-.ecommerce-hero-wrapper {
-  position: relative;
-  width: 100%;
-}
-
-.ecommerce-hero-sticky {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow: hidden;
-  background: #0f0906;
-}
-
-.ecommerce-hero-video {
-  position: absolute;
+.ecommerce-bg-video {
+  position: fixed;
   inset: 0;
+  z-index: -1;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  background: #0f0906;
 }
 
-.ecommerce-hero-gradient {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(15, 9, 6, 0.15) 0%, rgba(15, 9, 6, 0.15) 40%, rgba(15, 9, 6, 0.85) 100%);
-  pointer-events: none;
-}
-
-.ecommerce-hero-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
+.ecommerce-content {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Header do catálogo */
+
+.catalogo-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(255, 246, 229, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.catalogo-header-top {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 32px;
-  color: #fff;
-  will-change: opacity, transform;
+  gap: 18px;
+  padding: 16px 32px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.ecommerce-hero-overlay h1 {
-  font-size: clamp(28px, 5vw, 52px);
+.catalogo-header-logo {
+  font-size: 19px;
   font-weight: 700;
-  max-width: 720px;
-  margin-bottom: 14px;
-  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.ecommerce-hero-overlay p {
-  font-size: clamp(14px, 1.6vw, 18px);
-  max-width: 480px;
-  opacity: 0.9;
+.catalogo-busca {
+  flex: 1;
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--color-text);
+  font-size: 14px;
+  max-width: 360px;
 }
 
-.ecommerce-hero-scrollhint {
-  position: absolute;
-  bottom: 28px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2;
-  color: rgba(255, 255, 255, 0.75);
+.catalogo-busca:focus {
+  outline: 2px solid var(--color-primary-light);
+}
+
+.catalogo-header-acesso {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.catalogo-header-acesso:hover {
+  text-decoration: underline;
+}
+
+.catalogo-categorias {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 32px 14px;
+  max-width: 1200px;
+  margin: 0 auto;
+  scrollbar-width: thin;
+}
+
+.catalogo-categoria-pill {
+  flex-shrink: 0;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.catalogo-categoria-pill.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+/* Footer do catálogo */
+
+.catalogo-footer {
+  margin-top: auto;
+  background: #3b2418;
+  color: rgba(255, 246, 229, 0.85);
+  padding: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.catalogo-footer-empresa strong {
+  font-size: 16px;
+  color: #fff6e5;
+}
+
+.catalogo-footer-empresa p {
+  font-size: 13px;
+  opacity: 0.8;
+  margin-top: 4px;
+  max-width: 420px;
+}
+
+.catalogo-footer-credito {
   font-size: 12px;
-  letter-spacing: 0.04em;
-  animation: ecommerce-bounce 1.8s ease-in-out infinite;
-}
-
-@keyframes ecommerce-bounce {
-  0%, 100% { transform: translate(-50%, 0); opacity: 0.5; }
-  50% { transform: translate(-50%, 8px); opacity: 1; }
+  opacity: 0.7;
+  letter-spacing: 0.03em;
 }
 
 /* Catálogo */
 
 .ecommerce-catalog-section {
+  flex: 1;
   max-width: 1160px;
+  width: 100%;
   margin: 0 auto;
-  padding: 48px 32px 140px;
-  position: relative;
-  z-index: 1;
-  background: var(--color-bg);
+  padding: 40px 32px 140px;
 }
 
 .ecommerce-grid {
@@ -575,6 +660,8 @@ tbody tr:hover {
 
 .ecommerce-card {
   background: var(--color-surface);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--color-border);
   border-radius: 16px;
   overflow: hidden;
@@ -695,6 +782,8 @@ tbody tr:hover {
   align-items: center;
   gap: 18px;
   background: var(--color-surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-md);
   border-radius: 999px;
@@ -743,6 +832,8 @@ tbody tr:hover {
   max-width: 440px;
   height: 100%;
   background: var(--color-surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   padding: 28px 26px;
   overflow-y: auto;
   animation: ecommerce-drawer-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
