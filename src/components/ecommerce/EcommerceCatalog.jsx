@@ -103,6 +103,7 @@ export function EcommerceCatalog() {
   const [pedidoConcluido, setPedidoConcluido] = useState(null);
 
   const catalogoRef = useRef(null);
+  const categoriasRef = useRef(null);
   const pageRef = useRef(null);
 
   useEffect(() => {
@@ -124,6 +125,12 @@ export function EcommerceCatalog() {
     return tipos.sort((a, b) => (a === SEM_CATEGORIA ? 1 : b === SEM_CATEGORIA ? -1 : a.localeCompare(b)));
   }, [produtos]);
 
+  const produtosFiltrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    if (!termo) return produtos;
+    return produtos.filter((p) => p.nome.toLowerCase().includes(termo) || (p.tipo || '').toLowerCase().includes(termo));
+  }, [produtos, busca]);
+
   const produtosPorCategoria = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     return categorias
@@ -139,13 +146,30 @@ export function EcommerceCatalog() {
   }, [produtos, categorias, busca]);
 
   useEffect(() => {
-    if (carregando || produtosPorCategoria.length === 0 || !catalogoRef.current) return;
+    if (carregando || produtosFiltrados.length === 0 || !catalogoRef.current) return;
     let cancelled = false;
     (async () => {
       const { default: gsap } = await import('gsap');
       if (cancelled || !catalogoRef.current) return;
       gsap.fromTo(
         catalogoRef.current.querySelectorAll('.ecommerce-card'),
+        { opacity: 0, y: 24 },
+        { opacity: 1, y: 0, duration: 0.5, stagger: 0.05, ease: 'power2.out' }
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [carregando, produtosFiltrados]);
+
+  useEffect(() => {
+    if (carregando || produtosPorCategoria.length === 0 || !categoriasRef.current) return;
+    let cancelled = false;
+    (async () => {
+      const { default: gsap } = await import('gsap');
+      if (cancelled || !categoriasRef.current) return;
+      gsap.fromTo(
+        categoriasRef.current.querySelectorAll('.ecommerce-card'),
         { opacity: 0, y: 24 },
         { opacity: 1, y: 0, duration: 0.5, stagger: 0.05, ease: 'power2.out' }
       );
@@ -228,43 +252,54 @@ export function EcommerceCatalog() {
       <div className="ecommerce-content" ref={pageRef}>
         <CatalogHeader categorias={categorias} busca={busca} onBusca={setBusca} isStaff={isStaff} />
 
-        <CompanyShowcase />
-
         <main className="ecommerce-catalog-section" ref={catalogoRef}>
-          <div className="page-header catalogo-intro">
-            <div>
-              <h2>Catálogo</h2>
-              <p>{isStaff ? 'Estoque em tempo real do sistema.' : 'Caixas e dúzias separadas do estoque na hora. Sem cadastro: só o seu nome pra finalizar.'}</p>
-            </div>
+          <div className="catalogo-intro">
+            <h2>Catálogo</h2>
           </div>
 
           {erro && <div className="alert-box">{erro}</div>}
 
           {carregando ? (
             <p className="text-muted">Carregando catálogo...</p>
-          ) : produtosPorCategoria.length === 0 ? (
+          ) : produtosFiltrados.length === 0 ? (
             <p className="text-muted">Nenhum produto encontrado.</p>
           ) : (
-            <div className="categorias-lista">
-              {produtosPorCategoria.map(({ categoria, itens }) => (
-                <section id={`categoria-${slugCategoria(categoria)}`} className="categoria-secao" key={categoria}>
-                  <h3 className="categoria-secao-titulo">{capitalizarCategoria(categoria)}</h3>
-                  <div className="ecommerce-grid">
-                    {itens.map((p) => (
-                      <ProdutoCard
-                        key={p.id}
-                        produto={p}
-                        quantidadeNoCarrinho={quantidadeNoCarrinho(p.id)}
-                        onAdicionar={adicionar}
-                        onRemover={remover}
-                      />
-                    ))}
-                  </div>
-                </section>
+            <div className="ecommerce-grid">
+              {produtosFiltrados.map((p) => (
+                <ProdutoCard
+                  key={p.id}
+                  produto={p}
+                  quantidadeNoCarrinho={quantidadeNoCarrinho(p.id)}
+                  onAdicionar={adicionar}
+                  onRemover={remover}
+                />
               ))}
             </div>
           )}
         </main>
+
+        <CompanyShowcase />
+
+        {produtosPorCategoria.length > 0 && (
+          <section className="categorias-lista" ref={categoriasRef}>
+            {produtosPorCategoria.map(({ categoria, itens }) => (
+              <section id={`categoria-${slugCategoria(categoria)}`} className="categoria-secao" key={categoria}>
+                <h3 className="categoria-secao-titulo">{capitalizarCategoria(categoria)}</h3>
+                <div className="ecommerce-grid">
+                  {itens.map((p) => (
+                    <ProdutoCard
+                      key={p.id}
+                      produto={p}
+                      quantidadeNoCarrinho={quantidadeNoCarrinho(p.id)}
+                      onAdicionar={adicionar}
+                      onRemover={remover}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </section>
+        )}
 
         <CatalogFooter isStaff={isStaff} />
       </div>
