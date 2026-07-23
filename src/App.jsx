@@ -8,6 +8,7 @@ import { Clientes } from './pages/Clientes';
 import { Produtos } from './pages/Produtos';
 import { Bandejas } from './pages/Bandejas';
 import { Vendas } from './pages/Vendas';
+import { Caixa } from './pages/Caixa';
 import { Financeiro } from './pages/Financeiro';
 import { Catalogo } from './pages/Catalogo';
 
@@ -29,6 +30,7 @@ function App() {
                 <Route path="produtos" element={<Produtos />} />
                 <Route path="bandejas" element={<Bandejas />} />
                 <Route path="vendas" element={<Vendas />} />
+                <Route path="caixa" element={<Caixa />} />
               </Route>
 
               <Route element={<ProtectedRoute perfis={['ADMIN']} />}>
