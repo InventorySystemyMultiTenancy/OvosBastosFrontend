@@ -767,6 +767,125 @@ tbody tr:hover {
   color: #fff;
 }
 
+/* Apresentação da empresa (scroll reveal) */
+
+.empresa-showcase {
+  padding: 10vh 32px;
+  max-width: 1160px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.empresa-frases {
+  display: flex;
+  flex-direction: column;
+  gap: 16vh;
+}
+
+.empresa-frase {
+  display: flex;
+  will-change: transform, opacity;
+}
+
+.empresa-frase-esquerda {
+  justify-content: flex-start;
+}
+
+.empresa-frase-direita {
+  justify-content: flex-end;
+}
+
+.empresa-frase-card {
+  max-width: 640px;
+  background: var(--color-surface);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--color-border);
+  border-radius: 22px;
+  padding: 36px 40px;
+  box-shadow: var(--shadow-md);
+}
+
+.empresa-frase-card h3 {
+  font-size: clamp(26px, 4vw, 44px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.empresa-frase-card p {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--color-primary-dark);
+  margin: 14px 0 0;
+  line-height: 1.5;
+}
+
+.empresa-cta {
+  display: flex;
+  justify-content: center;
+  margin-top: 18vh;
+  will-change: transform, opacity;
+}
+
+.empresa-whatsapp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #25d366;
+  color: #fff;
+  text-decoration: none;
+  font-size: 17px;
+  font-weight: 700;
+  padding: 16px 32px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.empresa-whatsapp-btn:hover {
+  background: #1ebc59;
+  transform: translateY(-3px);
+}
+
+.empresa-whatsapp-btn span {
+  font-size: 20px;
+}
+
+@media (max-width: 720px) {
+  .empresa-showcase {
+    padding: 8vh 20px;
+  }
+
+  .empresa-frases {
+    gap: 10vh;
+  }
+
+  .empresa-frase-esquerda,
+  .empresa-frase-direita {
+    justify-content: center;
+  }
+
+  .empresa-frase-card {
+    padding: 26px 24px;
+  }
+
+  .empresa-cta {
+    margin-top: 10vh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .empresa-frase,
+  .empresa-cta {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
 /* Footer do catálogo */
 
 .catalogo-footer {

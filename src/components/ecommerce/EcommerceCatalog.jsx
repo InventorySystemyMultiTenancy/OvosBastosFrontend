@@ -4,6 +4,7 @@ import { api, resolveUploadUrl } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { ScrollVideoBackground } from './ScrollVideoBackground';
 import { CatalogHeader } from './CatalogHeader';
+import { CompanyShowcase } from './CompanyShowcase';
 import { CatalogFooter } from './CatalogFooter';
 
 const FORMAS_BASE = [
@@ -254,6 +255,8 @@ export function EcommerceCatalog() {
             </div>
           )}
         </main>
+
+        <CompanyShowcase />
 
         <CatalogFooter isStaff={isStaff} />
       </div>
