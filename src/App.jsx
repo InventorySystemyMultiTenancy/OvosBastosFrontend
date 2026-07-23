@@ -10,14 +10,18 @@ import { Bandejas } from './pages/Bandejas';
 import { Vendas } from './pages/Vendas';
 import { Caixa } from './pages/Caixa';
 import { Financeiro } from './pages/Financeiro';
-import { Catalogo } from './pages/Catalogo';
+
+// Aba de catálogo/e-commerce (Catalogo.jsx / EcommerceCatalog.jsx) fica fora de uso por
+// enquanto a pedido do cliente — código continua no repositório, só não está roteado
+// pra lugar nenhum, então ninguém consegue acessar/carregar. Pra reativar, basta importar
+// `Catalogo` de './pages/Catalogo' e trocar a rota "/" abaixo de volta pra <Catalogo />.
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<Catalogo />} />
+          <Route path="/" element={<Navigate to="/admin/login" replace />} />
 
           <Route path="/admin/login" element={<Login />} />
 
@@ -39,10 +43,10 @@ function App() {
             </Route>
           </Route>
 
-          {/* Compatibilidade com links/rotas antigas */}
+          {/* Compatibilidade com links/rotas antigas — catálogo desativado, tudo cai no login */}
           <Route path="/login" element={<Navigate to="/admin/login" replace />} />
-          <Route path="/loja" element={<Navigate to="/" replace />} />
-          <Route path="/ecommerce" element={<Navigate to="/" replace />} />
+          <Route path="/loja" element={<Navigate to="/admin/login" replace />} />
+          <Route path="/ecommerce" element={<Navigate to="/admin/login" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

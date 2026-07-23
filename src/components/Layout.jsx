@@ -32,7 +32,6 @@ export function Layout() {
         <div className="admin-header-inner">
           <div className="admin-header-brand">
             <span className="admin-header-logo">🥚 EggControl</span>
-            <NavLink to="/" className="admin-header-catalogo">← Voltar ao catálogo</NavLink>
           </div>
 
           <nav className="admin-header-nav">
