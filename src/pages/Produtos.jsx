@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api/client';
+import { api, resolveUploadUrl } from '../api/client';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
 
@@ -13,7 +13,10 @@ export function Produtos() {
   const [erro, setErro] = useState('');
 
   const [modalProduto, setModalProduto] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
   const [formProduto, setFormProduto] = useState(PRODUTO_VAZIO);
+  const [imagemArquivo, setImagemArquivo] = useState(null);
+  const [imagemPreview, setImagemPreview] = useState(null);
   const [salvandoProduto, setSalvandoProduto] = useState(false);
 
   const [modalMovimento, setModalMovimento] = useState(null); // 'entrada' | 'saida' | null
@@ -33,24 +36,78 @@ export function Produtos() {
 
   useEffect(carregar, []);
 
+  function abrirNovoProduto() {
+    setEditandoId(null);
+    setFormProduto(PRODUTO_VAZIO);
+    setImagemArquivo(null);
+    setImagemPreview(null);
+    setModalProduto(true);
+  }
+
+  function abrirEditarProduto(produto) {
+    setEditandoId(produto.id);
+    setFormProduto({
+      nome: produto.nome,
+      tipo: produto.tipo || '',
+      unidade: produto.unidade,
+      precoVenda: produto.precoVenda,
+      precoCusto: produto.precoCusto || '',
+      estoqueMinimo: produto.estoqueMinimo,
+      quantidade: produto.quantidade,
+    });
+    setImagemArquivo(null);
+    setImagemPreview(resolveUploadUrl(produto.imagemUrl));
+    setModalProduto(true);
+  }
+
+  function selecionarImagem(e) {
+    const arquivo = e.target.files?.[0];
+    if (!arquivo) return;
+    setImagemArquivo(arquivo);
+    setImagemPreview(URL.createObjectURL(arquivo));
+  }
+
   async function salvarProduto(e) {
     e.preventDefault();
     setSalvandoProduto(true);
     try {
-      await api.post('/produtos', {
+      const payload = {
         ...formProduto,
         precoVenda: Number(formProduto.precoVenda),
         precoCusto: formProduto.precoCusto ? Number(formProduto.precoCusto) : undefined,
         estoqueMinimo: Number(formProduto.estoqueMinimo),
         quantidade: Number(formProduto.quantidade),
-      });
+      };
+
+      const produtoSalvo = editandoId
+        ? await api.put(`/produtos/${editandoId}`, payload)
+        : await api.post('/produtos', payload);
+
+      if (imagemArquivo) {
+        const dados = new FormData();
+        dados.append('imagem', imagemArquivo);
+        await api.upload(`/produtos/${produtoSalvo.id}/imagem`, dados);
+      }
+
       setModalProduto(false);
       setFormProduto(PRODUTO_VAZIO);
+      setImagemArquivo(null);
+      setImagemPreview(null);
       carregar();
     } catch (err) {
       alert(err.message);
     } finally {
       setSalvandoProduto(false);
+    }
+  }
+
+  async function excluirProduto(produto) {
+    if (!confirm(`Excluir "${produto.nome}" do estoque?`)) return;
+    try {
+      await api.delete(`/produtos/${produto.id}`);
+      carregar();
+    } catch (err) {
+      alert(err.message);
     }
   }
 
@@ -79,6 +136,16 @@ export function Produtos() {
   }
 
   const columns = [
+    {
+      key: 'imagem',
+      header: '',
+      render: (p) =>
+        p.imagemUrl ? (
+          <img src={resolveUploadUrl(p.imagemUrl)} alt={p.nome} className="produto-thumb" />
+        ) : (
+          <div className="produto-thumb produto-thumb-vazio">🥚</div>
+        ),
+    },
     { key: 'nome', header: 'Produto' },
     { key: 'unidade', header: 'Unidade' },
     { key: 'precoVenda', header: 'Preço venda', render: (p) => Number(p.precoVenda).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) },
@@ -100,6 +167,8 @@ export function Produtos() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-secondary btn-sm" onClick={() => abrirMovimento('entrada', p)}>+ Entrada</button>
           <button className="btn btn-secondary btn-sm" onClick={() => abrirMovimento('saida', p)}>− Saída</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => abrirEditarProduto(p)}>Editar</button>
+          <button className="btn btn-danger btn-sm" onClick={() => excluirProduto(p)}>Excluir</button>
         </div>
       ),
     },
@@ -112,7 +181,7 @@ export function Produtos() {
           <h1>Estoque de Ovos</h1>
           <p>Entrada e saída automatizadas, controle por lote e validade.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setModalProduto(true)}>+ Novo produto</button>
+        <button className="btn btn-primary" onClick={abrirNovoProduto}>+ Novo produto</button>
       </div>
 
       {erro && <div className="alert-box">{erro}</div>}
@@ -133,8 +202,20 @@ export function Produtos() {
       )}
 
       {modalProduto && (
-        <Modal title="Novo produto" onClose={() => setModalProduto(false)}>
+        <Modal title={editandoId ? 'Editar produto' : 'Novo produto'} onClose={() => setModalProduto(false)}>
           <form onSubmit={salvarProduto}>
+            <div className="field" style={{ marginBottom: 14 }}>
+              <label>Imagem</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                {imagemPreview ? (
+                  <img src={imagemPreview} alt="Prévia" className="produto-thumb produto-thumb-lg" />
+                ) : (
+                  <div className="produto-thumb produto-thumb-lg produto-thumb-vazio">🥚</div>
+                )}
+                <input type="file" accept="image/*" onChange={selecionarImagem} />
+              </div>
+            </div>
+
             <div className="form-grid">
               <div className="field">
                 <label>Nome *</label>
@@ -156,15 +237,22 @@ export function Produtos() {
                 <label>Preço de custo (R$)</label>
                 <input type="number" step="0.01" min="0" value={formProduto.precoCusto} onChange={(e) => setFormProduto({ ...formProduto, precoCusto: e.target.value })} />
               </div>
-              <div className="field">
-                <label>Estoque inicial</label>
-                <input type="number" min="0" value={formProduto.quantidade} onChange={(e) => setFormProduto({ ...formProduto, quantidade: e.target.value })} />
-              </div>
+              {!editandoId && (
+                <div className="field">
+                  <label>Estoque inicial</label>
+                  <input type="number" min="0" value={formProduto.quantidade} onChange={(e) => setFormProduto({ ...formProduto, quantidade: e.target.value })} />
+                </div>
+              )}
               <div className="field">
                 <label>Estoque mínimo (alerta)</label>
                 <input type="number" min="0" value={formProduto.estoqueMinimo} onChange={(e) => setFormProduto({ ...formProduto, estoqueMinimo: e.target.value })} />
               </div>
             </div>
+            {editandoId && (
+              <p className="text-muted" style={{ marginTop: 10, fontSize: 12 }}>
+                Estoque atual não muda por aqui — use "+ Entrada" / "− Saída" na tabela.
+              </p>
+            )}
             <div className="modal-actions">
               <button type="button" className="btn btn-secondary" onClick={() => setModalProduto(false)}>Cancelar</button>
               <button type="submit" className="btn btn-primary" disabled={salvandoProduto}>{salvandoProduto ? 'Salvando...' : 'Salvar'}</button>

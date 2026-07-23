@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../../api/client';
+import { api, resolveUploadUrl } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { ScrollVideoBackground } from './ScrollVideoBackground';
 import { CatalogHeader } from './CatalogHeader';
@@ -25,7 +25,13 @@ function ProdutoCard({ produto, quantidadeNoCarrinho, onAdicionar, onRemover }) 
 
   return (
     <div className={`ecommerce-card${esgotado ? ' is-esgotado' : ''}`}>
-      <div className="ecommerce-card-media" aria-hidden="true">🥚</div>
+      {produto.imagemUrl ? (
+        <div className="ecommerce-card-media ecommerce-card-media-foto">
+          <img src={resolveUploadUrl(produto.imagemUrl)} alt={produto.nome} loading="lazy" />
+        </div>
+      ) : (
+        <div className="ecommerce-card-media" aria-hidden="true">🥚</div>
+      )}
       <div className="ecommerce-card-body">
         <div className="ecommerce-card-tags">
           {produto.tipo && <span className="badge badge-pink">{produto.tipo}</span>}
@@ -217,7 +223,6 @@ export function EcommerceCatalog() {
           onCategoria={setCategoriaAtiva}
           busca={busca}
           onBusca={setBusca}
-          isStaff={isStaff}
         />
 
         <main className="ecommerce-catalog-section">
@@ -249,7 +254,7 @@ export function EcommerceCatalog() {
           )}
         </main>
 
-        <CatalogFooter />
+        <CatalogFooter isStaff={isStaff} />
       </div>
 
       {carrinho.length > 0 && !checkoutAberto && (

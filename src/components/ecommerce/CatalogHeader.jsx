@@ -1,6 +1,4 @@
-import { Link } from 'react-router-dom';
-
-export function CatalogHeader({ categorias, categoriaAtiva, onCategoria, busca, onBusca, isStaff }) {
+export function CatalogHeader({ categorias, categoriaAtiva, onCategoria, busca, onBusca }) {
   return (
     <header className="catalogo-header">
       <div className="catalogo-header-top">
@@ -15,10 +13,6 @@ export function CatalogHeader({ categorias, categoriaAtiva, onCategoria, busca, 
           value={busca}
           onChange={(e) => onBusca(e.target.value)}
         />
-
-        <Link className="catalogo-header-acesso" to={isStaff ? '/admin' : '/admin/login'}>
-          {isStaff ? 'Painel administrativo →' : 'Entrar'}
-        </Link>
       </div>
 
       {categorias.length > 1 && (
