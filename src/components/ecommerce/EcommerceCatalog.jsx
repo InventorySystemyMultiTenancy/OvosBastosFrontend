@@ -100,6 +100,7 @@ export function EcommerceCatalog() {
   const [pedidoConcluido, setPedidoConcluido] = useState(null);
 
   const gridRef = useRef(null);
+  const pageRef = useRef(null);
 
   useEffect(() => {
     setCarregando(true);
@@ -214,9 +215,9 @@ export function EcommerceCatalog() {
 
   return (
     <div className="catalogo-theme ecommerce-page-shell">
-      <ScrollVideoBackground videoSrc="/videoeggscroll.mp4" />
+      <ScrollVideoBackground videoSrc="/videoeggscroll.mp4" containerRef={pageRef} />
 
-      <div className="ecommerce-content">
+      <div className="ecommerce-content" ref={pageRef}>
         <CatalogHeader
           categorias={categorias}
           categoriaAtiva={categoriaAtiva}

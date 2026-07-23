@@ -81,20 +81,12 @@ export function Dashboard() {
               <div className="stat-label">Ticket médio no período</div>
             </div>
             <div className="stat-tile">
-              <div className="stat-value">{resumo.clientesComPedidoNoMes}</div>
-              <div className="stat-label">Clientes com pedidos no mês</div>
-            </div>
-            <div className="stat-tile">
               <div className="stat-value">{resumo.bandejasPendentes}</div>
               <div className="stat-label">Bandejas pendentes de devolução</div>
             </div>
             <div className="stat-tile">
               <div className="stat-value">{resumo.estoqueDisponivel}</div>
               <div className="stat-label">Unidades disponíveis em estoque</div>
-            </div>
-            <div className="stat-tile">
-              <div className="stat-value">{resumo.produtosEstoqueBaixo}</div>
-              <div className="stat-label">Produtos com estoque baixo</div>
             </div>
           </div>
 

@@ -206,7 +206,7 @@ export function Produtos() {
           <form onSubmit={salvarProduto}>
             <div className="field" style={{ marginBottom: 14 }}>
               <label>Imagem</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                 {imagemPreview ? (
                   <img src={imagemPreview} alt="Prévia" className="produto-thumb produto-thumb-lg" />
                 ) : (

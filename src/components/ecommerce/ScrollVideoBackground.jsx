@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export function ScrollVideoBackground({ videoSrc = '/videoeggscroll.mp4' }) {
+export function ScrollVideoBackground({ videoSrc = '/videoeggscroll.mp4', containerRef }) {
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -32,14 +32,16 @@ export function ScrollVideoBackground({ videoSrc = '/videoeggscroll.mp4' }) {
     (async () => {
       const { default: gsap } = await import('gsap');
       const { ScrollTrigger } = await import('gsap/ScrollTrigger');
-      if (cancelled) return;
+      if (cancelled || !containerRef?.current) return;
 
       gsap.registerPlugin(ScrollTrigger);
 
-      // A altura real da página inteira (header + categorias + grid + footer) é a
-      // timeline do vídeo — sem wrapper artificial, o scroll do catálogo todo é o scrubber.
+      // Usa o wrapper real do conteúdo (não document.documentElement/body): com
+      // `html, body { height: 100% }` no CSS global, a altura "própria" do body fica
+      // travada em 100vh mesmo quando o conteúdo estoura — o ScrollTrigger mede errado
+      // se aponta pra lá. O container real cresce de verdade com o conteúdo.
       const trigger = ScrollTrigger.create({
-        trigger: document.documentElement,
+        trigger: containerRef.current,
         start: 'top top',
         end: 'bottom bottom',
         scrub: true,
@@ -54,7 +56,16 @@ export function ScrollVideoBackground({ videoSrc = '/videoeggscroll.mp4' }) {
         },
       });
 
-      cleanup = () => trigger.kill();
+      // Os produtos vêm da API depois do primeiro render: a grade cresce e muda a
+      // altura da página DEPOIS do ScrollTrigger já ter medido o range de scroll.
+      // Sem recalcular, o scrub fica preso na medida antiga (curta) e trava.
+      const resizeObserver = new ResizeObserver(() => ScrollTrigger.refresh());
+      resizeObserver.observe(containerRef.current);
+
+      cleanup = () => {
+        resizeObserver.disconnect();
+        trigger.kill();
+      };
     })();
 
     return () => {
@@ -62,7 +73,7 @@ export function ScrollVideoBackground({ videoSrc = '/videoeggscroll.mp4' }) {
       video.removeEventListener('loadedmetadata', markReady);
       cleanup?.();
     };
-  }, [videoSrc]);
+  }, [videoSrc, containerRef]);
 
   return (
     <video
