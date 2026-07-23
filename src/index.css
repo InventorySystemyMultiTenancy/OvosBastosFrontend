@@ -35,6 +35,16 @@ html, body, #root {
   height: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 body {
   margin: 0;
   background: var(--color-bg);
@@ -707,6 +717,23 @@ tbody tr:hover {
   gap: 8px;
 }
 
+/* Ícone de ovo clicável 3x pra entrar no admin — usado no header e no footer */
+
+.icone-ovo-admin {
+  background: none;
+  border: none;
+  padding: 2px;
+  margin: 0;
+  font-size: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.icone-ovo-admin.is-pulsando {
+  transform: scale(1.35);
+}
+
 .catalogo-busca {
   flex: 1;
   padding: 9px 14px;
@@ -720,23 +747,6 @@ tbody tr:hover {
 
 .catalogo-busca:focus {
   outline: 2px solid var(--color-primary-light);
-}
-
-@media (max-width: 560px) {
-  .catalogo-header-top {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 14px 20px;
-    gap: 10px;
-  }
-
-  .catalogo-busca {
-    max-width: none;
-  }
-
-  .catalogo-categorias {
-    padding: 0 20px 14px;
-  }
 }
 
 .catalogo-categorias {
@@ -761,10 +771,30 @@ tbody tr:hover {
   transition: all 0.15s;
 }
 
-.catalogo-categoria-pill.is-active {
-  background: var(--color-primary);
+.catalogo-categoria-pill:hover {
   border-color: var(--color-primary);
-  color: #fff;
+  color: var(--color-primary-darker);
+}
+
+@media (max-width: 560px) {
+  .catalogo-header-top {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px 20px;
+    gap: 10px;
+  }
+
+  .catalogo-busca {
+    max-width: none;
+  }
+
+  .catalogo-categorias {
+    padding: 0 20px 14px;
+  }
+
+  .categoria-secao {
+    scroll-margin-top: 190px;
+  }
 }
 
 /* Apresentação da empresa (scroll reveal) */
@@ -908,20 +938,6 @@ tbody tr:hover {
   gap: 6px;
 }
 
-.catalogo-footer-ovo {
-  background: none;
-  border: none;
-  padding: 2px;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  transition: transform 0.12s ease;
-}
-
-.catalogo-footer-ovo.is-pulsando {
-  transform: scale(1.35);
-}
-
 .catalogo-footer-empresa p {
   font-size: 13px;
   opacity: 0.8;
@@ -943,6 +959,46 @@ tbody tr:hover {
   width: 100%;
   margin: 0 auto;
   padding: 40px 32px 140px;
+}
+
+.catalogo-intro {
+  margin-bottom: 40px;
+}
+
+.catalogo-intro h2 {
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.catalogo-intro p {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--color-primary-dark);
+  margin-top: 6px;
+}
+
+.categorias-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 72px;
+}
+
+.categoria-secao {
+  scroll-margin-top: 150px;
+}
+
+.categoria-secao-titulo {
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  margin: 0 0 22px;
+  padding-left: 16px;
+  border-left: 5px solid var(--color-primary);
 }
 
 .ecommerce-grid {

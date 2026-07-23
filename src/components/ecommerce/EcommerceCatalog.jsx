@@ -6,6 +6,9 @@ import { ScrollVideoBackground } from './ScrollVideoBackground';
 import { CatalogHeader } from './CatalogHeader';
 import { CompanyShowcase } from './CompanyShowcase';
 import { CatalogFooter } from './CatalogFooter';
+import { slugCategoria, capitalizarCategoria } from './categoriaUtils';
+
+const SEM_CATEGORIA = 'Outros';
 
 const FORMAS_BASE = [
   { id: 'PIX', label: 'Pix', icon: '💠' },
@@ -89,7 +92,6 @@ export function EcommerceCatalog() {
     }
   });
 
-  const [categoriaAtiva, setCategoriaAtiva] = useState('Todos');
   const [busca, setBusca] = useState('');
 
   const [checkoutAberto, setCheckoutAberto] = useState(false);
@@ -100,7 +102,7 @@ export function EcommerceCatalog() {
   const [erroCheckout, setErroCheckout] = useState('');
   const [pedidoConcluido, setPedidoConcluido] = useState(null);
 
-  const gridRef = useRef(null);
+  const catalogoRef = useRef(null);
   const pageRef = useRef(null);
 
   useEffect(() => {
@@ -118,27 +120,32 @@ export function EcommerceCatalog() {
   }, [carrinho, chaveCarrinho]);
 
   const categorias = useMemo(() => {
-    const tipos = Array.from(new Set(produtos.map((p) => p.tipo).filter(Boolean)));
-    return ['Todos', ...tipos];
+    const tipos = Array.from(new Set(produtos.map((p) => (p.tipo && p.tipo.trim() ? p.tipo : SEM_CATEGORIA))));
+    return tipos.sort((a, b) => (a === SEM_CATEGORIA ? 1 : b === SEM_CATEGORIA ? -1 : a.localeCompare(b)));
   }, [produtos]);
 
-  const produtosFiltrados = useMemo(() => {
+  const produtosPorCategoria = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    return produtos.filter((p) => {
-      const bateCategoria = categoriaAtiva === 'Todos' || p.tipo === categoriaAtiva;
-      const bateBusca = !termo || p.nome.toLowerCase().includes(termo) || (p.tipo || '').toLowerCase().includes(termo);
-      return bateCategoria && bateBusca;
-    });
-  }, [produtos, categoriaAtiva, busca]);
+    return categorias
+      .map((categoria) => {
+        const itens = produtos.filter((p) => {
+          const categoriaProduto = p.tipo && p.tipo.trim() ? p.tipo : SEM_CATEGORIA;
+          if (categoriaProduto !== categoria) return false;
+          return !termo || p.nome.toLowerCase().includes(termo) || categoria.toLowerCase().includes(termo);
+        });
+        return { categoria, itens };
+      })
+      .filter((grupo) => grupo.itens.length > 0);
+  }, [produtos, categorias, busca]);
 
   useEffect(() => {
-    if (carregando || produtosFiltrados.length === 0 || !gridRef.current) return;
+    if (carregando || produtosPorCategoria.length === 0 || !catalogoRef.current) return;
     let cancelled = false;
     (async () => {
       const { default: gsap } = await import('gsap');
-      if (cancelled || !gridRef.current) return;
+      if (cancelled || !catalogoRef.current) return;
       gsap.fromTo(
-        gridRef.current.querySelectorAll('.ecommerce-card'),
+        catalogoRef.current.querySelectorAll('.ecommerce-card'),
         { opacity: 0, y: 24 },
         { opacity: 1, y: 0, duration: 0.5, stagger: 0.05, ease: 'power2.out' }
       );
@@ -146,7 +153,7 @@ export function EcommerceCatalog() {
     return () => {
       cancelled = true;
     };
-  }, [carregando, produtosFiltrados]);
+  }, [carregando, produtosPorCategoria]);
 
   function quantidadeNoCarrinho(produtoId) {
     return carrinho.find((i) => i.produtoId === produtoId)?.quantidade || 0;
@@ -219,16 +226,12 @@ export function EcommerceCatalog() {
       <ScrollVideoBackground videoSrc="/videoeggscroll.mp4" containerRef={pageRef} />
 
       <div className="ecommerce-content" ref={pageRef}>
-        <CatalogHeader
-          categorias={categorias}
-          categoriaAtiva={categoriaAtiva}
-          onCategoria={setCategoriaAtiva}
-          busca={busca}
-          onBusca={setBusca}
-        />
+        <CatalogHeader categorias={categorias} busca={busca} onBusca={setBusca} isStaff={isStaff} />
 
-        <main className="ecommerce-catalog-section">
-          <div className="page-header">
+        <CompanyShowcase />
+
+        <main className="ecommerce-catalog-section" ref={catalogoRef}>
+          <div className="page-header catalogo-intro">
             <div>
               <h2>Catálogo</h2>
               <p>{isStaff ? 'Estoque em tempo real do sistema.' : 'Caixas e dúzias separadas do estoque na hora. Sem cadastro: só o seu nome pra finalizar.'}</p>
@@ -239,24 +242,29 @@ export function EcommerceCatalog() {
 
           {carregando ? (
             <p className="text-muted">Carregando catálogo...</p>
-          ) : produtosFiltrados.length === 0 ? (
+          ) : produtosPorCategoria.length === 0 ? (
             <p className="text-muted">Nenhum produto encontrado.</p>
           ) : (
-            <div className="ecommerce-grid" ref={gridRef}>
-              {produtosFiltrados.map((p) => (
-                <ProdutoCard
-                  key={p.id}
-                  produto={p}
-                  quantidadeNoCarrinho={quantidadeNoCarrinho(p.id)}
-                  onAdicionar={adicionar}
-                  onRemover={remover}
-                />
+            <div className="categorias-lista">
+              {produtosPorCategoria.map(({ categoria, itens }) => (
+                <section id={`categoria-${slugCategoria(categoria)}`} className="categoria-secao" key={categoria}>
+                  <h3 className="categoria-secao-titulo">{capitalizarCategoria(categoria)}</h3>
+                  <div className="ecommerce-grid">
+                    {itens.map((p) => (
+                      <ProdutoCard
+                        key={p.id}
+                        produto={p}
+                        quantidadeNoCarrinho={quantidadeNoCarrinho(p.id)}
+                        onAdicionar={adicionar}
+                        onRemover={remover}
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           )}
         </main>
-
-        <CompanyShowcase />
 
         <CatalogFooter isStaff={isStaff} />
       </div>

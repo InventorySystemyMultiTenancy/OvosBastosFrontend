@@ -1,9 +1,22 @@
-export function CatalogHeader({ categorias, categoriaAtiva, onCategoria, busca, onBusca }) {
+import { slugCategoria, capitalizarCategoria } from './categoriaUtils';
+import { useCliqueTriploAdmin } from './useCliqueTriploAdmin';
+
+export function CatalogHeader({ categorias, busca, onBusca, isStaff }) {
+  const { pulsando, handleClick } = useCliqueTriploAdmin(isStaff);
+
   return (
     <header className="catalogo-header">
       <div className="catalogo-header-top">
         <div className="catalogo-header-logo">
-          <span aria-hidden="true">🥚</span> Ovos Bastos
+          <button
+            type="button"
+            className={`icone-ovo-admin${pulsando ? ' is-pulsando' : ''}`}
+            onClick={handleClick}
+            aria-label="Ovos Bastos"
+          >
+            🥚
+          </button>{' '}
+          Ovos Bastos
         </div>
 
         <input
@@ -15,17 +28,16 @@ export function CatalogHeader({ categorias, categoriaAtiva, onCategoria, busca, 
         />
       </div>
 
-      {categorias.length > 1 && (
+      {categorias.length > 0 && (
         <nav className="catalogo-categorias" aria-label="Categorias">
           {categorias.map((categoria) => (
-            <button
-              type="button"
+            <a
               key={categoria}
-              className={`catalogo-categoria-pill${categoriaAtiva === categoria ? ' is-active' : ''}`}
-              onClick={() => onCategoria(categoria)}
+              href={`#categoria-${slugCategoria(categoria)}`}
+              className="catalogo-categoria-pill"
             >
-              {categoria}
-            </button>
+              {capitalizarCategoria(categoria)}
+            </a>
           ))}
         </nav>
       )}
