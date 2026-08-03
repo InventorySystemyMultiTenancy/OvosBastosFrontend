@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, resolveUploadUrl } from '../api/client';
+import { useAuth } from '../context/AuthContext';
+import { Modal } from '../components/Modal';
+
+const CAIXA_STORAGE_KEY = 'eggcontrol_caixa_id';
+const CAIXA_VAZIO = { nome: '', unidade: '' };
 
 const FORMAS_PAGAMENTO = [
   { id: 'PIX', label: 'Pix', icon: '💠' },
@@ -16,11 +21,23 @@ function formatBRL(valor) {
 }
 
 export function Caixa() {
+  const { usuario } = useAuth();
+  const ehAdmin = usuario?.perfil === 'ADMIN';
+
   const [produtos, setProdutos] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [busca, setBusca] = useState('');
   const [categoriaAtiva, setCategoriaAtiva] = useState('Todos');
+
+  const [caixas, setCaixas] = useState([]);
+  const [caixaId, setCaixaId] = useState(() => {
+    const salvo = localStorage.getItem(CAIXA_STORAGE_KEY);
+    return salvo ? Number(salvo) : null;
+  });
+  const [modalCaixa, setModalCaixa] = useState(null);
+  const [formCaixa, setFormCaixa] = useState(CAIXA_VAZIO);
+  const [salvandoCaixa, setSalvandoCaixa] = useState(false);
 
   const [carrinho, setCarrinho] = useState([]);
   const [nomeCliente, setNomeCliente] = useState('');
@@ -39,6 +56,61 @@ export function Caixa() {
   }
 
   useEffect(carregarProdutos, []);
+
+  function carregarCaixas() {
+    api.get('/caixas').then(setCaixas).catch(() => {});
+  }
+
+  useEffect(carregarCaixas, []);
+
+  useEffect(() => {
+    if (caixas.length === 0) return;
+    const atual = caixas.find((c) => c.id === caixaId && c.ativo);
+    if (!atual) setCaixaId(null);
+  }, [caixas, caixaId]);
+
+  function selecionarCaixa(id) {
+    setCaixaId(id);
+    localStorage.setItem(CAIXA_STORAGE_KEY, String(id));
+  }
+
+  function abrirNovoCaixa() {
+    setFormCaixa(CAIXA_VAZIO);
+    setModalCaixa('novo');
+  }
+
+  function abrirEditarCaixa(caixa) {
+    setFormCaixa({ nome: caixa.nome, unidade: caixa.unidade });
+    setModalCaixa(caixa);
+  }
+
+  async function salvarCaixa(e) {
+    e.preventDefault();
+    setSalvandoCaixa(true);
+    try {
+      if (modalCaixa === 'novo') {
+        const criado = await api.post('/caixas', formCaixa);
+        carregarCaixas();
+        selecionarCaixa(criado.id);
+      } else {
+        await api.put(`/caixas/${modalCaixa.id}`, formCaixa);
+        carregarCaixas();
+      }
+      setModalCaixa(null);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSalvandoCaixa(false);
+    }
+  }
+
+  async function desativarCaixa(caixa) {
+    if (!confirm(`Desativar o caixa "${caixa.nome}"?`)) return;
+    await api.put(`/caixas/${caixa.id}`, { ativo: false });
+    carregarCaixas();
+  }
+
+  const caixasAtivos = useMemo(() => caixas.filter((c) => c.ativo), [caixas]);
 
   const categorias = useMemo(() => {
     const tipos = Array.from(new Set(produtos.map((p) => p.tipo).filter(Boolean)));
@@ -115,7 +187,7 @@ export function Caixa() {
 
   async function finalizarVenda(e) {
     e.preventDefault();
-    if (carrinho.length === 0) return;
+    if (carrinho.length === 0 || !caixaId) return;
     setEnviando(true);
     setErroVenda('');
     try {
@@ -125,6 +197,7 @@ export function Caixa() {
         itens,
         formaPagamento,
         desconto: Number(desconto) || 0,
+        caixaId,
       };
       if (formaPagamento === 'FIADO') body.vencimento = vencimento || undefined;
 
@@ -145,6 +218,9 @@ export function Caixa() {
           <div className="caixa-recibo-icone">✓</div>
           <h2>Venda #{vendaConcluida.id} concluída</h2>
           <p className="text-muted">Cliente: {vendaConcluida.cliente.nome}</p>
+          {vendaConcluida.caixa && (
+            <p className="text-muted">Caixa: {vendaConcluida.caixa.nome} · {vendaConcluida.caixa.unidade}</p>
+          )}
 
           <div className="section-title">Itens</div>
           <ul className="caixa-recibo-itens">
@@ -182,6 +258,34 @@ export function Caixa() {
           <h1>Caixa</h1>
           <p>Monte o pedido do cliente, escolha a forma de pagamento e finalize a venda.</p>
         </div>
+      </div>
+
+      <div className="caixa-unidade-bar">
+        {caixasAtivos.length === 0 ? (
+          <p className="text-muted" style={{ margin: 0 }}>
+            {ehAdmin ? 'Nenhum caixa cadastrado ainda.' : 'Nenhum caixa disponível — peça para um administrador cadastrar.'}
+          </p>
+        ) : (
+          <div className="caixa-unidade-lista">
+            {caixasAtivos.map((c) => (
+              <div key={c.id} className={`caixa-unidade-pill${caixaId === c.id ? ' is-active' : ''}`}>
+                <button type="button" onClick={() => selecionarCaixa(c.id)}>
+                  <strong>{c.nome}</strong>
+                  <span>{c.unidade}</span>
+                </button>
+                {ehAdmin && (
+                  <span className="caixa-unidade-acoes">
+                    <button type="button" title="Editar" onClick={() => abrirEditarCaixa(c)}>✎</button>
+                    <button type="button" title="Desativar" onClick={() => desativarCaixa(c)}>×</button>
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {ehAdmin && (
+          <button type="button" className="caixa-unidade-nova" onClick={abrirNovoCaixa}>+ Novo caixa/unidade</button>
+        )}
       </div>
 
       {erro && <div className="alert-box">{erro}</div>}
@@ -349,12 +453,16 @@ export function Caixa() {
                 </div>
               )}
 
+              {!caixaId && caixasAtivos.length > 0 && (
+                <p className="caixa-troco-falta" style={{ marginBottom: 10 }}>Selecione um caixa/unidade acima para vender.</p>
+              )}
+
               {erroVenda && <div className="alert-box">{erroVenda}</div>}
 
               <button
                 type="submit"
                 className="btn btn-primary caixa-finalizar-btn"
-                disabled={enviando || carrinho.length === 0}
+                disabled={enviando || carrinho.length === 0 || !caixaId}
               >
                 {enviando ? 'Finalizando...' : `Finalizar Venda · ${formatBRL(total)}`}
               </button>
@@ -362,6 +470,37 @@ export function Caixa() {
           </div>
         </div>
       </div>
+
+      {modalCaixa && (
+        <Modal title={modalCaixa === 'novo' ? 'Novo caixa/unidade' : `Editar ${modalCaixa.nome}`} onClose={() => setModalCaixa(null)}>
+          <form onSubmit={salvarCaixa}>
+            <div className="form-grid">
+              <div className="field">
+                <label>Nome do caixa *</label>
+                <input
+                  value={formCaixa.nome}
+                  onChange={(e) => setFormCaixa({ ...formCaixa, nome: e.target.value })}
+                  placeholder="Caixa 1"
+                  required
+                />
+              </div>
+              <div className="field">
+                <label>Unidade *</label>
+                <input
+                  value={formCaixa.unidade}
+                  onChange={(e) => setFormCaixa({ ...formCaixa, unidade: e.target.value })}
+                  placeholder="Matriz"
+                  required
+                />
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModalCaixa(null)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary" disabled={salvandoCaixa}>{salvandoCaixa ? 'Salvando...' : 'Salvar'}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

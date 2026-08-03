@@ -16,6 +16,8 @@ export function Vendas() {
   const navigate = useNavigate();
   const [vendas, setVendas] = useState([]);
   const [filtroStatus, setFiltroStatus] = useState('');
+  const [filtroCaixa, setFiltroCaixa] = useState('');
+  const [caixas, setCaixas] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
@@ -28,11 +30,15 @@ export function Vendas() {
 
   function carregar() {
     setCarregando(true);
-    const path = filtroStatus ? `/vendas?status=${filtroStatus}` : '/vendas';
-    api.get(path).then(setVendas).catch((e) => setErro(e.message)).finally(() => setCarregando(false));
+    const params = new URLSearchParams();
+    if (filtroStatus) params.set('status', filtroStatus);
+    if (filtroCaixa) params.set('caixaId', filtroCaixa);
+    const query = params.toString();
+    api.get(`/vendas${query ? `?${query}` : ''}`).then(setVendas).catch((e) => setErro(e.message)).finally(() => setCarregando(false));
   }
 
-  useEffect(carregar, [filtroStatus]);
+  useEffect(carregar, [filtroStatus, filtroCaixa]);
+  useEffect(() => { api.get('/caixas').then(setCaixas).catch(() => {}); }, []);
 
   function abrirConfirmar(venda) {
     setModalConfirmar(venda);
@@ -72,6 +78,7 @@ export function Vendas() {
     { key: 'id', header: '#' },
     { key: 'cliente', header: 'Cliente', render: (v) => v.cliente.nome },
     { key: 'vendedor', header: 'Vendedor', render: (v) => v.vendedor?.nome || 'Loja Online' },
+    { key: 'caixa', header: 'Unidade', render: (v) => v.caixa?.nome || '—' },
     { key: 'status', header: 'Status', render: (v) => <span className={`badge ${STATUS_BADGE[v.status]}`}>{STATUS_LABEL[v.status]}</span> },
     { key: 'formaPagamento', header: 'Pagamento', render: (v) => v.formaPagamento || '—' },
     { key: 'total', header: 'Total', render: (v) => formatBRL(v.total) },
@@ -111,6 +118,10 @@ export function Vendas() {
           <option value="ORCAMENTO">Orçamento</option>
           <option value="CONFIRMADA">Confirmada</option>
           <option value="CANCELADA">Cancelada</option>
+        </select>
+        <select value={filtroCaixa} onChange={(e) => setFiltroCaixa(e.target.value)}>
+          <option value="">Todas as unidades</option>
+          {caixas.map((c) => <option key={c.id} value={c.id}>{c.nome} — {c.unidade}</option>)}
         </select>
       </div>
 

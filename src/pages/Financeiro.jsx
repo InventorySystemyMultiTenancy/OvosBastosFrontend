@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
@@ -8,8 +8,8 @@ function formatBRL(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-const CONTA_RECEBER_VAZIA = { clienteId: '', valor: '', vencimento: '' };
-const CONTA_PAGAR_VAZIA = { descricao: '', fornecedor: '', valor: '', vencimento: '' };
+const CONTA_RECEBER_VAZIA = { clienteId: '', valor: '', vencimento: '', caixaId: '' };
+const CONTA_PAGAR_VAZIA = { descricao: '', fornecedor: '', valor: '', vencimento: '', caixaId: '' };
 
 function inicioDoMesISO() {
   const hoje = new Date();
@@ -25,6 +25,8 @@ export function Financeiro() {
   const [contasPagar, setContasPagar] = useState([]);
   const [fluxo, setFluxo] = useState([]);
   const [clientes, setClientes] = useState([]);
+  const [caixas, setCaixas] = useState([]);
+  const [resumoCaixas, setResumoCaixas] = useState(null);
   const [erro, setErro] = useState('');
 
   const [modalReceber, setModalReceber] = useState(false);
@@ -41,10 +43,12 @@ export function Financeiro() {
     api.get('/financeiro/contas-receber').then(setContasReceber).catch((e) => setErro(e.message));
     api.get('/financeiro/contas-pagar').then(setContasPagar).catch((e) => setErro(e.message));
     api.get('/financeiro/fluxo-caixa?meses=6').then(setFluxo).catch((e) => setErro(e.message));
+    api.get('/financeiro/resumo-caixas').then(setResumoCaixas).catch((e) => setErro(e.message));
   }
 
   useEffect(carregar, []);
   useEffect(() => { api.get('/clientes').then(setClientes).catch(() => {}); }, []);
+  useEffect(() => { api.get('/caixas').then(setCaixas).catch(() => {}); }, []);
 
   async function criarContaReceber(e) {
     e.preventDefault();
@@ -52,6 +56,7 @@ export function Financeiro() {
       clienteId: Number(formReceber.clienteId),
       valor: Number(formReceber.valor),
       vencimento: formReceber.vencimento,
+      caixaId: formReceber.caixaId ? Number(formReceber.caixaId) : undefined,
     });
     setModalReceber(false);
     setFormReceber(CONTA_RECEBER_VAZIA);
@@ -70,6 +75,7 @@ export function Financeiro() {
       fornecedor: formPagar.fornecedor,
       valor: Number(formPagar.valor),
       vencimento: formPagar.vencimento,
+      caixaId: formPagar.caixaId ? Number(formPagar.caixaId) : undefined,
     });
     setModalPagar(false);
     setFormPagar(CONTA_PAGAR_VAZIA);
@@ -147,8 +153,47 @@ export function Financeiro() {
 
   const maiorValor = Math.max(1, ...fluxo.flatMap((m) => [m.receitas, m.despesas]));
 
+  const linhasResumoCaixas = useMemo(() => {
+    if (!resumoCaixas) return [];
+    const linhas = resumoCaixas.caixas.map((c) => ({
+      chave: `caixa-${c.id}`,
+      label: c.nome,
+      sublabel: c.unidade,
+      receitas: c.receitas,
+      despesas: c.despesas,
+      saldo: c.saldo,
+    }));
+    if (resumoCaixas.semUnidade.receitas > 0 || resumoCaixas.semUnidade.despesas > 0) {
+      linhas.push({
+        chave: 'sem-unidade',
+        label: 'Sem unidade',
+        sublabel: 'Vendas/despesas sem caixa vinculado',
+        ...resumoCaixas.semUnidade,
+      });
+    }
+    linhas.push({ chave: 'total', label: 'Total geral', sublabel: '', ...resumoCaixas.total, destaque: true });
+    return linhas;
+  }, [resumoCaixas]);
+
+  const colunasResumoCaixas = [
+    {
+      key: 'label',
+      header: 'Unidade / Caixa',
+      render: (l) => (
+        <span>
+          <strong>{l.label}</strong>
+          {l.sublabel && <span className="text-muted" style={{ display: 'block', fontSize: 12 }}>{l.sublabel}</span>}
+        </span>
+      ),
+    },
+    { key: 'receitas', header: 'Receitas', render: (l) => <span style={{ fontWeight: l.destaque ? 700 : 400 }}>{formatBRL(l.receitas)}</span> },
+    { key: 'despesas', header: 'Despesas', render: (l) => <span style={{ fontWeight: l.destaque ? 700 : 400 }}>{formatBRL(l.despesas)}</span> },
+    { key: 'saldo', header: 'Lucro (saldo)', render: (l) => <strong className={l.saldo >= 0 ? 'text-success' : 'text-danger'}>{formatBRL(l.saldo)}</strong> },
+  ];
+
   const colunasReceber = [
     { key: 'cliente', header: 'Cliente', render: (c) => c.cliente.nome },
+    { key: 'caixa', header: 'Unidade', render: (c) => c.caixa?.nome || '—' },
     { key: 'valor', header: 'Valor', render: (c) => formatBRL(c.valor) },
     { key: 'vencimento', header: 'Vencimento', render: (c) => new Date(c.vencimento).toLocaleDateString('pt-BR') },
     { key: 'pago', header: 'Status', render: (c) => <span className={`badge ${c.pago ? 'badge-green' : 'badge-amber'}`}>{c.pago ? 'Recebido' : 'Em aberto'}</span> },
@@ -158,6 +203,7 @@ export function Financeiro() {
   const colunasPagar = [
     { key: 'descricao', header: 'Descrição' },
     { key: 'fornecedor', header: 'Fornecedor', render: (c) => c.fornecedor || '—' },
+    { key: 'caixa', header: 'Unidade', render: (c) => c.caixa?.nome || '—' },
     { key: 'valor', header: 'Valor', render: (c) => formatBRL(c.valor) },
     { key: 'vencimento', header: 'Vencimento', render: (c) => new Date(c.vencimento).toLocaleDateString('pt-BR') },
     { key: 'pago', header: 'Status', render: (c) => <span className={`badge ${c.pago ? 'badge-green' : 'badge-amber'}`}>{c.pago ? 'Pago' : 'Em aberto'}</span> },
@@ -207,6 +253,14 @@ export function Financeiro() {
         ))}
       </div>
 
+      <div className="section-title">Lucro por Unidade</div>
+      <Table
+        columns={colunasResumoCaixas}
+        rows={linhasResumoCaixas}
+        rowKey={(l) => l.chave}
+        emptyMessage="Nenhum caixa cadastrado ainda — cadastre unidades na aba Caixa."
+      />
+
       <div className="page-header" style={{ marginBottom: 8 }}>
         <div className="section-title" style={{ margin: 0 }}>Contas a Receber</div>
         <button className="btn btn-secondary btn-sm" onClick={() => setModalReceber(true)}>+ Nova conta a receber</button>
@@ -238,6 +292,13 @@ export function Financeiro() {
                 <label>Vencimento *</label>
                 <input type="date" value={formReceber.vencimento} onChange={(e) => setFormReceber({ ...formReceber, vencimento: e.target.value })} required />
               </div>
+              <div className="field">
+                <label>Unidade/Caixa</label>
+                <select value={formReceber.caixaId} onChange={(e) => setFormReceber({ ...formReceber, caixaId: e.target.value })}>
+                  <option value="">Sem unidade</option>
+                  {caixas.map((c) => <option key={c.id} value={c.id}>{c.nome} — {c.unidade}</option>)}
+                </select>
+              </div>
             </div>
             <div className="modal-actions">
               <button type="button" className="btn btn-secondary" onClick={() => setModalReceber(false)}>Cancelar</button>
@@ -266,6 +327,13 @@ export function Financeiro() {
               <div className="field">
                 <label>Vencimento *</label>
                 <input type="date" value={formPagar.vencimento} onChange={(e) => setFormPagar({ ...formPagar, vencimento: e.target.value })} required />
+              </div>
+              <div className="field">
+                <label>Unidade/Caixa</label>
+                <select value={formPagar.caixaId} onChange={(e) => setFormPagar({ ...formPagar, caixaId: e.target.value })}>
+                  <option value="">Sem unidade</option>
+                  {caixas.map((c) => <option key={c.id} value={c.id}>{c.nome} — {c.unidade}</option>)}
+                </select>
               </div>
             </div>
             <div className="modal-actions">
