@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/((?!assets/|videoeggscroll.mp4|vrilllogo.png|favicon.png|apple-touch-icon.png).*)", "destination": "/index.html" }
+  ]
+}

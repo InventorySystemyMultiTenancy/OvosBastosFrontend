@@ -28,7 +28,7 @@ export function Login() {
     <div className="login-shell">
       <div className="login-card">
         <span className="login-tag">ERP EXCLUSIVO</span>
-        <h1>EggControl</h1>
+        <h1>VrillOvos</h1>
         <p className="text-muted" style={{ marginBottom: 24 }}>
           Entre com sua conta para acessar o sistema.
         </p>
