@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+const ROLETA_EMOJIS = Array.from({ length: 18 }, (_, i) => (i % 2 === 0 ? '🐔' : '🥚'));
+
 export function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -26,7 +28,20 @@ export function Login() {
 
   return (
     <div className="login-shell">
+      <div className="login-roleta" aria-hidden="true">
+        {ROLETA_EMOJIS.map((emoji, i) => (
+          <span
+            key={i}
+            className="login-roleta-item"
+            style={{ '--i': i, '--n': ROLETA_EMOJIS.length }}
+          >
+            {emoji}
+          </span>
+        ))}
+      </div>
+
       <div className="login-card">
+        <img src="/vrilllogo.png" alt="Vrill Ovos" className="login-logo" />
         <span className="login-tag">ERP EXCLUSIVO</span>
         <h1>VrillOvos</h1>
         <p className="text-muted" style={{ marginBottom: 24 }}>

@@ -1076,20 +1076,64 @@ tbody tr:hover {
 /* ---------- Login ---------- */
 
 .login-shell {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #feab84, #f26556 55%, #f17966);
+  overflow: hidden;
+}
+
+.login-roleta {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 640px;
+  height: 640px;
+  margin: -320px 0 0 -320px;
+  animation: login-roleta-spin 26s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-roleta-item {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  font-size: 32px;
+  line-height: 1;
+  transform: translate(-50%, -50%) rotate(calc(360deg / var(--n) * var(--i))) translateY(-300px);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.18));
+  opacity: 0.85;
+}
+
+@keyframes login-roleta-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .login-card {
+  position: relative;
+  z-index: 1;
   background: var(--color-surface);
   border-radius: 16px;
   padding: 40px;
   width: 100%;
   max-width: 380px;
   box-shadow: var(--shadow-md);
+}
+
+.login-logo {
+  display: block;
+  height: 84px;
+  width: 84px;
+  object-fit: contain;
+  margin: 0 auto 12px;
 }
 
 @media (max-width: 480px) {
@@ -1099,6 +1143,17 @@ tbody tr:hover {
 
   .login-card {
     padding: 28px 22px;
+  }
+
+  .login-roleta {
+    width: 400px;
+    height: 400px;
+    margin: -200px 0 0 -200px;
+  }
+
+  .login-roleta-item {
+    font-size: 24px;
+    transform: translate(-50%, -50%) rotate(calc(360deg / var(--n) * var(--i))) translateY(-180px);
   }
 }
 
