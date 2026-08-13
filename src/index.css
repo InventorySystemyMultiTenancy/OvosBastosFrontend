@@ -141,6 +141,13 @@ a {
   white-space: nowrap;
 }
 
+.admin-header-logo-img {
+  height: 38px;
+  width: 38px;
+  object-fit: contain;
+  display: block;
+}
+
 .admin-header-catalogo {
   padding: 7px 12px;
   border-radius: 8px;
@@ -1237,10 +1244,20 @@ tbody tr:hover {
   line-height: 1;
   cursor: pointer;
   transition: transform 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
 }
 
 .icone-ovo-admin.is-pulsando {
   transform: scale(1.35);
+}
+
+.logo-vrill-icone {
+  height: 30px;
+  width: 30px;
+  object-fit: contain;
+  display: block;
 }
 
 .catalogo-busca {

@@ -14,7 +14,7 @@ export function CatalogHeader({ categorias, busca, onBusca, isStaff }) {
             onClick={handleClick}
             aria-label="Ovos Bastos"
           >
-            🥚
+            <img src="/vrilllogo.png" alt="" className="logo-vrill-icone" />
           </button>{' '}
           Ovos Bastos
         </div>

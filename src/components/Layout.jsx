@@ -31,7 +31,8 @@ export function Layout() {
 
         <div className="admin-header-inner">
           <div className="admin-header-brand">
-            <span className="admin-header-logo">🥚 EggControl</span>
+            <img src="/vrilllogo.png" alt="Vrill Ovos" className="admin-header-logo-img" />
+            <span className="admin-header-logo">EggControl</span>
           </div>
 
           <nav className="admin-header-nav">
