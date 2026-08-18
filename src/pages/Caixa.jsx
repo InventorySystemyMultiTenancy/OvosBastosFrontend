@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, resolveUploadUrl } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/Modal';
@@ -7,17 +7,22 @@ const CAIXA_STORAGE_KEY = 'eggcontrol_caixa_id';
 const CAIXA_VAZIO = { nome: '', unidade: '' };
 
 const FORMAS_PAGAMENTO = [
-  { id: 'PIX', label: 'Pix', icon: '💠' },
+  { id: 'MAQUININHA', label: 'Maquininha', icon: '💳' },
   { id: 'DINHEIRO', label: 'Dinheiro', icon: '💵' },
-  { id: 'CARTAO', label: 'Cartão', icon: '💳' },
-  { id: 'BOLETO', label: 'Boleto', icon: '🧾' },
-  { id: 'FIADO', label: 'Fiado', icon: '🤝' },
 ];
 
-const LABEL_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão', BOLETO: 'Boleto', FIADO: 'Fiado' };
+const LABEL_FORMA = { DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' };
+
+const TEMPO_LIMITE_PAGAMENTO_SEGUNDOS = 5 * 60;
 
 function formatBRL(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatarTempo(segundos) {
+  const m = Math.floor(segundos / 60);
+  const s = segundos % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 export function Caixa() {
@@ -51,13 +56,20 @@ export function Caixa() {
   const [carrinho, setCarrinho] = useState([]);
   const [nomeCliente, setNomeCliente] = useState('');
   const [desconto, setDesconto] = useState(0);
-  const [formaPagamento, setFormaPagamento] = useState('PIX');
+  const [formaPagamento, setFormaPagamento] = useState('DINHEIRO');
   const [valorRecebido, setValorRecebido] = useState('');
-  const [vencimento, setVencimento] = useState('');
 
   const [enviando, setEnviando] = useState(false);
   const [erroVenda, setErroVenda] = useState('');
   const [vendaConcluida, setVendaConcluida] = useState(null);
+
+  const [pagamentoAndamento, setPagamentoAndamento] = useState(null);
+  const [tempoRestante, setTempoRestante] = useState(0);
+  const [erroPagamento, setErroPagamento] = useState('');
+  const [cancelandoPagamento, setCancelandoPagamento] = useState(false);
+  const pollRef = useRef(null);
+  const tickRef = useRef(null);
+  const timeoutRef = useRef(null);
 
   function carregarProdutos() {
     setCarregando(true);
@@ -77,6 +89,17 @@ export function Caixa() {
     const atual = caixas.find((c) => c.id === caixaId && c.ativo);
     if (!atual) setCaixaId(null);
   }, [caixas, caixaId]);
+
+  const caixaAtual = caixas.find((c) => c.id === caixaId);
+  const maquininhaDisponivel = Boolean(caixaAtual?.mpConfigurado);
+
+  useEffect(() => {
+    if (formaPagamento === 'MAQUININHA' && !maquininhaDisponivel) {
+      setFormaPagamento('DINHEIRO');
+    }
+  }, [caixaId, maquininhaDisponivel, formaPagamento]);
+
+  useEffect(() => () => pararTimersPagamento(), []);
 
   function selecionarCaixa(id) {
     setCaixaId(id);
@@ -257,11 +280,72 @@ export function Caixa() {
     setCarrinho([]);
     setNomeCliente('');
     setDesconto(0);
-    setFormaPagamento('PIX');
+    setFormaPagamento('DINHEIRO');
     setValorRecebido('');
-    setVencimento('');
     setErroVenda('');
     setVendaConcluida(null);
+  }
+
+  function pararTimersPagamento() {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+  }
+
+  async function verificarStatusMaquininha(vendaId) {
+    try {
+      const pagamento = await api.get(`/vendas/${vendaId}/pagamento-maquininha`);
+      setPagamentoAndamento((atual) => (atual ? { ...atual, pagamento } : atual));
+      if (pagamento.status === 'APROVADO') {
+        pararTimersPagamento();
+        try {
+          const venda = await api.get(`/vendas/${vendaId}`);
+          setPagamentoAndamento(null);
+          setVendaConcluida(venda);
+          carregarProdutos();
+        } catch (err) {
+          setErroPagamento(err.message);
+        }
+      } else if (pagamento.status === 'REJEITADO' || pagamento.status === 'CANCELADO') {
+        pararTimersPagamento();
+        setErroPagamento(pagamento.status === 'REJEITADO' ? 'Pagamento recusado na maquininha.' : 'Cobrança cancelada.');
+      }
+    } catch {
+      // falha pontual de rede não deve interromper a espera; a próxima consulta tenta de novo
+    }
+  }
+
+  function abrirEsperaMaquininha(venda, pagamento) {
+    setPagamentoAndamento({ venda, pagamento });
+    setTempoRestante(TEMPO_LIMITE_PAGAMENTO_SEGUNDOS);
+    setErroPagamento('');
+
+    pollRef.current = setInterval(() => verificarStatusMaquininha(venda.id), 3000);
+    tickRef.current = setInterval(() => setTempoRestante((t) => Math.max(t - 1, 0)), 1000);
+    timeoutRef.current = setTimeout(async () => {
+      pararTimersPagamento();
+      await api.delete(`/vendas/${venda.id}/pagamento-maquininha`).catch(() => {});
+      await api.put(`/vendas/${venda.id}/cancelar`, {}).catch(() => {});
+      setErroPagamento('Tempo esgotado sem confirmação do pagamento. Cobrança cancelada.');
+    }, TEMPO_LIMITE_PAGAMENTO_SEGUNDOS * 1000);
+  }
+
+  async function cancelarPagamentoMaquininha() {
+    if (!pagamentoAndamento) return;
+    setCancelandoPagamento(true);
+    pararTimersPagamento();
+    try {
+      await api.delete(`/vendas/${pagamentoAndamento.venda.id}/pagamento-maquininha`).catch(() => {});
+      await api.put(`/vendas/${pagamentoAndamento.venda.id}/cancelar`, {}).catch(() => {});
+    } finally {
+      setCancelandoPagamento(false);
+      setPagamentoAndamento(null);
+    }
+  }
+
+  function fecharPagamentoComErro() {
+    setPagamentoAndamento(null);
+    setErroPagamento('');
   }
 
   async function finalizarVenda(e) {
@@ -278,11 +362,21 @@ export function Caixa() {
         desconto: Number(desconto) || 0,
         caixaId,
       };
-      if (formaPagamento === 'FIADO') body.vencimento = vencimento || undefined;
 
       const venda = await api.post('/vendas/checkout', body);
-      setVendaConcluida(venda);
-      carregarProdutos();
+
+      if (formaPagamento === 'MAQUININHA') {
+        try {
+          const pagamento = await api.post(`/vendas/${venda.id}/pagamento-maquininha`, {});
+          abrirEsperaMaquininha(venda, pagamento);
+        } catch (err) {
+          await api.put(`/vendas/${venda.id}/cancelar`, {}).catch(() => {});
+          throw err;
+        }
+      } else {
+        setVendaConcluida(venda);
+        carregarProdutos();
+      }
     } catch (err) {
       setErroVenda(err.message);
     } finally {
@@ -488,18 +582,28 @@ export function Caixa() {
               <div className="field" style={{ marginBottom: 14 }}>
                 <label>Forma de pagamento *</label>
                 <div className="ecommerce-payment-options">
-                  {FORMAS_PAGAMENTO.map((f) => (
-                    <button
-                      type="button"
-                      key={f.id}
-                      className={`ecommerce-payment-option${formaPagamento === f.id ? ' is-active' : ''}`}
-                      onClick={() => setFormaPagamento(f.id)}
-                    >
-                      <span>{f.icon}</span>
-                      {f.label}
-                    </button>
-                  ))}
+                  {FORMAS_PAGAMENTO.map((f) => {
+                    const indisponivel = f.id === 'MAQUININHA' && !maquininhaDisponivel;
+                    return (
+                      <button
+                        type="button"
+                        key={f.id}
+                        className={`ecommerce-payment-option${formaPagamento === f.id ? ' is-active' : ''}`}
+                        onClick={() => setFormaPagamento(f.id)}
+                        disabled={indisponivel}
+                        title={indisponivel ? 'Configure a maquininha deste caixa em "Editar caixa"' : undefined}
+                      >
+                        <span>{f.icon}</span>
+                        {f.label}
+                      </button>
+                    );
+                  })}
                 </div>
+                {caixaId && !maquininhaDisponivel && (
+                  <p className="text-muted" style={{ marginTop: 6, fontSize: 12 }}>
+                    Este caixa não tem maquininha configurada. {ehAdmin ? 'Configure em "Editar caixa".' : 'Peça para um administrador configurar.'}
+                  </p>
+                )}
               </div>
 
               {formaPagamento === 'DINHEIRO' && (
@@ -525,13 +629,6 @@ export function Caixa() {
                 </div>
               )}
 
-              {formaPagamento === 'FIADO' && (
-                <div className="field" style={{ marginBottom: 14 }}>
-                  <label>Vencimento (opcional, padrão 30 dias)</label>
-                  <input type="date" value={vencimento} onChange={(e) => setVencimento(e.target.value)} />
-                </div>
-              )}
-
               {!caixaId && caixasAtivos.length > 0 && (
                 <p className="caixa-troco-falta" style={{ marginBottom: 10 }}>Selecione um caixa/unidade acima para vender.</p>
               )}
@@ -543,7 +640,11 @@ export function Caixa() {
                 className="btn btn-primary caixa-finalizar-btn"
                 disabled={enviando || carrinho.length === 0 || !caixaId}
               >
-                {enviando ? 'Finalizando...' : `Finalizar Venda · ${formatBRL(total)}`}
+                {enviando
+                  ? 'Enviando...'
+                  : formaPagamento === 'MAQUININHA'
+                    ? `Cobrar na Maquininha · ${formatBRL(total)}`
+                    : `Finalizar Venda · ${formatBRL(total)}`}
               </button>
             </form>
           </div>
@@ -659,6 +760,39 @@ export function Caixa() {
                 </>
               )}
             </div>
+          )}
+        </Modal>
+      )}
+
+      {pagamentoAndamento && (
+        <Modal title="Cobrança na maquininha" onClose={erroPagamento ? fecharPagamentoComErro : undefined}>
+          <p className="text-muted">Valor: <strong>{formatBRL(pagamentoAndamento.venda.total)}</strong></p>
+
+          {erroPagamento ? (
+            <>
+              <div className="alert-box">{erroPagamento}</div>
+              <p className="text-muted">O pedido não foi finalizado. Você pode tentar novamente ou escolher outra forma de pagamento.</p>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-primary" onClick={fecharPagamentoComErro}>Entendi</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p>
+                Status:{' '}
+                <span className="badge badge-amber">
+                  {pagamentoAndamento.pagamento?.status === 'EM_PROCESSO' ? 'Em processamento' : 'Aguardando pagamento'}
+                </span>
+              </p>
+              <p className="text-muted">Peça para o cliente inserir ou aproximar o cartão na maquininha.</p>
+              <p className="caixa-troco-falta" style={{ marginBottom: 0 }}>Cancela automaticamente em {formatarTempo(tempoRestante)}</p>
+
+              <div className="modal-actions">
+                <button type="button" className="btn btn-danger" onClick={cancelarPagamentoMaquininha} disabled={cancelandoPagamento}>
+                  {cancelandoPagamento ? 'Cancelando...' : 'Cancelar'}
+                </button>
+              </div>
+            </>
           )}
         </Modal>
       )}
