@@ -2079,6 +2079,38 @@ tbody tr:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dash-barlist-row.is-wide {
+  grid-template-columns: 150px 1fr auto;
+}
+
+.dash-barlist-value-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.dash-barlist-saldo {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.dash-pico-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  flex-shrink: 0;
 }
 
 .dash-barlist-track {
@@ -2103,6 +2135,71 @@ tbody tr:hover {
   font-size: 13px;
   font-weight: 600;
   text-align: right;
+}
+
+/* Gráfico de barras por horário */
+
+.dash-hourchart {
+  position: relative;
+}
+
+.dash-hourbars {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  height: 120px;
+}
+
+.dash-hourbar {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  background: var(--color-primary-soft);
+  border-radius: 3px 3px 0 0;
+}
+
+.dash-hourbar-fill {
+  width: 100%;
+  background: var(--color-primary);
+  border-radius: 3px 3px 0 0;
+}
+
+.dash-hourbar.is-pico .dash-hourbar-fill {
+  background: var(--color-success);
+}
+
+.dash-hourbars-eixo {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+}
+
+/* Seção secundária (resumo mais compacto, abaixo do que importa mais) */
+
+.dash-secao-secundaria {
+  margin-top: 12px;
+}
+
+.dash-secao-secundaria .section-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.stat-grid.is-compacto {
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat-grid.is-compacto .stat-tile {
+  padding: 14px 16px;
+}
+
+.stat-grid.is-compacto .stat-tile .stat-value {
+  font-size: 20px;
 }
 
 /* Ranking de clientes */
