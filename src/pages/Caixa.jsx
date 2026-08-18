@@ -39,6 +39,15 @@ export function Caixa() {
   const [formCaixa, setFormCaixa] = useState(CAIXA_VAZIO);
   const [salvandoCaixa, setSalvandoCaixa] = useState(false);
 
+  const [mpToken, setMpToken] = useState('');
+  const [mpSalvandoToken, setMpSalvandoToken] = useState(false);
+  const [mpDevices, setMpDevices] = useState([]);
+  const [mpCarregandoDevices, setMpCarregandoDevices] = useState(false);
+  const [mpDeviceSelecionado, setMpDeviceSelecionado] = useState('');
+  const [mpAssociando, setMpAssociando] = useState(false);
+  const [mpRemovendo, setMpRemovendo] = useState(false);
+  const [mpErro, setMpErro] = useState('');
+
   const [carrinho, setCarrinho] = useState([]);
   const [nomeCliente, setNomeCliente] = useState('');
   const [desconto, setDesconto] = useState(0);
@@ -82,6 +91,76 @@ export function Caixa() {
   function abrirEditarCaixa(caixa) {
     setFormCaixa({ nome: caixa.nome, unidade: caixa.unidade });
     setModalCaixa(caixa);
+    setMpToken('');
+    setMpErro('');
+    setMpDevices([]);
+    setMpDeviceSelecionado(caixa.mpDeviceId || '');
+  }
+
+  async function recarregarCaixaModal(caixaId) {
+    const lista = await api.get('/caixas');
+    setCaixas(lista);
+    const atualizado = lista.find((c) => c.id === caixaId);
+    if (atualizado) setModalCaixa(atualizado);
+  }
+
+  async function conectarMercadoPago() {
+    if (!mpToken.trim()) return;
+    setMpSalvandoToken(true);
+    setMpErro('');
+    try {
+      const resultado = await api.post(`/caixas/${modalCaixa.id}/mercadopago/token`, { accessToken: mpToken.trim() });
+      setMpDevices(resultado.devices || []);
+      setMpToken('');
+      await recarregarCaixaModal(modalCaixa.id);
+    } catch (err) {
+      setMpErro(err.message);
+    } finally {
+      setMpSalvandoToken(false);
+    }
+  }
+
+  async function buscarMaquininhas() {
+    setMpCarregandoDevices(true);
+    setMpErro('');
+    try {
+      const devices = await api.get(`/caixas/${modalCaixa.id}/mercadopago/devices`);
+      setMpDevices(devices || []);
+    } catch (err) {
+      setMpErro(err.message);
+    } finally {
+      setMpCarregandoDevices(false);
+    }
+  }
+
+  async function associarMaquininha() {
+    if (!mpDeviceSelecionado) return;
+    setMpAssociando(true);
+    setMpErro('');
+    try {
+      await api.post(`/caixas/${modalCaixa.id}/mercadopago/device`, { deviceId: mpDeviceSelecionado });
+      await recarregarCaixaModal(modalCaixa.id);
+    } catch (err) {
+      setMpErro(err.message);
+    } finally {
+      setMpAssociando(false);
+    }
+  }
+
+  async function removerMercadoPago() {
+    if (!confirm('Remover a configuração do Mercado Pago deste caixa? A conta e a maquininha associadas serão desvinculadas.')) return;
+    setMpRemovendo(true);
+    setMpErro('');
+    try {
+      await api.delete(`/caixas/${modalCaixa.id}/mercadopago`);
+      setMpDevices([]);
+      setMpDeviceSelecionado('');
+      await recarregarCaixaModal(modalCaixa.id);
+    } catch (err) {
+      setMpErro(err.message);
+    } finally {
+      setMpRemovendo(false);
+    }
   }
 
   async function salvarCaixa(e) {
@@ -499,6 +578,88 @@ export function Caixa() {
               <button type="submit" className="btn btn-primary" disabled={salvandoCaixa}>{salvandoCaixa ? 'Salvando...' : 'Salvar'}</button>
             </div>
           </form>
+
+          {modalCaixa !== 'novo' && (
+            <div>
+              <div className="section-title">Maquininha Mercado Pago (Point)</div>
+              {mpErro && <div className="alert-box">{mpErro}</div>}
+
+              {modalCaixa.mpUserId ? (
+                <>
+                  <p className="text-muted">
+                    Conta conectada: <strong>{modalCaixa.mpNicknameConta || modalCaixa.mpUserId}</strong>
+                  </p>
+                  <p className="text-muted">
+                    Maquininha associada: {modalCaixa.mpDeviceId ? <strong>{modalCaixa.mpDeviceId}</strong> : 'nenhuma'}
+                  </p>
+                  <div className="field">
+                    <label>Selecionar maquininha</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select value={mpDeviceSelecionado} onChange={(e) => setMpDeviceSelecionado(e.target.value)}>
+                        <option value="">{mpDevices.length ? 'Selecione...' : 'Clique em "Buscar" ao lado'}</option>
+                        {mpDevices.map((d) => (
+                          <option key={d.id} value={d.id}>{d.id}{d.pos_id ? ` — ${d.pos_id}` : ''}</option>
+                        ))}
+                      </select>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={buscarMaquininhas} disabled={mpCarregandoDevices}>
+                        {mpCarregandoDevices ? 'Buscando...' : 'Buscar'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 8 }}>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={associarMaquininha} disabled={mpAssociando || !mpDeviceSelecionado}>
+                      {mpAssociando ? 'Associando...' : 'Associar maquininha'}
+                    </button>
+                    <button type="button" className="btn btn-danger btn-sm" onClick={removerMercadoPago} disabled={mpRemovendo}>
+                      {mpRemovendo ? 'Removendo...' : 'Remover configuração'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted">
+                    Cole o Access Token de produção da conta Mercado Pago deste caixa (Painel do Desenvolvedor MP → Suas integrações → Credenciais de produção).
+                  </p>
+                  <div className="field">
+                    <label>Access Token</label>
+                    <input
+                      type="password"
+                      value={mpToken}
+                      onChange={(e) => setMpToken(e.target.value)}
+                      placeholder="APP_USR-..."
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="modal-actions" style={{ justifyContent: 'flex-start' }}>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={conectarMercadoPago} disabled={mpSalvandoToken || !mpToken.trim()}>
+                      {mpSalvandoToken ? 'Conectando...' : 'Conectar conta'}
+                    </button>
+                  </div>
+
+                  {mpDevices.length > 0 && (
+                    <div className="field">
+                      <label>Selecionar maquininha</label>
+                      <select value={mpDeviceSelecionado} onChange={(e) => setMpDeviceSelecionado(e.target.value)}>
+                        <option value="">Selecione...</option>
+                        {mpDevices.map((d) => (
+                          <option key={d.id} value={d.id}>{d.id}{d.pos_id ? ` — ${d.pos_id}` : ''}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        style={{ marginTop: 8 }}
+                        onClick={associarMaquininha}
+                        disabled={mpAssociando || !mpDeviceSelecionado}
+                      >
+                        {mpAssociando ? 'Associando...' : 'Associar maquininha'}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </Modal>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { Table } from '../components/Table';
@@ -7,6 +7,10 @@ import { Modal } from '../components/Modal';
 const STATUS_LABEL = { ORCAMENTO: 'Orçamento', CONFIRMADA: 'Confirmada', CANCELADA: 'Cancelada' };
 const STATUS_BADGE = { ORCAMENTO: 'badge-amber', CONFIRMADA: 'badge-green', CANCELADA: 'badge-gray' };
 const FORMAS_PAGAMENTO = ['PIX', 'DINHEIRO', 'CARTAO', 'BOLETO', 'FIADO'];
+
+const STATUS_MP_LABEL = { PENDENTE: 'Pendente', EM_PROCESSO: 'Em processamento', APROVADO: 'Aprovado', REJEITADO: 'Rejeitado', CANCELADO: 'Cancelado' };
+const STATUS_MP_BADGE = { PENDENTE: 'badge-amber', EM_PROCESSO: 'badge-amber', APROVADO: 'badge-green', REJEITADO: 'badge-red', CANCELADO: 'badge-gray' };
+const STATUS_MP_ATIVOS = ['PENDENTE', 'EM_PROCESSO'];
 
 function formatBRL(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -27,6 +31,90 @@ export function Vendas() {
   const [confirmando, setConfirmando] = useState(false);
 
   const [comprovante, setComprovante] = useState(null);
+
+  const [modalMaquininha, setModalMaquininha] = useState(null);
+  const [pagamentoMp, setPagamentoMp] = useState(null);
+  const [enviandoMp, setEnviandoMp] = useState(false);
+  const [cancelandoMp, setCancelandoMp] = useState(false);
+  const [erroMp, setErroMp] = useState('');
+  const pollMpRef = useRef(null);
+
+  useEffect(() => () => {
+    if (pollMpRef.current) clearInterval(pollMpRef.current);
+  }, []);
+
+  function caixaTemMaquininha(caixaId) {
+    const c = caixas.find((c) => c.id === caixaId);
+    return Boolean(c?.mpConfigurado);
+  }
+
+  function pararPollingMp() {
+    if (pollMpRef.current) {
+      clearInterval(pollMpRef.current);
+      pollMpRef.current = null;
+    }
+  }
+
+  function iniciarPollingMp(vendaId) {
+    pararPollingMp();
+    pollMpRef.current = setInterval(async () => {
+      try {
+        const pagamento = await api.get(`/vendas/${vendaId}/pagamento-maquininha`);
+        setPagamentoMp(pagamento);
+        if (!STATUS_MP_ATIVOS.includes(pagamento.status)) {
+          pararPollingMp();
+          if (pagamento.status === 'APROVADO') carregar();
+        }
+      } catch {
+        pararPollingMp();
+      }
+    }, 3000);
+  }
+
+  function abrirMaquininha(venda) {
+    setModalMaquininha(venda);
+    setPagamentoMp(venda.pagamentoPointMP || null);
+    setErroMp('');
+    if (venda.pagamentoPointMP && STATUS_MP_ATIVOS.includes(venda.pagamentoPointMP.status)) {
+      iniciarPollingMp(venda.id);
+    }
+  }
+
+  function fecharMaquininha() {
+    pararPollingMp();
+    setModalMaquininha(null);
+    setPagamentoMp(null);
+  }
+
+  async function enviarCobrancaMaquininha() {
+    const vendaId = modalMaquininha.id;
+    setEnviandoMp(true);
+    setErroMp('');
+    try {
+      const pagamento = await api.post(`/vendas/${vendaId}/pagamento-maquininha`, {});
+      setPagamentoMp(pagamento);
+      iniciarPollingMp(vendaId);
+    } catch (err) {
+      setErroMp(err.message);
+    } finally {
+      setEnviandoMp(false);
+    }
+  }
+
+  async function cancelarCobrancaMaquininha() {
+    const vendaId = modalMaquininha.id;
+    setCancelandoMp(true);
+    setErroMp('');
+    try {
+      const pagamento = await api.delete(`/vendas/${vendaId}/pagamento-maquininha`);
+      setPagamentoMp(pagamento);
+    } catch (err) {
+      setErroMp(err.message);
+    } finally {
+      setCancelandoMp(false);
+      pararPollingMp();
+    }
+  }
 
   function carregar() {
     setCarregando(true);
@@ -91,6 +179,9 @@ export function Vendas() {
           {v.status === 'ORCAMENTO' && (
             <>
               <button className="btn btn-primary btn-sm" onClick={() => abrirConfirmar(v)}>Confirmar</button>
+              {caixaTemMaquininha(v.caixaId) && (
+                <button className="btn btn-secondary btn-sm" onClick={() => abrirMaquininha(v)}>Maquininha</button>
+              )}
               <button className="btn btn-danger btn-sm" onClick={() => cancelarVenda(v)}>Cancelar</button>
             </>
           )}
@@ -152,6 +243,49 @@ export function Vendas() {
               <button type="submit" className="btn btn-primary" disabled={confirmando}>{confirmando ? 'Confirmando...' : 'Confirmar venda'}</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {modalMaquininha && (
+        <Modal title={`Cobrar na maquininha — Venda #${modalMaquininha.id}`} onClose={fecharMaquininha}>
+          <p className="text-muted">Total: {formatBRL(modalMaquininha.total)}</p>
+          {erroMp && <div className="alert-box">{erroMp}</div>}
+
+          {pagamentoMp ? (
+            <>
+              <p>
+                Status: <span className={`badge ${STATUS_MP_BADGE[pagamentoMp.status] || 'badge-gray'}`}>
+                  {STATUS_MP_LABEL[pagamentoMp.status] || pagamentoMp.status}
+                </span>
+              </p>
+              {STATUS_MP_ATIVOS.includes(pagamentoMp.status) && (
+                <p className="text-muted">Aguardando o cliente concluir o pagamento na maquininha...</p>
+              )}
+              {pagamentoMp.status === 'APROVADO' && <p className="text-muted">Pagamento aprovado — venda confirmada.</p>}
+              {pagamentoMp.status === 'REJEITADO' && <p className="text-muted">Pagamento rejeitado. Você pode tentar novamente.</p>}
+
+              <div className="modal-actions">
+                {STATUS_MP_ATIVOS.includes(pagamentoMp.status) && (
+                  <button type="button" className="btn btn-danger" onClick={cancelarCobrancaMaquininha} disabled={cancelandoMp}>
+                    {cancelandoMp ? 'Cancelando...' : 'Cancelar cobrança'}
+                  </button>
+                )}
+                {['REJEITADO', 'CANCELADO'].includes(pagamentoMp.status) && (
+                  <button type="button" className="btn btn-primary" onClick={enviarCobrancaMaquininha} disabled={enviandoMp}>
+                    {enviandoMp ? 'Enviando...' : 'Tentar novamente'}
+                  </button>
+                )}
+                <button type="button" className="btn btn-secondary" onClick={fecharMaquininha}>Fechar</button>
+              </div>
+            </>
+          ) : (
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={fecharMaquininha}>Cancelar</button>
+              <button type="button" className="btn btn-primary" onClick={enviarCobrancaMaquininha} disabled={enviandoMp}>
+                {enviandoMp ? 'Enviando...' : 'Enviar cobrança'}
+              </button>
+            </div>
+          )}
         </Modal>
       )}
 
