@@ -95,7 +95,7 @@ export function Dashboard() {
           <div className="dash-grid-2">
             <div className="card">
               <div className="section-title" style={{ marginTop: 0 }}>Reposição recomendada</div>
-              <AlertaReposicao dados={resumo.alertasReposicao} />
+              <AlertaReposicao />
             </div>
             <div className="card">
               <div className="section-title" style={{ marginTop: 0 }}>Mais vendidos por unidade</div>
