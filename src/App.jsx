@@ -10,6 +10,7 @@ import { Bandejas } from './pages/Bandejas';
 import { Vendas } from './pages/Vendas';
 import { Caixa } from './pages/Caixa';
 import { Financeiro } from './pages/Financeiro';
+import { Recebimentos } from './pages/Recebimentos';
 
 // Aba de catálogo/e-commerce (Catalogo.jsx / EcommerceCatalog.jsx) fica fora de uso por
 // enquanto a pedido do cliente — código continua no repositório, só não está roteado
@@ -39,6 +40,7 @@ function App() {
 
               <Route element={<ProtectedRoute perfis={['ADMIN']} />}>
                 <Route path="financeiro" element={<Financeiro />} />
+                <Route path="recebimentos" element={<Recebimentos />} />
               </Route>
             </Route>
           </Route>

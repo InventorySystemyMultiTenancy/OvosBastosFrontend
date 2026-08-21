@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { to: '/admin/caixa', label: 'Caixa', perfis: ['ADMIN', 'VENDEDOR'] },
   { to: '/admin/clientes', label: 'Clientes', perfis: ['ADMIN', 'VENDEDOR'] },
   { to: '/admin/produtos', label: 'Estoque', perfis: ['ADMIN', 'VENDEDOR'] },
+  { to: '/admin/recebimentos', label: 'Recebimentos', perfis: ['ADMIN'] },
   { to: '/admin/bandejas', label: 'Bandejas', perfis: ['ADMIN', 'VENDEDOR'] },
   { to: '/admin/vendas', label: 'Vendas', perfis: ['ADMIN', 'VENDEDOR'] },
   { to: '/admin/financeiro', label: 'Financeiro', perfis: ['ADMIN'] },

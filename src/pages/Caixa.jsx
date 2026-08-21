@@ -73,10 +73,18 @@ export function Caixa() {
 
   function carregarProdutos() {
     setCarregando(true);
-    api.get('/produtos').then(setProdutos).catch((e) => setErro(e.message)).finally(() => setCarregando(false));
+    const rota = caixaId ? `/caixas/${caixaId}/estoque` : '/produtos';
+    api
+      .get(rota)
+      .then((lista) => setProdutos(caixaId ? lista : lista.map((p) => ({ ...p, quantidade: 0 }))))
+      .catch((e) => setErro(e.message))
+      .finally(() => setCarregando(false));
   }
 
-  useEffect(carregarProdutos, []);
+  // Estoque é por unidade: trocar de caixa refaz a busca e limpa o carrinho, já que a
+  // quantidade disponível de cada item (e o carrinho montado) pertence à unidade anterior.
+  useEffect(carregarProdutos, [caixaId]);
+  useEffect(() => setCarrinho([]), [caixaId]);
 
   function carregarCaixas() {
     api.get('/caixas').then(setCaixas).catch(() => {});

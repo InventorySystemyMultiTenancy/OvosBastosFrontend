@@ -8,6 +8,8 @@ import { FiadoAlerta } from '../components/dashboard/FiadoAlerta';
 import { RendimentoPorCaixa } from '../components/dashboard/RendimentoPorCaixa';
 import { VendasPorDiaSemana } from '../components/dashboard/VendasPorDiaSemana';
 import { VendasPorHora } from '../components/dashboard/VendasPorHora';
+import { AlertaReposicao } from '../components/dashboard/AlertaReposicao';
+import { MelhoresProdutosPorCaixa } from '../components/dashboard/MelhoresProdutosPorCaixa';
 
 const PERIODOS = [
   { dias: 7, label: '7 dias' },
@@ -87,6 +89,17 @@ export function Dashboard() {
             <div className="card">
               <div className="section-title" style={{ marginTop: 0 }}>Produtos mais vendidos</div>
               <ProdutoBarChart dados={resumo.vendasPorProduto} />
+            </div>
+          </div>
+
+          <div className="dash-grid-2">
+            <div className="card">
+              <div className="section-title" style={{ marginTop: 0 }}>Reposição recomendada</div>
+              <AlertaReposicao dados={resumo.alertasReposicao} />
+            </div>
+            <div className="card">
+              <div className="section-title" style={{ marginTop: 0 }}>Mais vendidos por unidade</div>
+              <MelhoresProdutosPorCaixa dados={resumo.melhoresProdutosPorCaixa} />
             </div>
           </div>
 
