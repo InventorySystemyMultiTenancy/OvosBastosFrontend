@@ -29,6 +29,7 @@ function formatarTempo(segundos) {
 export function Caixa() {
   const { usuario } = useAuth();
   const ehAdmin = usuario?.perfil === 'ADMIN';
+  const unidadeTravada = usuario?.caixaId || null;
 
   const [produtos, setProdutos] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -38,6 +39,7 @@ export function Caixa() {
 
   const [caixas, setCaixas] = useState([]);
   const [caixaId, setCaixaId] = useState(() => {
+    if (unidadeTravada) return unidadeTravada;
     const salvo = localStorage.getItem(CAIXA_STORAGE_KEY);
     return salvo ? Number(salvo) : null;
   });
@@ -95,10 +97,10 @@ export function Caixa() {
   useEffect(carregarCaixas, []);
 
   useEffect(() => {
-    if (caixas.length === 0) return;
+    if (unidadeTravada || caixas.length === 0) return;
     const atual = caixas.find((c) => c.id === caixaId && c.ativo);
     if (!atual) setCaixaId(null);
-  }, [caixas, caixaId]);
+  }, [caixas, caixaId, unidadeTravada]);
 
   const caixaAtual = caixas.find((c) => c.id === caixaId);
   const maquininhaDisponivel = Boolean(caixaAtual?.mpConfigurado);
@@ -455,33 +457,50 @@ export function Caixa() {
         </div>
       </div>
 
-      <div className="caixa-unidade-bar">
-        {caixasAtivos.length === 0 ? (
-          <p className="text-muted" style={{ margin: 0 }}>
-            {ehAdmin ? 'Nenhum caixa cadastrado ainda.' : 'Nenhum caixa disponível — peça para um administrador cadastrar.'}
-          </p>
-        ) : (
-          <div className="caixa-unidade-lista">
-            {caixasAtivos.map((c) => (
-              <div key={c.id} className={`caixa-unidade-pill${caixaId === c.id ? ' is-active' : ''}`}>
-                <button type="button" onClick={() => selecionarCaixa(c.id)}>
-                  <strong>{c.nome}</strong>
-                  <span>{c.unidade}</span>
-                </button>
-                {ehAdmin && (
-                  <span className="caixa-unidade-acoes">
-                    <button type="button" title="Editar" onClick={() => abrirEditarCaixa(c)}>✎</button>
-                    <button type="button" title="Desativar" onClick={() => desativarCaixa(c)}>×</button>
-                  </span>
-                )}
+      {unidadeTravada ? (
+        <div className="caixa-unidade-bar">
+          {caixaAtual?.ativo ? (
+            <div className="caixa-unidade-lista">
+              <div className="caixa-unidade-pill is-active">
+                <span style={{ padding: '8px 14px' }}>
+                  <strong>{caixaAtual.nome}</strong>
+                  <span>{caixaAtual.unidade}</span>
+                </span>
               </div>
-            ))}
-          </div>
-        )}
-        {ehAdmin && (
-          <button type="button" className="caixa-unidade-nova" onClick={abrirNovoCaixa}>+ Novo caixa/unidade</button>
-        )}
-      </div>
+            </div>
+          ) : (
+            <p className="text-muted" style={{ margin: 0 }}>Sua unidade está inativa — fale com um administrador.</p>
+          )}
+        </div>
+      ) : (
+        <div className="caixa-unidade-bar">
+          {caixasAtivos.length === 0 ? (
+            <p className="text-muted" style={{ margin: 0 }}>
+              {ehAdmin ? 'Nenhum caixa cadastrado ainda.' : 'Nenhum caixa disponível — peça para um administrador cadastrar.'}
+            </p>
+          ) : (
+            <div className="caixa-unidade-lista">
+              {caixasAtivos.map((c) => (
+                <div key={c.id} className={`caixa-unidade-pill${caixaId === c.id ? ' is-active' : ''}`}>
+                  <button type="button" onClick={() => selecionarCaixa(c.id)}>
+                    <strong>{c.nome}</strong>
+                    <span>{c.unidade}</span>
+                  </button>
+                  {ehAdmin && (
+                    <span className="caixa-unidade-acoes">
+                      <button type="button" title="Editar" onClick={() => abrirEditarCaixa(c)}>✎</button>
+                      <button type="button" title="Desativar" onClick={() => desativarCaixa(c)}>×</button>
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {ehAdmin && (
+            <button type="button" className="caixa-unidade-nova" onClick={abrirNovoCaixa}>+ Novo caixa/unidade</button>
+          )}
+        </div>
+      )}
 
       {erro && <div className="alert-box">{erro}</div>}
 

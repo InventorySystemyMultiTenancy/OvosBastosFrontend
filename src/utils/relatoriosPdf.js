@@ -80,6 +80,42 @@ export async function gerarRelatorioClientesAtivos(clientes) {
   doc.save(`relatorio-clientes-${Date.now()}.pdf`);
 }
 
+export async function gerarRelatorioLucro(dados, { de, ate }) {
+  const periodo = `Período: ${formatData(de)} a ${formatData(ate)}`;
+  const { doc, autoTable } = await criarDocumento('Relatório de Lucro por Período', periodo);
+
+  autoTable(doc, {
+    startY: 46,
+    head: [['Descrição', 'Fornecedor', 'Unidade', 'Valor', 'Pago em']],
+    body: dados.contasPagas.map((c) => [
+      c.descricao,
+      c.fornecedor || '—',
+      c.caixa?.nome || '—',
+      formatBRL(c.valor),
+      formatData(c.pagoEm),
+    ]),
+    headStyles: { fillColor: [240, 100, 92] },
+    styles: { fontSize: 9 },
+    foot: [['', '', '', formatBRL(dados.despesasTotal), `${dados.contasPagas.length} conta(s) paga(s)`]],
+    footStyles: { fillColor: [253, 236, 236], textColor: [20, 20, 20], fontStyle: 'bold' },
+  });
+
+  const y = doc.lastAutoTable.finalY + 14;
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.text('Resumo do período', 14, y);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(10);
+  doc.text(`Faturamento: ${formatBRL(dados.faturamento)}`, 14, y + 8);
+  doc.text(`Despesas pagas: ${formatBRL(dados.despesasTotal)}`, 14, y + 15);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(dados.lucro >= 0 ? 30 : 200, dados.lucro >= 0 ? 120 : 40, 30);
+  doc.text(`Lucro: ${formatBRL(dados.lucro)}`, 14, y + 24);
+  doc.setTextColor(20, 20, 20);
+
+  doc.save(`relatorio-lucro-${Date.now()}.pdf`);
+}
+
 export async function gerarRelatorioEstoqueAtual(produtos) {
   const { doc, autoTable } = await criarDocumento('Relatório de Estoque Atual', `${produtos.length} produto(s) ativo(s)`);
 

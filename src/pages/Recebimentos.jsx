@@ -18,6 +18,16 @@ function formatData(iso) {
   return new Date(iso).toLocaleDateString('pt-BR');
 }
 
+function formatBRL(valor) {
+  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function statusPagamento(valorTotal, valorPago) {
+  if (Number(valorPago) <= 0) return 'Aberto';
+  if (Number(valorPago) >= Number(valorTotal)) return 'Pago';
+  return 'Parcial';
+}
+
 export function Recebimentos() {
   const [recebimentos, setRecebimentos] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -35,6 +45,7 @@ export function Recebimentos() {
 
   const [selecionado, setSelecionado] = useState(null);
   const [fornecedorEscolhido, setFornecedorEscolhido] = useState('');
+  const [precosFornecedorEscolhido, setPrecosFornecedorEscolhido] = useState(null);
   const [definindoFornecedor, setDefinindoFornecedor] = useState(false);
   const [quantidadesDistribuir, setQuantidadesDistribuir] = useState({}); // `${produtoId}-${caixaId}` -> qtd
   const [distribuindo, setDistribuindo] = useState(false);
@@ -65,6 +76,7 @@ export function Recebimentos() {
   async function abrirDetalhe(recebimento) {
     setErroDetalhe('');
     setFornecedorEscolhido('');
+    setPrecosFornecedorEscolhido(null);
     setQuantidadesDistribuir({});
     try {
       const detalhe = await api.get(`/recebimentos/${recebimento.id}`);
@@ -73,6 +85,30 @@ export function Recebimentos() {
       setErro(err.message);
     }
   }
+
+  useEffect(() => {
+    if (!fornecedorEscolhido) {
+      setPrecosFornecedorEscolhido(null);
+      return;
+    }
+    api.get(`/fornecedores/${fornecedorEscolhido}/precos`).then(setPrecosFornecedorEscolhido).catch(() => {});
+  }, [fornecedorEscolhido]);
+
+  const previaFornecedor = (() => {
+    if (!selecionado || !precosFornecedorEscolhido) return null;
+    const mapaPrecos = new Map(precosFornecedorEscolhido.map((p) => [p.produtoId, p.precoUnitario]));
+    let valorEstimado = 0;
+    const semPreco = [];
+    selecionado.itens.forEach((i) => {
+      const preco = mapaPrecos.get(i.produtoId);
+      if (preco === null || preco === undefined) {
+        semPreco.push(i.produto.nome);
+      } else {
+        valorEstimado += i.quantidadeRecebida * Number(preco);
+      }
+    });
+    return { valorEstimado, semPreco };
+  })();
 
   async function recarregarDetalhe(id) {
     const detalhe = await api.get(`/recebimentos/${id}`);
@@ -222,6 +258,13 @@ export function Recebimentos() {
             Status: <span className={`badge ${STATUS_BADGE[selecionado.status]}`}>{STATUS_LABEL[selecionado.status]}</span>
           </p>
 
+          {selecionado.valorTotal !== null && selecionado.valorTotal !== undefined && (
+            <p className="text-muted">
+              Valor da entrega: <strong>{formatBRL(selecionado.valorTotal)}</strong> · pago: {formatBRL(selecionado.valorPago)} (
+              {statusPagamento(selecionado.valorTotal, selecionado.valorPago)}) — gerencie o pagamento na aba Financeiro → Fornecedores.
+            </p>
+          )}
+
           <div className="section-title">Itens recebidos</div>
           <div className="table-wrap" style={{ marginBottom: 14 }}>
             <table>
@@ -259,6 +302,19 @@ export function Recebimentos() {
                   ))}
                 </select>
               </div>
+
+              {previaFornecedor && (
+                <div style={{ marginBottom: 14 }}>
+                  <p className="text-muted">Valor estimado da entrega: <strong>{formatBRL(previaFornecedor.valorEstimado)}</strong></p>
+                  {previaFornecedor.semPreco.length > 0 && (
+                    <p className="caixa-troco-falta" style={{ marginTop: 4 }}>
+                      Sem preço cadastrado: {previaFornecedor.semPreco.join(', ')} — esses itens não vão contar no valor final
+                      (cadastre o preço na aba Financeiro → Fornecedores antes de confirmar, se quiser que contem).
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="modal-actions">
                 <button type="submit" className="btn btn-primary" disabled={definindoFornecedor || !fornecedorEscolhido}>
                   {definindoFornecedor ? 'Salvando...' : 'Confirmar fornecedor'}

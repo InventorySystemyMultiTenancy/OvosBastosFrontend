@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/admin/bandejas', label: 'Bandejas', perfis: ['ADMIN', 'VENDEDOR'] },
   { to: '/admin/vendas', label: 'Vendas', perfis: ['ADMIN', 'VENDEDOR'] },
   { to: '/admin/financeiro', label: 'Financeiro', perfis: ['ADMIN'] },
+  { to: '/admin/usuarios', label: 'Usuários', perfis: ['ADMIN'] },
 ];
 
 const PERFIL_LABEL = { ADMIN: 'Administrador', VENDEDOR: 'Vendedor', ENTREGADOR: 'Entregador' };
@@ -37,7 +38,11 @@ export function Layout() {
           </div>
 
           <nav className="admin-header-nav">
-            {NAV_ITEMS.filter((item) => item.perfis.includes(usuario?.perfil)).map((item) => (
+            {NAV_ITEMS.filter((item) => item.perfis.includes(usuario?.perfil))
+              // Login travado a um caixa (Usuario.caixaId) só vê a aba Caixa — ele nem
+              // consegue navegar pras outras (ver ProtectedRoute), então nem mostra o link.
+              .filter((item) => !usuario?.caixaId || item.to === '/admin/caixa')
+              .map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
