@@ -9,6 +9,7 @@ const CAIXA_VAZIO = { nome: '', unidade: '' };
 const FORMAS_PAGAMENTO = [
   { id: 'MAQUININHA', label: 'Maquininha', icon: '💳' },
   { id: 'DINHEIRO', label: 'Dinheiro', icon: '💵' },
+  { id: 'DIVIDIDO', label: 'Dividir', icon: '➗' },
 ];
 
 const LABEL_FORMA = { DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' };
@@ -58,6 +59,7 @@ export function Caixa() {
   const [desconto, setDesconto] = useState(0);
   const [formaPagamento, setFormaPagamento] = useState('DINHEIRO');
   const [valorRecebido, setValorRecebido] = useState('');
+  const [valorDinheiroDividido, setValorDinheiroDividido] = useState('');
 
   const [enviando, setEnviando] = useState(false);
   const [erroVenda, setErroVenda] = useState('');
@@ -102,7 +104,7 @@ export function Caixa() {
   const maquininhaDisponivel = Boolean(caixaAtual?.mpConfigurado);
 
   useEffect(() => {
-    if (formaPagamento === 'MAQUININHA' && !maquininhaDisponivel) {
+    if ((formaPagamento === 'MAQUININHA' || formaPagamento === 'DIVIDIDO') && !maquininhaDisponivel) {
       setFormaPagamento('DINHEIRO');
     }
   }, [caixaId, maquininhaDisponivel, formaPagamento]);
@@ -283,6 +285,9 @@ export function Caixa() {
   const total = Math.max(subtotal - (Number(desconto) || 0), 0);
   const troco = Math.max(Number(valorRecebido || 0) - total, 0);
   const faltaReceber = Math.max(total - Number(valorRecebido || 0), 0);
+  const valorMaquininhaDividido = Math.max(total - (Number(valorDinheiroDividido) || 0), 0);
+  const divisaoValida =
+    formaPagamento !== 'DIVIDIDO' || (Number(valorDinheiroDividido) > 0 && Number(valorDinheiroDividido) < total);
 
   function limparVenda() {
     setCarrinho([]);
@@ -290,6 +295,7 @@ export function Caixa() {
     setDesconto(0);
     setFormaPagamento('DINHEIRO');
     setValorRecebido('');
+    setValorDinheiroDividido('');
     setErroVenda('');
     setVendaConcluida(null);
   }
@@ -358,22 +364,24 @@ export function Caixa() {
 
   async function finalizarVenda(e) {
     e.preventDefault();
-    if (carrinho.length === 0 || !caixaId) return;
+    if (carrinho.length === 0 || !caixaId || !divisaoValida) return;
     setEnviando(true);
     setErroVenda('');
     try {
+      const viaMaquininha = formaPagamento === 'MAQUININHA' || formaPagamento === 'DIVIDIDO';
       const itens = carrinho.map((i) => ({ produtoId: i.produtoId, quantidade: i.quantidade }));
       const body = {
         nomeCliente: nomeCliente.trim() || 'Cliente Balcão',
         itens,
-        formaPagamento,
+        formaPagamento: viaMaquininha ? 'MAQUININHA' : formaPagamento,
         desconto: Number(desconto) || 0,
         caixaId,
+        valorDinheiro: formaPagamento === 'DIVIDIDO' ? Number(valorDinheiroDividido) : undefined,
       };
 
       const venda = await api.post('/vendas/checkout', body);
 
-      if (formaPagamento === 'MAQUININHA') {
+      if (viaMaquininha) {
         try {
           const pagamento = await api.post(`/vendas/${venda.id}/pagamento-maquininha`, {});
           abrirEsperaMaquininha(venda, pagamento);
@@ -417,7 +425,13 @@ export function Caixa() {
             <p className="text-muted">Desconto aplicado: {formatBRL(vendaConcluida.desconto)}</p>
           )}
           <p className="caixa-recibo-total">Total: {formatBRL(vendaConcluida.total)}</p>
-          <p className="text-muted">Pagamento: {LABEL_FORMA[vendaConcluida.formaPagamento] || vendaConcluida.formaPagamento}</p>
+          {Number(vendaConcluida.valorDinheiro || 0) > 0 ? (
+            <p className="text-muted">
+              Pagamento: Dinheiro ({formatBRL(vendaConcluida.valorDinheiro)}) + Maquininha ({formatBRL(Number(vendaConcluida.total) - Number(vendaConcluida.valorDinheiro))})
+            </p>
+          ) : (
+            <p className="text-muted">Pagamento: {LABEL_FORMA[vendaConcluida.formaPagamento] || vendaConcluida.formaPagamento}</p>
+          )}
 
           {vendaConcluida.formaPagamento === 'DINHEIRO' && valorRecebido !== '' && (
             <p className="text-muted">Recebido: {formatBRL(valorRecebido)} · Troco: {formatBRL(troco)}</p>
@@ -589,9 +603,9 @@ export function Caixa() {
 
               <div className="field" style={{ marginBottom: 14 }}>
                 <label>Forma de pagamento *</label>
-                <div className="ecommerce-payment-options">
+                <div className="ecommerce-payment-options" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
                   {FORMAS_PAGAMENTO.map((f) => {
-                    const indisponivel = f.id === 'MAQUININHA' && !maquininhaDisponivel;
+                    const indisponivel = (f.id === 'MAQUININHA' || f.id === 'DIVIDIDO') && !maquininhaDisponivel;
                     return (
                       <button
                         type="button"
@@ -637,6 +651,34 @@ export function Caixa() {
                 </div>
               )}
 
+              {formaPagamento === 'DIVIDIDO' && (
+                <div className="caixa-troco-box">
+                  <div className="field">
+                    <label>Valor em dinheiro (R$)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={valorDinheiroDividido}
+                      onChange={(e) => setValorDinheiroDividido(e.target.value)}
+                      placeholder="0,00"
+                      autoFocus
+                    />
+                  </div>
+                  {valorDinheiroDividido !== '' && (
+                    divisaoValida ? (
+                      <p className="caixa-troco-valor">Na maquininha: {formatBRL(valorMaquininhaDividido)}</p>
+                    ) : (
+                      <p className="caixa-troco-falta">
+                        {Number(valorDinheiroDividido) >= total
+                          ? 'O valor em dinheiro precisa ser menor que o total — senão é só "Dinheiro".'
+                          : 'Informe um valor em dinheiro maior que zero.'}
+                      </p>
+                    )
+                  )}
+                </div>
+              )}
+
               {!caixaId && caixasAtivos.length > 0 && (
                 <p className="caixa-troco-falta" style={{ marginBottom: 10 }}>Selecione um caixa/unidade acima para vender.</p>
               )}
@@ -646,13 +688,15 @@ export function Caixa() {
               <button
                 type="submit"
                 className="btn btn-primary caixa-finalizar-btn"
-                disabled={enviando || carrinho.length === 0 || !caixaId}
+                disabled={enviando || carrinho.length === 0 || !caixaId || !divisaoValida}
               >
                 {enviando
                   ? 'Enviando...'
                   : formaPagamento === 'MAQUININHA'
                     ? `Cobrar na Maquininha · ${formatBRL(total)}`
-                    : `Finalizar Venda · ${formatBRL(total)}`}
+                    : formaPagamento === 'DIVIDIDO'
+                      ? `Cobrar na Maquininha · ${formatBRL(valorMaquininhaDividido)}`
+                      : `Finalizar Venda · ${formatBRL(total)}`}
               </button>
             </form>
           </div>
@@ -774,7 +818,15 @@ export function Caixa() {
 
       {pagamentoAndamento && (
         <Modal title="Cobrança na maquininha" onClose={erroPagamento ? fecharPagamentoComErro : undefined}>
-          <p className="text-muted">Valor: <strong>{formatBRL(pagamentoAndamento.venda.total)}</strong></p>
+          <p className="text-muted">
+            Valor cobrado agora:{' '}
+            <strong>
+              {formatBRL(Number(pagamentoAndamento.venda.total) - Number(pagamentoAndamento.venda.valorDinheiro || 0))}
+            </strong>
+            {Number(pagamentoAndamento.venda.valorDinheiro || 0) > 0 && (
+              <> · já recebido em dinheiro: <strong>{formatBRL(pagamentoAndamento.venda.valorDinheiro)}</strong></>
+            )}
+          </p>
 
           {erroPagamento ? (
             <>

@@ -168,7 +168,11 @@ export function Vendas() {
     { key: 'vendedor', header: 'Vendedor', render: (v) => v.vendedor?.nome || 'Loja Online' },
     { key: 'caixa', header: 'Unidade', render: (v) => v.caixa?.nome || '—' },
     { key: 'status', header: 'Status', render: (v) => <span className={`badge ${STATUS_BADGE[v.status]}`}>{STATUS_LABEL[v.status]}</span> },
-    { key: 'formaPagamento', header: 'Pagamento', render: (v) => v.formaPagamento || '—' },
+    {
+      key: 'formaPagamento',
+      header: 'Pagamento',
+      render: (v) => (Number(v.valorDinheiro || 0) > 0 ? 'Dinheiro + Maquininha' : v.formaPagamento || '—'),
+    },
     { key: 'total', header: 'Total', render: (v) => formatBRL(v.total) },
     { key: 'createdAt', header: 'Data', render: (v) => new Date(v.createdAt).toLocaleDateString('pt-BR') },
     {
@@ -249,6 +253,11 @@ export function Vendas() {
       {modalMaquininha && (
         <Modal title={`Cobrar na maquininha — Venda #${modalMaquininha.id}`} onClose={fecharMaquininha}>
           <p className="text-muted">Total: {formatBRL(modalMaquininha.total)}</p>
+          {Number(modalMaquininha.valorDinheiro || 0) > 0 && (
+            <p className="text-muted">
+              Já recebido em dinheiro: {formatBRL(modalMaquininha.valorDinheiro)} · Cobrado na maquininha: {formatBRL(Number(modalMaquininha.total) - Number(modalMaquininha.valorDinheiro))}
+            </p>
+          )}
           {erroMp && <div className="alert-box">{erroMp}</div>}
 
           {pagamentoMp ? (
@@ -294,7 +303,12 @@ export function Vendas() {
           <p><strong>Cliente:</strong> {comprovante.cliente}</p>
           <p><strong>Vendedor:</strong> {comprovante.vendedor}</p>
           <p><strong>Data:</strong> {new Date(comprovante.data).toLocaleString('pt-BR')}</p>
-          <p><strong>Forma de pagamento:</strong> {comprovante.formaPagamento}</p>
+          <p>
+            <strong>Forma de pagamento:</strong>{' '}
+            {Number(comprovante.valorDinheiro || 0) > 0
+              ? `Dinheiro (${formatBRL(comprovante.valorDinheiro)}) + Maquininha (${formatBRL(Number(comprovante.total) - Number(comprovante.valorDinheiro))})`
+              : comprovante.formaPagamento}
+          </p>
           <div className="section-title">Itens</div>
           <ul style={{ paddingLeft: 18 }}>
             {comprovante.itens.map((i, idx) => (

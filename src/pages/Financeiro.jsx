@@ -11,6 +11,9 @@ function formatBRL(valor) {
 const CONTA_RECEBER_VAZIA = { clienteId: '', valor: '', vencimento: '', caixaId: '' };
 const CONTA_PAGAR_VAZIA = { descricao: '', fornecedor: '', valor: '', vencimento: '', caixaId: '' };
 
+const LABEL_FORMA_PAGAMENTO = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão/Maquininha', BOLETO: 'Boleto', FIADO: 'Fiado' };
+const ICONE_FORMA_PAGAMENTO = { PIX: '⚡', DINHEIRO: '💵', CARTAO: '💳', BOLETO: '🧾', FIADO: '📋' };
+
 function inicioDoMesISO() {
   const hoje = new Date();
   return new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10);
@@ -27,6 +30,7 @@ export function Financeiro() {
   const [clientes, setClientes] = useState([]);
   const [caixas, setCaixas] = useState([]);
   const [resumoCaixas, setResumoCaixas] = useState(null);
+  const [vendasHojePorForma, setVendasHojePorForma] = useState(null);
   const [erro, setErro] = useState('');
 
   const [modalReceber, setModalReceber] = useState(false);
@@ -44,6 +48,7 @@ export function Financeiro() {
     api.get('/financeiro/contas-pagar').then(setContasPagar).catch((e) => setErro(e.message));
     api.get('/financeiro/fluxo-caixa?meses=6').then(setFluxo).catch((e) => setErro(e.message));
     api.get('/financeiro/resumo-caixas').then(setResumoCaixas).catch((e) => setErro(e.message));
+    api.get('/financeiro/vendas-hoje-por-forma').then(setVendasHojePorForma).catch((e) => setErro(e.message));
   }
 
   useEffect(carregar, []);
@@ -221,7 +226,25 @@ export function Financeiro() {
 
       {erro && <div className="alert-box">{erro}</div>}
 
-      <div className="section-title" style={{ marginTop: 0 }}>Relatórios</div>
+      <div className="section-title" style={{ marginTop: 0 }}>Vendas de hoje por forma de pagamento</div>
+      {vendasHojePorForma && (
+        <div className="stat-grid is-compacto" style={{ marginBottom: 28 }}>
+          <div className="stat-tile">
+            <div className="stat-value">{formatBRL(vendasHojePorForma.totalGeral)}</div>
+            <div className="stat-label">Total vendido hoje · {vendasHojePorForma.quantidadeVendas} {vendasHojePorForma.quantidadeVendas === 1 ? 'venda' : 'vendas'}</div>
+          </div>
+          {vendasHojePorForma.porFormaPagamento
+            .filter((f) => f.valor > 0)
+            .map((f) => (
+              <div className="stat-tile" key={f.forma}>
+                <div className="stat-value">{formatBRL(f.valor)}</div>
+                <div className="stat-label">{ICONE_FORMA_PAGAMENTO[f.forma]} {LABEL_FORMA_PAGAMENTO[f.forma] || f.forma}</div>
+              </div>
+            ))}
+        </div>
+      )}
+
+      <div className="section-title">Relatórios</div>
       <div className="relatorios-grid">
         {RELATORIOS.map((r) => (
           <div className="relatorio-card" key={r.id}>
