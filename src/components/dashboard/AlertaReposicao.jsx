@@ -37,7 +37,7 @@ export function AlertaReposicao() {
   }
 
   if (carregando) {
-    return <p className="text-muted">Analisando estoque das unidades...</p>;
+    return <p className="text-muted">Clara está analisando o estoque das unidades...</p>;
   }
 
   if (erro && !dados) {
@@ -53,7 +53,7 @@ export function AlertaReposicao() {
       {dados?.resumo && <p style={{ marginTop: 0 }}>{dados.resumo}</p>}
 
       {itens.length === 0 ? (
-        <div className="alert-box dash-fiado-ok">Nenhuma unidade com risco de ruptura no momento. 🎉</div>
+        <div className="alert-box dash-fiado-ok">Clara não encontrou nenhuma unidade com risco de ruptura no momento. 🎉</div>
       ) : (
         <ul className="dash-fiado-lista">
           {itens.map((d) => (
@@ -73,9 +73,9 @@ export function AlertaReposicao() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, gap: 8, flexWrap: 'wrap' }}>
         <span className="text-muted" style={{ fontSize: 12 }}>
           {dados?.modoFallback
-            ? 'Cálculo automático — IA não configurada ainda.'
+            ? 'Cálculo automático — Clara (IA) ainda não foi configurada.'
             : dados?.geradoEm
-              ? `${dados.stale ? 'Última análise disponível' : 'Análise gerada'} em ${formatDataHora(dados.geradoEm)}`
+              ? `${dados.stale ? 'Última análise da Clara' : 'Clara analisou'} em ${formatDataHora(dados.geradoEm)}`
               : null}
         </span>
         {ehAdmin && (
