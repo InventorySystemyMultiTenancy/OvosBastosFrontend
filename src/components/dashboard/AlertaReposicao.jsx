@@ -1,19 +1,49 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api/client';
-import { useAuth } from '../../context/AuthContext';
+import { Modal } from '../Modal';
+import { Table } from '../Table';
 
 function formatDataHora(iso) {
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-export function AlertaReposicao() {
-  const { usuario } = useAuth();
-  const ehAdmin = usuario?.perfil === 'ADMIN';
+const COLUNAS_REPOSICAO = [
+  {
+    key: 'unidade',
+    header: 'Unidade',
+    render: (i) => (
+      <span>
+        {i.caixaNome}
+        {i.caixaUnidade && <span className="text-muted"> · {i.caixaUnidade}</span>}
+      </span>
+    ),
+  },
+  { key: 'produtoNome', header: 'Produto' },
+  { key: 'estoqueInicioMes', header: 'Estoque início do mês' },
+  { key: 'estoqueAtual', header: 'Estoque atual' },
+  { key: 'faltaRepor', header: 'Falta repor', render: (i) => <strong className="text-danger">{i.faltaRepor}</strong> },
+];
 
+export function AlertaReposicao() {
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
-  const [gerando, setGerando] = useState(false);
+
+  const [modalReposicao, setModalReposicao] = useState(false);
+  const [dadosReposicao, setDadosReposicao] = useState(null);
+  const [carregandoReposicao, setCarregandoReposicao] = useState(false);
+  const [erroReposicao, setErroReposicao] = useState('');
+
+  function abrirReposicaoMensal() {
+    setModalReposicao(true);
+    setCarregandoReposicao(true);
+    setErroReposicao('');
+    api
+      .get('/dashboard/reposicao-mensal')
+      .then(setDadosReposicao)
+      .catch((e) => setErroReposicao(e.message))
+      .finally(() => setCarregandoReposicao(false));
+  }
 
   function carregar() {
     setCarregando(true);
@@ -22,19 +52,6 @@ export function AlertaReposicao() {
   }
 
   useEffect(carregar, []);
-
-  async function gerarDeNovo() {
-    setGerando(true);
-    setErro('');
-    try {
-      const novo = await api.post('/dashboard/analise-reposicao/gerar', {});
-      setDados(novo);
-    } catch (err) {
-      setErro(err.message);
-    } finally {
-      setGerando(false);
-    }
-  }
 
   if (carregando) {
     return <p className="text-muted">Clara está analisando o estoque das unidades...</p>;
@@ -70,20 +87,43 @@ export function AlertaReposicao() {
         </ul>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, gap: 8, flexWrap: 'wrap' }}>
+      <div className="modal-actions" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
+        <button type="button" className="btn btn-primary btn-sm" onClick={abrirReposicaoMensal}>
+          📦 Ver o que repor
+        </button>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
         <span className="text-muted" style={{ fontSize: 12 }}>
           {dados?.modoFallback
             ? 'Cálculo automático — Clara (IA) ainda não foi configurada.'
             : dados?.geradoEm
-              ? `${dados.stale ? 'Última análise da Clara' : 'Clara analisou'} em ${formatDataHora(dados.geradoEm)}`
+              ? `${dados.stale ? 'Última análise semanal da Clara' : 'Clara analisou esta semana'} em ${formatDataHora(dados.geradoEm)} — atualiza automaticamente toda semana`
               : null}
         </span>
-        {ehAdmin && (
-          <button type="button" className="btn btn-secondary btn-sm" onClick={gerarDeNovo} disabled={gerando}>
-            {gerando ? 'Gerando...' : '🔄 Gerar de novo'}
-          </button>
-        )}
       </div>
+
+      {modalReposicao && (
+        <Modal title="O que repor pra voltar ao início do mês" onClose={() => setModalReposicao(false)}>
+          <p className="text-muted" style={{ marginBottom: 14 }}>
+            Quanto cada unidade precisa receber de cada produto pra voltar ao estoque que tinha no início do mês.
+          </p>
+          {erroReposicao && <div className="alert-box">{erroReposicao}</div>}
+          {carregandoReposicao ? (
+            <p className="text-muted">Calculando...</p>
+          ) : (
+            <Table
+              columns={COLUNAS_REPOSICAO}
+              rows={dadosReposicao?.itens || []}
+              rowKey={(i) => `${i.caixaId}-${i.produtoId}`}
+              emptyMessage="Nenhuma unidade precisa repor pra voltar ao nível do início do mês. 🎉"
+            />
+          )}
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setModalReposicao(false)}>Fechar</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
