@@ -606,6 +606,45 @@ a {
   cursor: pointer;
 }
 
+.caixa-sessao-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+
+.caixa-abertura-gate {
+  max-width: 460px;
+  margin: 40px auto;
+  text-align: center;
+}
+
+.caixa-abertura-icone {
+  font-size: 36px;
+  margin-bottom: 8px;
+}
+
+.caixa-abertura-gate h2 {
+  margin: 0 0 8px;
+}
+
+.caixa-abertura-form {
+  text-align: left;
+  margin-top: 20px;
+}
+
+.caixa-abertura-form .btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .caixa-produtos-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));

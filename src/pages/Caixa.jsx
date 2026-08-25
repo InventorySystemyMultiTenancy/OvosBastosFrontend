@@ -67,6 +67,19 @@ export function Caixa() {
   const [erroVenda, setErroVenda] = useState('');
   const [vendaConcluida, setVendaConcluida] = useState(null);
 
+  const [sessaoInfo, setSessaoInfo] = useState(null);
+  const [carregandoSessao, setCarregandoSessao] = useState(false);
+  const [valorAberturaInput, setValorAberturaInput] = useState('');
+  const [abrindoCaixaFisico, setAbrindoCaixaFisico] = useState(false);
+  const [erroAbrirCaixaFisico, setErroAbrirCaixaFisico] = useState('');
+  const [avisoDivergencia, setAvisoDivergencia] = useState(null);
+
+  const [modalFecharCaixa, setModalFecharCaixa] = useState(false);
+  const [valorFechamentoInput, setValorFechamentoInput] = useState('');
+  const [observacaoFechamento, setObservacaoFechamento] = useState('');
+  const [fechandoCaixaFisico, setFechandoCaixaFisico] = useState(false);
+  const [erroFecharCaixaFisico, setErroFecharCaixaFisico] = useState('');
+
   const [pagamentoAndamento, setPagamentoAndamento] = useState(null);
   const [tempoRestante, setTempoRestante] = useState(0);
   const [erroPagamento, setErroPagamento] = useState('');
@@ -89,6 +102,66 @@ export function Caixa() {
   // quantidade disponível de cada item (e o carrinho montado) pertence à unidade anterior.
   useEffect(carregarProdutos, [caixaId]);
   useEffect(() => setCarrinho([]), [caixaId]);
+
+  function carregarSessao() {
+    if (!caixaId) { setSessaoInfo(null); return; }
+    setCarregandoSessao(true);
+    api
+      .get(`/caixas/${caixaId}/sessao-atual`)
+      .then(setSessaoInfo)
+      .catch(() => setSessaoInfo(null))
+      .finally(() => setCarregandoSessao(false));
+  }
+
+  useEffect(carregarSessao, [caixaId]);
+
+  async function abrirCaixaFisico(e) {
+    e.preventDefault();
+    setAbrindoCaixaFisico(true);
+    setErroAbrirCaixaFisico('');
+    try {
+      const resultado = await api.post(`/caixas/${caixaId}/sessoes/abrir`, { valorAbertura: Number(valorAberturaInput) });
+      setValorAberturaInput('');
+      carregarSessao();
+      carregarProdutos();
+      if (resultado.divergenciaDetectada) {
+        setAvisoDivergencia({
+          valorEsperado: Number(resultado.valorEsperadoAbertura),
+          valorAbertura: Number(resultado.valorAbertura),
+          divergencia: Number(resultado.divergenciaAbertura),
+        });
+      }
+    } catch (err) {
+      setErroAbrirCaixaFisico(err.message);
+    } finally {
+      setAbrindoCaixaFisico(false);
+    }
+  }
+
+  function abrirModalFecharCaixa() {
+    setValorFechamentoInput('');
+    setObservacaoFechamento('');
+    setErroFecharCaixaFisico('');
+    setModalFecharCaixa(true);
+  }
+
+  async function fecharCaixaFisico(e) {
+    e.preventDefault();
+    setFechandoCaixaFisico(true);
+    setErroFecharCaixaFisico('');
+    try {
+      await api.put(`/caixas/${caixaId}/sessoes/fechar`, {
+        valorFechamento: Number(valorFechamentoInput),
+        observacao: observacaoFechamento.trim() || undefined,
+      });
+      setModalFecharCaixa(false);
+      carregarSessao();
+    } catch (err) {
+      setErroFecharCaixaFisico(err.message);
+    } finally {
+      setFechandoCaixaFisico(false);
+    }
+  }
 
   function carregarCaixas() {
     api.get('/caixas').then(setCaixas).catch(() => {});
@@ -504,6 +577,52 @@ export function Caixa() {
 
       {erro && <div className="alert-box">{erro}</div>}
 
+      {caixaId && carregandoSessao ? (
+        <p className="text-muted">Verificando situação do caixa...</p>
+      ) : caixaId && !sessaoInfo?.sessaoAberta ? (
+        <div className="caixa-abertura-gate card">
+          <div className="caixa-abertura-icone">🔒</div>
+          <h2>Caixa fechado</h2>
+          <p className="text-muted">Conte o dinheiro físico no caixa e informe o valor abaixo para abrir e começar a vender.</p>
+          {sessaoInfo?.ultimoFechamento && (
+            <p className="text-muted">
+              Último fechamento: <strong>{formatBRL(sessaoInfo.ultimoFechamento.valorFechamento)}</strong> por{' '}
+              {sessaoInfo.ultimoFechamento.usuarioFechamento?.nome || '—'} em{' '}
+              {new Date(sessaoInfo.ultimoFechamento.fechadaEm).toLocaleString('pt-BR')}
+            </p>
+          )}
+          <form onSubmit={abrirCaixaFisico} className="caixa-abertura-form">
+            <div className="field">
+              <label>Valor contado no caixa agora (R$) *</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={valorAberturaInput}
+                onChange={(e) => setValorAberturaInput(e.target.value)}
+                placeholder="0,00"
+                autoFocus
+                required
+              />
+            </div>
+            {erroAbrirCaixaFisico && <div className="alert-box">{erroAbrirCaixaFisico}</div>}
+            <button type="submit" className="btn btn-primary" disabled={abrindoCaixaFisico || valorAberturaInput === ''}>
+              {abrindoCaixaFisico ? 'Abrindo...' : 'Abrir caixa'}
+            </button>
+          </form>
+        </div>
+      ) : (
+        <>
+          {caixaId && sessaoInfo?.sessaoAberta && (
+            <div className="caixa-sessao-bar">
+              <span>
+                Caixa aberto por <strong>{sessaoInfo.sessaoAberta.usuarioAbertura.nome}</strong> às{' '}
+                {new Date(sessaoInfo.sessaoAberta.abertaEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · Abertura: {formatBRL(sessaoInfo.sessaoAberta.valorAbertura)}
+              </span>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={abrirModalFecharCaixa}>Fechar caixa</button>
+            </div>
+          )}
+
       <div className="caixa-layout">
         <div className="caixa-produtos-col">
           <div className="caixa-filtros">
@@ -721,6 +840,8 @@ export function Caixa() {
           </div>
         </div>
       </div>
+        </>
+      )}
 
       {modalCaixa && (
         <Modal title={modalCaixa === 'novo' ? 'Novo caixa/unidade' : `Editar ${modalCaixa.nome}`} onClose={() => setModalCaixa(null)}>
@@ -832,6 +953,60 @@ export function Caixa() {
               )}
             </div>
           )}
+        </Modal>
+      )}
+
+      {modalFecharCaixa && (
+        <Modal title="Fechar caixa" onClose={() => setModalFecharCaixa(false)}>
+          <form onSubmit={fecharCaixaFisico}>
+            <p className="text-muted" style={{ marginBottom: 16 }}>
+              Conte o dinheiro físico que está no caixa agora e informe o valor abaixo para encerrar o turno.
+            </p>
+            <div className="field">
+              <label>Valor contado no caixa (R$) *</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={valorFechamentoInput}
+                onChange={(e) => setValorFechamentoInput(e.target.value)}
+                placeholder="0,00"
+                autoFocus
+                required
+              />
+            </div>
+            <div className="field">
+              <label>Observação (opcional)</label>
+              <input
+                value={observacaoFechamento}
+                onChange={(e) => setObservacaoFechamento(e.target.value)}
+                placeholder="Ex: troco reforçado, sangria feita, etc."
+              />
+            </div>
+            {erroFecharCaixaFisico && <div className="alert-box">{erroFecharCaixaFisico}</div>}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModalFecharCaixa(false)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary" disabled={fechandoCaixaFisico || valorFechamentoInput === ''}>
+                {fechandoCaixaFisico ? 'Fechando...' : 'Fechar caixa'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {avisoDivergencia && (
+        <Modal title="Divergência na contagem do caixa" onClose={() => setAvisoDivergencia(null)}>
+          <p>
+            O fechamento anterior deste caixa registrou <strong>{formatBRL(avisoDivergencia.valorEsperado)}</strong>, mas a
+            contagem de agora encontrou <strong>{formatBRL(avisoDivergencia.valorAbertura)}</strong>.
+          </p>
+          <p className={avisoDivergencia.divergencia > 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: 700 }}>
+            Diferença: {avisoDivergencia.divergencia > 0 ? '+' : ''}{formatBRL(avisoDivergencia.divergencia)}
+          </p>
+          <p className="text-muted">O administrador foi notificado dessa divergência no Dashboard e no Financeiro.</p>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-primary" onClick={() => setAvisoDivergencia(null)}>Entendi, continuar</button>
+          </div>
         </Modal>
       )}
 

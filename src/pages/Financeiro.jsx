@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { VisaoGeralTab } from './financeiro/VisaoGeralTab';
 import { FornecedoresTab } from './financeiro/FornecedoresTab';
+import { CaixasTab } from './financeiro/CaixasTab';
 
 export function Financeiro() {
   const [aba, setAba] = useState('geral');
@@ -29,9 +30,18 @@ export function Financeiro() {
         >
           Fornecedores
         </button>
+        <button
+          type="button"
+          className={`page-tab${aba === 'caixas' ? ' is-active' : ''}`}
+          onClick={() => setAba('caixas')}
+        >
+          Caixas
+        </button>
       </div>
 
-      {aba === 'geral' ? <VisaoGeralTab /> : <FornecedoresTab />}
+      {aba === 'geral' && <VisaoGeralTab />}
+      {aba === 'fornecedores' && <FornecedoresTab />}
+      {aba === 'caixas' && <CaixasTab />}
     </div>
   );
 }

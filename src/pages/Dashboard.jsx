@@ -10,6 +10,7 @@ import { VendasPorDiaSemana } from '../components/dashboard/VendasPorDiaSemana';
 import { VendasPorHora } from '../components/dashboard/VendasPorHora';
 import { AlertaReposicao } from '../components/dashboard/AlertaReposicao';
 import { MelhoresProdutosPorCaixa } from '../components/dashboard/MelhoresProdutosPorCaixa';
+import { CaixaDivergenciaAlerta } from '../components/dashboard/CaixaDivergenciaAlerta';
 
 const PERIODOS = [
   { dias: 7, label: '7 dias' },
@@ -78,6 +79,13 @@ export function Dashboard() {
                 <span><strong>Faturamento:</strong> {formatBRL(resumo.faturamentoPeriodo)}</span>
                 <span><strong>Gastos:</strong> {formatBRL(resumo.despesasPeriodo)}</span>
               </div>
+            </div>
+          )}
+
+          {ehAdmin && resumo.divergenciasCaixa && resumo.divergenciasCaixa.length > 0 && (
+            <div className="card" style={{ marginBottom: 24 }}>
+              <div className="section-title" style={{ marginTop: 0 }}>⚠️ Divergências de caixa</div>
+              <CaixaDivergenciaAlerta divergencias={resumo.divergenciasCaixa} />
             </div>
           )}
 
