@@ -982,7 +982,12 @@ a {
   border: 1px solid var(--color-border);
   border-radius: 16px;
   overflow: hidden;
+  cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.caixa-produto-card.is-esgotado {
+  cursor: default;
 }
 
 .caixa-produto-card:not(.is-esgotado):hover {

@@ -743,7 +743,11 @@ export function Caixa() {
                   const disponivelRestante = p.quantidade - qtdCarrinho;
                   const esgotado = p.quantidade <= 0;
                   return (
-                    <div key={p.id} className={`caixa-produto-card${esgotado ? ' is-esgotado' : ''}`}>
+                    <div
+                      key={p.id}
+                      className={`caixa-produto-card${esgotado ? ' is-esgotado' : ''}`}
+                      onClick={esgotado ? undefined : () => adicionar(p)}
+                    >
                       {qtdCarrinho > 0 && <span className="caixa-produto-badge">{qtdCarrinho}</span>}
                       <div className="caixa-produto-img">
                         {p.imagemUrl ? <img src={resolveUploadUrl(p.imagemUrl)} alt={p.nome} /> : <span aria-hidden="true">🥚</span>}
@@ -760,7 +764,6 @@ export function Caixa() {
                               <button
                                 type="button"
                                 className="caixa-produto-add"
-                                onClick={() => adicionar(p)}
                                 disabled={disponivelRestante <= 0}
                                 aria-label={`Adicionar ${p.nome}`}
                               >
