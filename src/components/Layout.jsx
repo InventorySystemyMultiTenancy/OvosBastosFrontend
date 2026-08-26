@@ -68,16 +68,6 @@ export function Layout() {
           </div>
         </div>
 
-        <button
-          type="button"
-          className="sidebar-toggle"
-          onClick={() => setColapsada((v) => !v)}
-          aria-label={colapsada ? 'Expandir menu' : 'Recolher menu'}
-          title={colapsada ? 'Expandir menu' : 'Recolher menu'}
-        >
-          <IconChevronDown className={`sidebar-toggle-icone${colapsada ? ' is-colapsada' : ''}`} />
-        </button>
-
         <nav className="sidebar-nav">
           {itensVisiveis.map((item) => (
             <NavLink
@@ -107,6 +97,20 @@ export function Layout() {
           </button>
         </div>
       </aside>
+
+      {/* Fora da <aside> de propósito: a sidebar tem overflow-x:hidden (pra animar o
+          recolhimento sem vazar texto), o que cortaria a metade do botão que fica por
+          cima da página. Como elemento independente, position:fixed, ele fica sempre
+          inteiro visível, sobre a sidebar E sobre o conteúdo da página. */}
+      <button
+        type="button"
+        className={`sidebar-toggle${colapsada ? ' is-colapsada' : ''}`}
+        onClick={() => setColapsada((v) => !v)}
+        aria-label={colapsada ? 'Expandir menu' : 'Recolher menu'}
+        title={colapsada ? 'Expandir menu' : 'Recolher menu'}
+      >
+        <IconChevronDown className={`sidebar-toggle-icone${colapsada ? ' is-colapsada' : ''}`} />
+      </button>
 
       <div className={`app-main${colapsada ? ' is-colapsada' : ''}`}>
         <header className="mobile-topbar">

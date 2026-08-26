@@ -137,14 +137,16 @@ a {
 @media (min-width: 901px) {
   /* Botãozinho "puxador" na quina direita da sidebar, sempre na mesma altura — recolhe
      pra virar só a logo + a seta, expande de volta ao clicar de novo. Só no desktop; no
-     mobile a navegação já é pelo menu hambúrguer. */
+     mobile a navegação já é pelo menu hambúrguer.
+     position:fixed (não é filho da <aside>) — assim ele fica por cima da sidebar E da
+     página ao mesmo tempo, sem ser cortado pelo overflow:hidden da sidebar. */
   .sidebar-toggle {
     display: flex;
     align-items: center;
     justify-content: center;
-    position: absolute;
+    position: fixed;
     top: 50%;
-    right: -13px;
+    left: calc(var(--sidebar-width) - 13px);
     transform: translateY(-50%);
     width: 26px;
     height: 26px;
@@ -154,7 +156,12 @@ a {
     background: var(--color-surface);
     color: var(--color-text-muted);
     box-shadow: var(--shadow-sm);
-    z-index: 31;
+    z-index: 32;
+    transition: left 0.25s ease;
+  }
+
+  .sidebar-toggle.is-colapsada {
+    left: calc(var(--sidebar-width-colapsada) - 13px);
   }
 
   .sidebar-toggle:hover {
