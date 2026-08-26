@@ -300,6 +300,7 @@ a {
 }
 
 .sidebar-user-avatar {
+  position: relative;
   width: 36px;
   height: 36px;
   border-radius: 999px;
@@ -311,6 +312,67 @@ a {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  padding: 0;
+  border: none;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.sidebar-user-avatar:disabled {
+  cursor: default;
+}
+
+.sidebar-user-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sidebar-user-avatar-hover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 9, 6, 0.55);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.sidebar-user-avatar-hover svg {
+  width: 15px;
+  height: 15px;
+}
+
+.sidebar-user-avatar:hover .sidebar-user-avatar-hover,
+.sidebar-user-avatar:disabled .sidebar-user-avatar-hover {
+  opacity: 1;
+}
+
+.sidebar-user-avatar-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: sidebar-avatar-spin 0.7s linear infinite;
+}
+
+@keyframes sidebar-avatar-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-user-avatar-spinner {
+    animation: none;
+  }
+}
+
+.sidebar-user-erro-foto {
+  color: #ffb4b4;
+  font-size: 11px;
+  margin: -4px 0 8px;
 }
 
 .sidebar-user-info {
@@ -1798,6 +1860,28 @@ tbody tr:hover {
   height: 72px;
   border-radius: 12px;
   font-size: 28px;
+}
+
+/* ---------- Avatar de usuário (foto de perfil) ---------- */
+
+.usuario-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  display: block;
+  margin: 0 auto;
+}
+
+.usuario-thumb-vazio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-darker);
 }
 
 /* ---------- Badges ---------- */

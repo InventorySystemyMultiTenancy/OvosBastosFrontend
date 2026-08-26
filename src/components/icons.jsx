@@ -241,6 +241,15 @@ export function IconDividir(props) {
   );
 }
 
+export function IconCamera(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 8h3l1.5-2.5h7L17 8h3a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 20 20H4a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 4 8z" />
+      <circle cx="12" cy="13.5" r="3.5" />
+    </svg>
+  );
+}
+
 export function IconPlus(props) {
   return (
     <svg {...base} {...props}>

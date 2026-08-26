@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api/client';
+import { api, resolveUploadUrl } from '../api/client';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
 
@@ -82,6 +82,16 @@ export function Usuarios() {
   }
 
   const columns = [
+    {
+      key: 'foto',
+      header: '',
+      render: (u) =>
+        u.fotoUrl ? (
+          <img src={resolveUploadUrl(u.fotoUrl)} alt="" className="usuario-thumb" />
+        ) : (
+          <span className="usuario-thumb usuario-thumb-vazio">{(u.nome || '?').charAt(0).toUpperCase()}</span>
+        ),
+    },
     { key: 'nome', header: 'Nome' },
     { key: 'email', header: 'Email' },
     { key: 'perfil', header: 'Perfil', render: (u) => PERFIL_LABEL[u.perfil] || u.perfil },

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { api, resolveUploadUrl } from '../api/client';
 import {
   IconDashboard,
   IconCaixa,
@@ -13,6 +14,7 @@ import {
   IconUsuarios,
   IconLogout,
   IconChevronDown,
+  IconCamera,
 } from './icons';
 
 const SIDEBAR_COLAPSADA_KEY = 'eggcontrol_sidebar_colapsada';
@@ -32,8 +34,11 @@ const NAV_ITEMS = [
 const PERFIL_LABEL = { ADMIN: 'Administrador', VENDEDOR: 'Vendedor', ENTREGADOR: 'Entregador' };
 
 export function Layout() {
-  const { usuario, logout } = useAuth();
+  const { usuario, logout, atualizarUsuario } = useAuth();
   const [menuAberto, setMenuAberto] = useState(false);
+  const [enviandoFoto, setEnviandoFoto] = useState(false);
+  const [erroFoto, setErroFoto] = useState('');
+  const inputFotoRef = useRef(null);
   // Só afeta telas grandes (o botão fica escondido no mobile) — lembra a preferência do
   // usuário entre acessos.
   const [colapsada, setColapsada] = useState(() => {
@@ -48,6 +53,27 @@ export function Layout() {
     // Login travado a um caixa (Usuario.caixaId) só vê a aba Caixa — ele nem
     // consegue navegar pras outras (ver ProtectedRoute), então nem mostra o link.
     .filter((item) => !usuario?.caixaId || item.to === '/admin/caixa');
+
+  // Autoatendimento: qualquer perfil (admin, vendedor, entregador) troca a própria foto
+  // clicando no avatar — sem precisar de tela separada. Envia assim que escolhe o arquivo.
+  async function enviarFoto(e) {
+    const arquivo = e.target.files?.[0];
+    e.target.value = '';
+    if (!arquivo) return;
+
+    setEnviandoFoto(true);
+    setErroFoto('');
+    try {
+      const dados = new FormData();
+      dados.append('foto', arquivo);
+      const atualizado = await api.upload('/auth/me/foto', dados);
+      atualizarUsuario({ fotoUrl: atualizado.fotoUrl });
+    } catch (err) {
+      setErroFoto(err.message);
+    } finally {
+      setEnviandoFoto(false);
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -85,12 +111,36 @@ export function Layout() {
 
         <div className="sidebar-footer">
           <div className="sidebar-user">
-            <div className="sidebar-user-avatar">{(usuario?.nome || '?').charAt(0).toUpperCase()}</div>
+            <button
+              type="button"
+              className="sidebar-user-avatar"
+              onClick={() => inputFotoRef.current?.click()}
+              disabled={enviandoFoto}
+              title="Trocar foto de perfil"
+              aria-label="Trocar foto de perfil"
+            >
+              {usuario?.fotoUrl ? (
+                <img src={resolveUploadUrl(usuario.fotoUrl)} alt="" className="sidebar-user-avatar-img" />
+              ) : (
+                <span>{(usuario?.nome || '?').charAt(0).toUpperCase()}</span>
+              )}
+              <span className="sidebar-user-avatar-hover">
+                {enviandoFoto ? <span className="sidebar-user-avatar-spinner" /> : <IconCamera />}
+              </span>
+            </button>
+            <input
+              ref={inputFotoRef}
+              type="file"
+              accept="image/*"
+              onChange={enviarFoto}
+              style={{ display: 'none' }}
+            />
             <div className="sidebar-user-info">
               <span className="sidebar-user-name">{usuario?.nome}</span>
               <span className="sidebar-user-role">{PERFIL_LABEL[usuario?.perfil] || usuario?.perfil}</span>
             </div>
           </div>
+          {erroFoto && <p className="sidebar-user-erro-foto">{erroFoto}</p>}
           <button type="button" className="sidebar-logout" onClick={logout}>
             <IconLogout className="sidebar-link-icon" />
             <span>Sair</span>
