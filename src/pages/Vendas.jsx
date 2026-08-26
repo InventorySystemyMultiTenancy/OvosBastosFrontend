@@ -219,17 +219,32 @@ export function Vendas() {
         <button className="btn btn-primary" onClick={() => navigate('/admin/caixa')}>+ Nova venda</button>
       </div>
 
-      <div className="toolbar">
-        <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
-          <option value="">Todos os status</option>
-          <option value="ORCAMENTO">Orçamento</option>
-          <option value="CONFIRMADA">Confirmada</option>
-          <option value="CANCELADA">Cancelada</option>
-        </select>
-        <select value={filtroCaixa} onChange={(e) => setFiltroCaixa(e.target.value)}>
-          <option value="">Todas as unidades</option>
-          {caixas.map((c) => <option key={c.id} value={c.id}>{c.nome} — {c.unidade}</option>)}
-        </select>
+      <div className="vendas-filtros">
+        <div className="vendas-filtro-campo">
+          <label>Status</label>
+          <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
+            <option value="">Todos os status</option>
+            <option value="ORCAMENTO">Orçamento</option>
+            <option value="CONFIRMADA">Confirmada</option>
+            <option value="CANCELADA">Cancelada</option>
+          </select>
+        </div>
+        <div className="vendas-filtro-campo">
+          <label>Unidade</label>
+          <select value={filtroCaixa} onChange={(e) => setFiltroCaixa(e.target.value)}>
+            <option value="">Todas as unidades</option>
+            {caixas.map((c) => <option key={c.id} value={c.id}>{c.nome} — {c.unidade}</option>)}
+          </select>
+        </div>
+        {(filtroStatus || filtroCaixa) && (
+          <button
+            type="button"
+            className="vendas-filtro-limpar"
+            onClick={() => { setFiltroStatus(''); setFiltroCaixa(''); }}
+          >
+            Limpar filtros
+          </button>
+        )}
       </div>
 
       {erro && <div className="alert-box">{erro}</div>}

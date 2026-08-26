@@ -23,8 +23,8 @@
   --color-purple: #8b5cf6;
   --color-purple-soft: #f1ebfe;
 
-  --sidebar-bg-top: #2b1a19;
-  --sidebar-bg-bottom: #180f0e;
+  --sidebar-bg-top: #5c4a1a;
+  --sidebar-bg-bottom: #332809;
   --sidebar-width: 252px;
   --sidebar-width-colapsada: 72px;
   --sidebar-text: rgba(255, 255, 255, 0.68);
@@ -1689,6 +1689,75 @@ tbody tr:hover {
 .vendas-col-pagamento { color: #db2777; background: #fdf2f8; font-weight: 600; }
 .vendas-col-total { color: #16a34a; background: #f0fdf4; font-weight: 700; }
 .vendas-col-data { color: #c2410c; background: #fff7ed; font-weight: 600; }
+
+/* ---------- Filtros de Vendas ---------- */
+
+.vendas-filtros {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.vendas-filtro-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 190px;
+}
+
+.vendas-filtro-campo label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.vendas-filtro-campo select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  padding: 10px 36px 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8e98' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center / 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.vendas-filtro-campo select:hover {
+  border-color: var(--color-primary-light);
+}
+
+.vendas-filtro-campo select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.vendas-filtro-limpar {
+  border: none;
+  background: none;
+  color: var(--color-danger);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 4px;
+  cursor: pointer;
+}
+
+.vendas-filtro-limpar:hover {
+  text-decoration: underline;
+}
 
 /* ---------- Thumbnail de produto ---------- */
 
