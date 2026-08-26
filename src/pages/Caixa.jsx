@@ -81,6 +81,7 @@ export function Caixa() {
   const [mpErro, setMpErro] = useState('');
 
   const [carrinho, setCarrinho] = useState([]);
+  const [carrinhoMobileAberto, setCarrinhoMobileAberto] = useState(false);
   const [nomeCliente, setNomeCliente] = useState('');
   const [desconto, setDesconto] = useState(0);
   const [formaPagamento, setFormaPagamento] = useState('DINHEIRO');
@@ -410,6 +411,7 @@ export function Caixa() {
     setValorDinheiroDividido('');
     setErroVenda('');
     setVendaConcluida(null);
+    setCarrinhoMobileAberto(false);
   }
 
   function pararTimersPagamento() {
@@ -565,52 +567,52 @@ export function Caixa() {
           <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}><IconBasket /> Caixa</h1>
           <p>Selecione os produtos para adicionar ao pedido.</p>
         </div>
-      </div>
 
-      {unidadeTravada ? (
-        <div className="caixa-unidade-bar">
-          {caixaAtual?.ativo ? (
-            <div className="caixa-unidade-lista">
-              <div className="caixa-unidade-pill is-active">
-                <span style={{ padding: '8px 14px' }}>
-                  <strong>{caixaAtual.nome}</strong>
-                  <span>{caixaAtual.unidade}</span>
-                </span>
-              </div>
-            </div>
-          ) : (
-            <p className="text-muted" style={{ margin: 0 }}>Sua unidade está inativa — fale com um administrador.</p>
-          )}
-        </div>
-      ) : (
-        <div className="caixa-unidade-bar">
-          {caixasAtivos.length === 0 ? (
-            <p className="text-muted" style={{ margin: 0 }}>
-              {ehAdmin ? 'Nenhum caixa cadastrado ainda.' : 'Nenhum caixa disponível — peça para um administrador cadastrar.'}
-            </p>
-          ) : (
-            <div className="caixa-unidade-lista">
-              {caixasAtivos.map((c) => (
-                <div key={c.id} className={`caixa-unidade-pill${caixaId === c.id ? ' is-active' : ''}`}>
-                  <button type="button" onClick={() => selecionarCaixa(c.id)}>
-                    <strong>{c.nome}</strong>
-                    <span>{c.unidade}</span>
-                  </button>
-                  {ehAdmin && (
-                    <span className="caixa-unidade-acoes">
-                      <button type="button" title="Editar" onClick={() => abrirEditarCaixa(c)}>✎</button>
-                      <button type="button" title="Desativar" onClick={() => desativarCaixa(c)}>×</button>
-                    </span>
-                  )}
+        {unidadeTravada ? (
+          <div className="caixa-unidade-bar">
+            {caixaAtual?.ativo ? (
+              <div className="caixa-unidade-lista">
+                <div className="caixa-unidade-pill is-active">
+                  <span style={{ padding: '8px 14px' }}>
+                    <strong>{caixaAtual.nome}</strong>
+                    <span>{caixaAtual.unidade}</span>
+                  </span>
                 </div>
-              ))}
-            </div>
-          )}
-          {ehAdmin && (
-            <button type="button" className="caixa-unidade-nova" onClick={abrirNovoCaixa}>+ Novo caixa/unidade</button>
-          )}
-        </div>
-      )}
+              </div>
+            ) : (
+              <p className="text-muted" style={{ margin: 0 }}>Sua unidade está inativa — fale com um administrador.</p>
+            )}
+          </div>
+        ) : (
+          <div className="caixa-unidade-bar">
+            {caixasAtivos.length === 0 ? (
+              <p className="text-muted" style={{ margin: 0 }}>
+                {ehAdmin ? 'Nenhum caixa cadastrado ainda.' : 'Nenhum caixa disponível — peça para um administrador cadastrar.'}
+              </p>
+            ) : (
+              <div className="caixa-unidade-lista">
+                {caixasAtivos.map((c) => (
+                  <div key={c.id} className={`caixa-unidade-pill${caixaId === c.id ? ' is-active' : ''}`}>
+                    <button type="button" onClick={() => selecionarCaixa(c.id)}>
+                      <strong>{c.nome}</strong>
+                      <span>{c.unidade}</span>
+                    </button>
+                    {ehAdmin && (
+                      <span className="caixa-unidade-acoes">
+                        <button type="button" title="Editar" onClick={() => abrirEditarCaixa(c)}>✎</button>
+                        <button type="button" title="Desativar" onClick={() => desativarCaixa(c)}>×</button>
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {ehAdmin && (
+              <button type="button" className="caixa-unidade-nova" onClick={abrirNovoCaixa}>+ Novo caixa/unidade</button>
+            )}
+          </div>
+        )}
+      </div>
 
       {erro && <div className="alert-box">{erro}</div>}
 
@@ -779,13 +781,23 @@ export function Caixa() {
           )}
         </div>
 
-        <div className="caixa-carrinho-col">
+        <div className={`caixa-carrinho-col${carrinhoMobileAberto ? ' is-aberto-mobile' : ''}`}>
           <div className="caixa-carrinho-card">
             <div className="caixa-carrinho-topo">
               <div className="caixa-carrinho-titulo"><IconVendas /> Pedido atual</div>
-              {carrinho.length > 0 && (
-                <button type="button" className="caixa-limpar-btn" onClick={limparVenda}>Limpar</button>
-              )}
+              <div className="caixa-carrinho-topo-acoes">
+                {carrinho.length > 0 && (
+                  <button type="button" className="caixa-limpar-btn" onClick={limparVenda}>Limpar</button>
+                )}
+                <button
+                  type="button"
+                  className="caixa-fechar-carrinho-mobile"
+                  onClick={() => setCarrinhoMobileAberto(false)}
+                  aria-label="Fechar carrinho"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {carrinho.length === 0 ? (
@@ -946,6 +958,16 @@ export function Caixa() {
           </div>
         </div>
       </div>
+
+      <button
+        type="button"
+        className="caixa-fab-carrinho"
+        onClick={() => setCarrinhoMobileAberto(true)}
+        aria-label="Abrir carrinho"
+      >
+        <IconVendas />
+        {totalItens > 0 && <span className="caixa-fab-badge">{totalItens}</span>}
+      </button>
         </>
       )}
 

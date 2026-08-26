@@ -674,6 +674,12 @@ a {
   margin-bottom: 18px;
 }
 
+/* Dentro do page-header (ao lado do título "Caixa") não precisa da margem extra —
+   o page-header já cuida do espaçamento embaixo dele. */
+.page-header .caixa-unidade-bar {
+  margin-bottom: 0;
+}
+
 .caixa-unidade-lista {
   display: flex;
   gap: 10px;
@@ -965,17 +971,38 @@ a {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 18px;
   box-shadow: var(--shadow-sm);
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .caixa-carrinho-topo {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.caixa-carrinho-topo-acoes {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.caixa-fechar-carrinho-mobile {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1;
 }
 
 .caixa-carrinho-titulo {
@@ -1028,10 +1055,29 @@ a {
 .caixa-itens-lista {
   list-style: none;
   padding: 0;
-  margin: 0 0 16px;
+  margin: 0 0 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  /* Lista de itens é a única parte do carrinho que rola por dentro — assim o total, a
+     forma de pagamento e o botão de finalizar continuam sempre visíveis sem precisar
+     rolar a box inteira, mesmo com bastante item no pedido. */
+  overflow-y: auto;
+  max-height: 190px;
+  flex-shrink: 1;
+  /* Barra de rolagem sempre visível (fina) — sinaliza que há mais itens abaixo mesmo
+     antes do usuário passar o mouse ou tocar na lista. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.caixa-itens-lista::-webkit-scrollbar {
+  width: 5px;
+}
+
+.caixa-itens-lista::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
 }
 
 .caixa-itens-lista li {
@@ -1039,9 +1085,10 @@ a {
   grid-template-columns: 1fr auto auto auto;
   align-items: center;
   gap: 8px;
-  padding-bottom: 10px;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--color-border);
   font-size: 13px;
+  flex-shrink: 0;
 }
 
 .caixa-item-info {
@@ -1105,7 +1152,8 @@ a {
 
 .caixa-resumo {
   border-top: 1px dashed var(--color-border);
-  padding-top: 14px;
+  padding-top: 10px;
+  flex-shrink: 0;
 }
 
 .caixa-resumo-linha {
@@ -1114,7 +1162,7 @@ a {
   align-items: baseline;
   font-size: 14px;
   color: var(--color-text-muted);
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .caixa-resumo-linha strong {
@@ -1128,7 +1176,7 @@ a {
   justify-content: space-between;
   background: var(--color-primary-soft);
   border-radius: var(--radius-sm);
-  padding: 12px 16px;
+  padding: 10px 14px;
   margin-top: 4px;
   font-size: 16px;
   font-weight: 700;
@@ -1136,8 +1184,8 @@ a {
 }
 
 .caixa-campo-cliente {
-  margin-top: 16px;
-  margin-bottom: 16px;
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 .caixa-formas-pagamento {
@@ -1150,8 +1198,8 @@ a {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 14px 8px;
+  gap: 6px;
+  padding: 10px 8px;
   border-radius: 12px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -1163,8 +1211,8 @@ a {
 }
 
 .caixa-forma-icone {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   display: flex;
   align-items: center;
@@ -1195,37 +1243,57 @@ a {
 }
 
 .caixa-aviso-maquininha {
-  margin-top: 10px;
+  margin-top: 8px;
   margin-bottom: 0;
   font-size: 12px;
-  padding: 10px 12px;
+  padding: 8px 10px;
 }
 
 .caixa-troco-box {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  margin-bottom: 14px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
 }
 
 .caixa-troco-valor {
   font-weight: 700;
   color: var(--color-success);
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .caixa-troco-falta {
   font-weight: 700;
   color: var(--color-danger);
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .caixa-finalizar-btn {
   width: 100%;
   justify-content: center;
   font-size: 15px;
-  padding: 14px;
+  padding: 12px;
+  flex-shrink: 0;
+}
+
+/* Campos do carrinho um pouco mais compactos que o padrão do resto do sistema —
+   ajuda a caber tudo (itens, total, pagamento, botão) sem precisar rolar a box. */
+.caixa-carrinho-card .field {
+  gap: 4px;
+}
+
+.caixa-carrinho-card .field label {
+  font-size: 12px;
+}
+
+.caixa-carrinho-card .field input {
+  padding: 8px 10px;
+}
+
+.caixa-carrinho-card .caixa-icone-campo input {
+  padding-top: 9px;
+  padding-bottom: 9px;
 }
 
 .caixa-recibo-wrap {
@@ -1283,17 +1351,95 @@ a {
   color: var(--color-primary-darker);
 }
 
+/* Carrinho flutuante (mobile) — escondido em telas largas, onde o carrinho já fica
+   sempre visível na coluna lateral. */
+.caixa-fab-carrinho {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .caixa-layout {
     grid-template-columns: 1fr;
   }
 
+  /* No mobile o carrinho não fica mais numa coluna ao lado — vira uma tela cheia que só
+     aparece quando o botão flutuante é clicado, pra sobrar espaço pros produtos. */
   .caixa-carrinho-col {
-    position: static;
+    display: none;
   }
 
-  .caixa-carrinho-card {
+  .caixa-carrinho-col.is-aberto-mobile {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    background: var(--color-bg);
+    padding: 14px;
+    /* Rede de segurança: se mesmo compacto o conteúdo não couber (tela muito pequena +
+       muitos itens), a tela toda do carrinho rola em vez de quebrar o layout — mas o
+       normal é caber tudo sem precisar disso. */
+    overflow-y: auto;
+  }
+
+  .caixa-carrinho-col.is-aberto-mobile .caixa-carrinho-card {
+    height: 100%;
+    min-height: 100%;
+    border: none;
+    box-shadow: none;
+    padding: 4px;
+  }
+
+  .caixa-carrinho-col.is-aberto-mobile .caixa-itens-lista {
+    flex: 1 1 auto;
     max-height: none;
+  }
+
+  .caixa-carrinho-col.is-aberto-mobile form {
+    flex-shrink: 0;
+  }
+
+  .caixa-fechar-carrinho-mobile {
+    display: flex;
+  }
+
+  .caixa-fab-carrinho {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 55;
+    width: 54px;
+    height: 54px;
+    border-radius: 999px;
+    border: none;
+    background: var(--color-success);
+    color: #fff;
+    box-shadow: var(--shadow-md);
+  }
+
+  .caixa-fab-carrinho svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .caixa-fab-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--color-bg);
   }
 }
 
@@ -1320,9 +1466,59 @@ a {
     right: 0;
   }
 
+  /* Cards de produto bem menores — cabe mais gente na tela sem rolar tanto. */
   .caixa-produtos-grid {
-    grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(min(104px, 100%), 1fr));
+    gap: 8px;
+  }
+
+  .caixa-produto-img {
+    height: 78px;
+    font-size: 24px;
+  }
+
+  .caixa-produto-corpo {
+    padding: 8px 8px 10px;
+    gap: 2px;
+  }
+
+  .caixa-produto-nome {
+    font-size: 12px;
+    line-height: 1.25;
+  }
+
+  .caixa-produto-unidade {
+    font-size: 10px;
+  }
+
+  .caixa-produto-rodape {
+    margin-top: 4px;
+  }
+
+  .caixa-produto-preco {
+    font-size: 13px;
+  }
+
+  .caixa-produto-esgotado-label {
+    font-size: 11px;
+  }
+
+  .caixa-produto-add {
+    width: 26px;
+    height: 26px;
+  }
+
+  .caixa-produto-add svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .caixa-produto-badge {
+    top: 6px;
+    right: 6px;
+    min-width: 18px;
+    height: 18px;
+    font-size: 11px;
   }
 }
 
