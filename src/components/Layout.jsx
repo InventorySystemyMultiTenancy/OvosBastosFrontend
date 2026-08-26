@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   IconDashboard,
@@ -60,13 +60,13 @@ export function Layout() {
       />
 
       <aside className={`sidebar${menuAberto ? ' is-open' : ''}${colapsada ? ' is-colapsada' : ''}`}>
-        <div className="sidebar-brand">
+        <Link to="/admin" className="sidebar-brand" onClick={() => setMenuAberto(false)}>
           <img src="/vrilllogo.png" alt="Vrill Ovos" className="sidebar-brand-logo" />
           <div className="sidebar-brand-text">
             <span className="sidebar-brand-name">VRILLOVOS</span>
             <span className="sidebar-brand-tag">Qualidade em cada ovo</span>
           </div>
-        </div>
+        </Link>
 
         <nav className="sidebar-nav">
           {itensVisiveis.map((item) => (
@@ -119,7 +119,7 @@ export function Layout() {
             <span />
             <span />
           </button>
-          <span className="sidebar-brand-name">VRILLOVOS</span>
+          <Link to="/admin" className="sidebar-brand-name mobile-topbar-brand">VRILLOVOS</Link>
         </header>
 
         <main className="main-content">
