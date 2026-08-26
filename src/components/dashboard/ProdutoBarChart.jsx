@@ -10,11 +10,11 @@ export function ProdutoBarChart({ dados }) {
   return (
     <div className="dash-barlist">
       {dados.map((p) => (
-        <div className="dash-barlist-row" key={p.produtoId ?? 'outros'}>
+        <div className="dash-barlist-row is-wide" key={p.produtoId ?? 'outros'}>
           <span className="dash-barlist-label" title={p.nome}>{p.nome}</span>
-          <div className="dash-barlist-track">
+          <div className="dash-barlist-track is-purple">
             <div
-              className={`dash-barlist-fill${p.produtoId === null ? ' is-outros' : ''}`}
+              className={`dash-barlist-fill${p.produtoId === null ? ' is-outros' : ' is-purple'}`}
               style={{ width: `${Math.max((p.receita / maxValor) * 100, 3)}%` }}
             />
           </div>

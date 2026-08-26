@@ -11,6 +11,7 @@ import { VendasPorHora } from '../components/dashboard/VendasPorHora';
 import { AlertaReposicao } from '../components/dashboard/AlertaReposicao';
 import { MelhoresProdutosPorCaixa } from '../components/dashboard/MelhoresProdutosPorCaixa';
 import { CaixaDivergenciaAlerta } from '../components/dashboard/CaixaDivergenciaAlerta';
+import { IconLucro, IconFaturamento, IconGastos, IconVendas, IconArrowUp, IconArrowDown, IconCalendar } from '../components/icons';
 
 const PERIODOS = [
   { dias: 7, label: '7 dias' },
@@ -20,6 +21,44 @@ const PERIODOS = [
 
 function formatBRL(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatData(data) {
+  return data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+function KpiCard({ label, sublabel, value, isNegative, iconClass, Icon, variacaoPct, dias, trendInverso }) {
+  const temVariacao = variacaoPct !== null && variacaoPct !== undefined;
+  const subiu = temVariacao && variacaoPct > 0;
+  const desceu = temVariacao && variacaoPct < 0;
+  // Pra gastos, subir é ruim — o badge inverte a cor (verde/vermelho) nesse caso.
+  const trendClasse = !temVariacao ? 'is-neutral' : (trendInverso ? desceu : subiu) ? 'is-up' : (trendInverso ? subiu : desceu) ? 'is-down' : 'is-neutral';
+
+  return (
+    <div className="dash-kpi-card">
+      <div className="dash-kpi-top">
+        <div>
+          <div className="dash-kpi-label">{label}</div>
+          <div className="dash-kpi-sublabel">{sublabel}</div>
+        </div>
+        <div className={`dash-kpi-icon ${iconClass}`}>
+          <Icon />
+        </div>
+      </div>
+      <div className={`dash-kpi-value${isNegative ? ' is-negativo' : ''}`}>{value}</div>
+      <span className={`dash-kpi-trend ${trendClasse}`}>
+        {temVariacao ? (
+          <>
+            {subiu ? <IconArrowUp /> : desceu ? <IconArrowDown /> : null}
+            {Math.abs(variacaoPct).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
+          </>
+        ) : (
+          'novo'
+        )}
+        <span className="dash-kpi-trend-note">vs {dias} dias anteriores</span>
+      </span>
+    </div>
+  );
 }
 
 export function Dashboard() {
@@ -40,24 +79,32 @@ export function Dashboard() {
       .finally(() => setCarregando(false));
   }, [dias]);
 
+  const primeiroNome = usuario?.nome?.split(' ')[0];
+
   return (
     <div>
-      <div className="page-header">
+      <div className="dash-greeting-header">
         <div>
-          <h1>Dashboard</h1>
-          <p>O que mais importa na operação, de relance.</p>
+          <h1>Olá, {primeiroNome}!</h1>
+          <p>Aqui está o resumo da sua operação.</p>
         </div>
-        <div className="dash-periodo-toggle">
-          {PERIODOS.map((p) => (
-            <button
-              key={p.dias}
-              type="button"
-              className={`dash-periodo-btn${dias === p.dias ? ' is-active' : ''}`}
-              onClick={() => setDias(p.dias)}
-            >
-              {p.label}
-            </button>
-          ))}
+        <div className="dash-greeting-controls">
+          <span className="dash-date-pill">
+            <IconCalendar />
+            {formatData(new Date())}
+          </span>
+          <div className="dash-periodo-toggle">
+            {PERIODOS.map((p) => (
+              <button
+                key={p.dias}
+                type="button"
+                className={`dash-periodo-btn${dias === p.dias ? ' is-active' : ''}`}
+                onClick={() => setDias(p.dias)}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -67,20 +114,50 @@ export function Dashboard() {
         <p className="text-muted">Carregando...</p>
       ) : (
         <>
-          {ehAdmin && resumo.lucroLiquidoPeriodo !== null && (
-            <div className="dash-lucro-card">
-              <div>
-                <div className="dash-lucro-label">Lucro líquido — últimos {resumo.periodoDias} dias</div>
-                <div className={`dash-lucro-hero${Number(resumo.lucroLiquidoPeriodo) < 0 ? ' is-negativo' : ''}`}>
-                  {formatBRL(resumo.lucroLiquidoPeriodo)}
-                </div>
-              </div>
-              <div className="dash-lucro-detalhe">
-                <span><strong>Faturamento:</strong> {formatBRL(resumo.faturamentoPeriodo)}</span>
-                <span><strong>Gastos:</strong> {formatBRL(resumo.despesasPeriodo)}</span>
-              </div>
-            </div>
-          )}
+          <div className="dash-kpi-grid">
+            {ehAdmin && resumo.lucroLiquidoPeriodo !== null && (
+              <KpiCard
+                label="Lucro Líquido"
+                sublabel={`Últimos ${resumo.periodoDias} dias`}
+                value={formatBRL(resumo.lucroLiquidoPeriodo)}
+                isNegative={Number(resumo.lucroLiquidoPeriodo) < 0}
+                iconClass="is-green"
+                Icon={IconLucro}
+                variacaoPct={resumo.variacaoLucroPct}
+                dias={resumo.periodoDias}
+              />
+            )}
+            <KpiCard
+              label="Faturamento"
+              sublabel={`Últimos ${resumo.periodoDias} dias`}
+              value={formatBRL(resumo.faturamentoPeriodo)}
+              iconClass="is-blue"
+              Icon={IconFaturamento}
+              variacaoPct={resumo.variacaoFaturamentoPct}
+              dias={resumo.periodoDias}
+            />
+            {ehAdmin && resumo.despesasPeriodo !== null && (
+              <KpiCard
+                label="Gastos"
+                sublabel={`Últimos ${resumo.periodoDias} dias`}
+                value={formatBRL(resumo.despesasPeriodo)}
+                iconClass="is-orange"
+                Icon={IconGastos}
+                variacaoPct={resumo.variacaoDespesasPct}
+                dias={resumo.periodoDias}
+                trendInverso
+              />
+            )}
+            <KpiCard
+              label="Vendas"
+              sublabel={`Últimos ${resumo.periodoDias} dias`}
+              value={resumo.pedidosPeriodo.toLocaleString('pt-BR')}
+              iconClass="is-purple"
+              Icon={IconVendas}
+              variacaoPct={resumo.variacaoVendasPct}
+              dias={resumo.periodoDias}
+            />
+          </div>
 
           {ehAdmin && resumo.divergenciasCaixa && resumo.divergenciasCaixa.length > 0 && (
             <div className="card" style={{ marginBottom: 24 }}>

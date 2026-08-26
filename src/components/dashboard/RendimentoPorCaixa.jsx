@@ -15,9 +15,9 @@ export function RendimentoPorCaixa({ dados, mostrarSaldo }) {
             {c.nome}
             {c.unidade && <span className="text-muted"> · {c.unidade}</span>}
           </span>
-          <div className="dash-barlist-track">
+          <div className="dash-barlist-track is-green">
             <div
-              className={`dash-barlist-fill${c.caixaId === null ? ' is-outros' : ''}`}
+              className={`dash-barlist-fill${c.caixaId === null ? ' is-outros' : ' is-green'}`}
               style={{ width: `${Math.max((c.receitas / maxValor) * 100, 3)}%` }}
             />
           </div>
