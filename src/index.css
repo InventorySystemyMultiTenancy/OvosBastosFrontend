@@ -1669,13 +1669,26 @@ tbody tr:hover {
 /* Tons "600/700" bem saturados — mantêm contraste confortável em fundo branco (a maioria
    passa AA pra texto normal) e ficam bem distintos um do outro coluna a coluna. */
 
-.vendas-col-id { color: #4f46e5; font-weight: 700; }
-.vendas-col-cliente { color: #2563eb; font-weight: 600; }
-.vendas-col-vendedor { color: #7c3aed; font-weight: 600; }
-.vendas-col-unidade { color: #0d9488; font-weight: 600; }
-.vendas-col-pagamento { color: #db2777; font-weight: 600; }
-.vendas-col-total { color: #16a34a; font-weight: 700; }
-.vendas-col-data { color: #c2410c; font-weight: 600; }
+.vendas-col-id,
+.vendas-col-cliente,
+.vendas-col-vendedor,
+.vendas-col-unidade,
+.vendas-col-pagamento,
+.vendas-col-total,
+.vendas-col-data {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.vendas-col-id { color: #4f46e5; background: #eef2ff; font-weight: 700; }
+.vendas-col-cliente { color: #2563eb; background: #eff6ff; font-weight: 600; }
+.vendas-col-vendedor { color: #7c3aed; background: #f5f3ff; font-weight: 600; }
+.vendas-col-unidade { color: #0d9488; background: #f0fdfa; font-weight: 600; }
+.vendas-col-pagamento { color: #db2777; background: #fdf2f8; font-weight: 600; }
+.vendas-col-total { color: #16a34a; background: #f0fdf4; font-weight: 700; }
+.vendas-col-data { color: #c2410c; background: #fff7ed; font-weight: 600; }
 
 /* ---------- Thumbnail de produto ---------- */
 
