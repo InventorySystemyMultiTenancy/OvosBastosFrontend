@@ -41,7 +41,7 @@ function formatarTempo(segundos) {
 export function Caixa() {
   const { usuario } = useAuth();
   const ehAdmin = usuario?.perfil === 'ADMIN';
-  const unidadeTravada = usuario?.caixaId || null;
+  const unidadeTravada = usuario?.unidade || null;
 
   const [produtos, setProdutos] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -63,7 +63,9 @@ export function Caixa() {
 
   const [caixas, setCaixas] = useState([]);
   const [caixaId, setCaixaId] = useState(() => {
-    if (unidadeTravada) return unidadeTravada;
+    // Se o login for travado a uma unidade, o efeito abaixo confirma (ou troca) essa
+    // escolha assim que a lista de caixas carregar — uma unidade pode ter mais de um
+    // caixa físico, então não dá mais pra saber qual escolher só com o que tem aqui.
     const salvo = localStorage.getItem(CAIXA_STORAGE_KEY);
     return salvo ? Number(salvo) : null;
   });
@@ -201,9 +203,14 @@ export function Caixa() {
   useEffect(carregarCaixas, []);
 
   useEffect(() => {
-    if (unidadeTravada || caixas.length === 0) return;
-    const atual = caixas.find((c) => c.id === caixaId && c.ativo);
-    if (!atual) setCaixaId(null);
+    if (caixas.length === 0) return;
+    // Login travado a uma unidade só pode escolher entre os caixas ativos daquela
+    // unidade — se sobrar só um, já seleciona ele sozinho (a maioria das lojas tem um).
+    const permitidos = unidadeTravada
+      ? caixas.filter((c) => c.ativo && c.unidade === unidadeTravada)
+      : caixas.filter((c) => c.ativo);
+    const atual = permitidos.find((c) => c.id === caixaId);
+    if (!atual) setCaixaId(permitidos.length === 1 ? permitidos[0].id : null);
   }, [caixas, caixaId, unidadeTravada]);
 
   const caixaAtual = caixas.find((c) => c.id === caixaId);
@@ -329,6 +336,12 @@ export function Caixa() {
   }
 
   const caixasAtivos = useMemo(() => caixas.filter((c) => c.ativo), [caixas]);
+  // Vendedor travado a uma unidade só vê/escolhe entre os caixas daquela unidade —
+  // admin (ou login sem restrição) continua vendo todos.
+  const caixasVisiveis = useMemo(
+    () => (unidadeTravada ? caixasAtivos.filter((c) => c.unidade === unidadeTravada) : caixasAtivos),
+    [caixasAtivos, unidadeTravada]
+  );
 
   const categorias = useMemo(() => {
     const tipos = Array.from(new Set(produtos.map((p) => p.tipo).filter(Boolean)));
@@ -568,58 +581,45 @@ export function Caixa() {
           <p>Selecione os produtos para adicionar ao pedido.</p>
         </div>
 
-        {unidadeTravada ? (
-          <div className="caixa-unidade-bar">
-            {caixaAtual?.ativo ? (
-              <div className="caixa-unidade-lista">
-                <div className="caixa-unidade-pill is-active">
-                  <span style={{ padding: '8px 14px' }}>
-                    <strong>{caixaAtual.nome}</strong>
-                    <span>{caixaAtual.unidade}</span>
-                  </span>
+        <div className="caixa-unidade-bar">
+          {caixasVisiveis.length === 0 ? (
+            <p className="text-muted" style={{ margin: 0 }}>
+              {ehAdmin
+                ? 'Nenhum caixa cadastrado ainda.'
+                : unidadeTravada
+                  ? `Nenhum caixa ativo em ${unidadeTravada} — fale com um administrador.`
+                  : 'Nenhum caixa disponível — peça para um administrador cadastrar.'}
+            </p>
+          ) : (
+            <div className="caixa-unidade-lista">
+              {caixasVisiveis.map((c) => (
+                <div key={c.id} className={`caixa-unidade-pill${caixaId === c.id ? ' is-active' : ''}`}>
+                  <button type="button" onClick={() => selecionarCaixa(c.id)}>
+                    <strong>{c.nome}</strong>
+                    <span>{c.unidade}</span>
+                  </button>
+                  {ehAdmin && (
+                    <span className="caixa-unidade-acoes">
+                      <button type="button" title="Editar" onClick={() => abrirEditarCaixa(c)}>✎</button>
+                      <button type="button" title="Desativar" onClick={() => desativarCaixa(c)}>×</button>
+                    </span>
+                  )}
                 </div>
-              </div>
-            ) : (
-              <p className="text-muted" style={{ margin: 0 }}>Sua unidade está inativa — fale com um administrador.</p>
-            )}
-          </div>
-        ) : (
-          <div className="caixa-unidade-bar">
-            {caixasAtivos.length === 0 ? (
-              <p className="text-muted" style={{ margin: 0 }}>
-                {ehAdmin ? 'Nenhum caixa cadastrado ainda.' : 'Nenhum caixa disponível — peça para um administrador cadastrar.'}
-              </p>
-            ) : (
-              <div className="caixa-unidade-lista">
-                {caixasAtivos.map((c) => (
-                  <div key={c.id} className={`caixa-unidade-pill${caixaId === c.id ? ' is-active' : ''}`}>
-                    <button type="button" onClick={() => selecionarCaixa(c.id)}>
-                      <strong>{c.nome}</strong>
-                      <span>{c.unidade}</span>
-                    </button>
-                    {ehAdmin && (
-                      <span className="caixa-unidade-acoes">
-                        <button type="button" title="Editar" onClick={() => abrirEditarCaixa(c)}>✎</button>
-                        <button type="button" title="Desativar" onClick={() => desativarCaixa(c)}>×</button>
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            {ehAdmin && (
-              <button
-                type="button"
-                className="caixa-unidade-nova"
-                onClick={abrirNovoCaixa}
-                title="Novo caixa/unidade"
-                aria-label="Novo caixa/unidade"
-              >
-                <IconPlus />
-              </button>
-            )}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+          {ehAdmin && (
+            <button
+              type="button"
+              className="caixa-unidade-nova"
+              onClick={abrirNovoCaixa}
+              title="Novo caixa/unidade"
+              aria-label="Novo caixa/unidade"
+            >
+              <IconPlus />
+            </button>
+          )}
+        </div>
       </div>
 
       {erro && <div className="alert-box">{erro}</div>}
@@ -998,8 +998,15 @@ export function Caixa() {
                   value={formCaixa.unidade}
                   onChange={(e) => setFormCaixa({ ...formCaixa, unidade: e.target.value })}
                   placeholder="Matriz"
+                  list="unidades-existentes"
                   required
                 />
+                <datalist id="unidades-existentes">
+                  {[...new Set(caixas.map((c) => c.unidade))].map((u) => <option key={u} value={u} />)}
+                </datalist>
+                <p className="text-muted" style={{ marginTop: 6, fontSize: 12 }}>
+                  Usar o nome de uma unidade já existente cadastra mais um caixa pra mesma loja.
+                </p>
               </div>
             </div>
             <div className="modal-actions">

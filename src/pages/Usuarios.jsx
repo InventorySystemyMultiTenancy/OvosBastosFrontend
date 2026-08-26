@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, resolveUploadUrl } from '../api/client';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
@@ -6,7 +6,7 @@ import { Modal } from '../components/Modal';
 const PERFIS = ['ADMIN', 'VENDEDOR', 'ENTREGADOR'];
 const PERFIL_LABEL = { ADMIN: 'Administrador', VENDEDOR: 'Vendedor', ENTREGADOR: 'Entregador' };
 
-const VAZIO = { nome: '', email: '', senha: '', perfil: 'VENDEDOR', ativo: true, caixaId: '' };
+const VAZIO = { nome: '', email: '', senha: '', perfil: 'VENDEDOR', ativo: true, unidade: '' };
 
 export function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
@@ -28,6 +28,10 @@ export function Usuarios() {
   useEffect(carregar, []);
   useEffect(() => { api.get('/caixas').then(setCaixas).catch(() => {}); }, []);
 
+  // Unidades = nomes distintos entre os caixas cadastrados — não existe uma tabela própria
+  // pra unidade, ela é só o texto livre que já fica em Caixa.unidade.
+  const unidades = useMemo(() => [...new Set(caixas.map((c) => c.unidade))].sort(), [caixas]);
+
   function abrirNovo() {
     setEditando(null);
     setForm(VAZIO);
@@ -43,7 +47,7 @@ export function Usuarios() {
       senha: '',
       perfil: usuario.perfil,
       ativo: usuario.ativo,
-      caixaId: usuario.caixaId || '',
+      unidade: usuario.unidade || '',
     });
     setErroForm('');
     setModalAberto(true);
@@ -54,13 +58,13 @@ export function Usuarios() {
     setSalvando(true);
     setErroForm('');
     try {
-      const caixaId = form.perfil !== 'ADMIN' && form.caixaId ? Number(form.caixaId) : null;
+      const unidade = form.perfil !== 'ADMIN' && form.unidade ? form.unidade : null;
       if (editando) {
         await api.put(`/auth/usuarios/${editando.id}`, {
           nome: form.nome,
           perfil: form.perfil,
           ativo: form.ativo,
-          caixaId,
+          unidade,
           senha: form.senha || undefined,
         });
       } else {
@@ -69,7 +73,7 @@ export function Usuarios() {
           email: form.email,
           senha: form.senha,
           perfil: form.perfil,
-          caixaId,
+          unidade,
         });
       }
       setModalAberto(false);
@@ -95,11 +99,7 @@ export function Usuarios() {
     { key: 'nome', header: 'Nome' },
     { key: 'email', header: 'Email' },
     { key: 'perfil', header: 'Perfil', render: (u) => PERFIL_LABEL[u.perfil] || u.perfil },
-    {
-      key: 'caixa',
-      header: 'Unidade designada',
-      render: (u) => (u.caixa ? `${u.caixa.nome} — ${u.caixa.unidade}` : '—'),
-    },
+    { key: 'unidade', header: 'Unidade designada', render: (u) => u.unidade || '—' },
     {
       key: 'ativo',
       header: 'Status',
@@ -119,7 +119,7 @@ export function Usuarios() {
       <div className="page-header">
         <div>
           <h1>Usuários</h1>
-          <p>Logins de funcionário — designe um caixa específico pra travar o acesso só à aba Caixa daquela unidade.</p>
+          <p>Logins de funcionário — designe uma unidade pra travar o acesso só à aba Caixa e aos caixas daquela loja.</p>
         </div>
         <button className="btn btn-primary" onClick={abrirNovo}>+ Novo usuário</button>
       </div>
@@ -160,20 +160,20 @@ export function Usuarios() {
               </div>
               <div className="field">
                 <label>Perfil *</label>
-                <select value={form.perfil} onChange={(e) => setForm({ ...form, perfil: e.target.value, caixaId: e.target.value === 'ADMIN' ? '' : form.caixaId })}>
+                <select value={form.perfil} onChange={(e) => setForm({ ...form, perfil: e.target.value, unidade: e.target.value === 'ADMIN' ? '' : form.unidade })}>
                   {PERFIS.map((p) => <option key={p} value={p}>{PERFIL_LABEL[p]}</option>)}
                 </select>
               </div>
               {form.perfil !== 'ADMIN' && (
                 <div className="field">
                   <label>Unidade designada</label>
-                  <select value={form.caixaId} onChange={(e) => setForm({ ...form, caixaId: e.target.value })}>
+                  <select value={form.unidade} onChange={(e) => setForm({ ...form, unidade: e.target.value })}>
                     <option value="">Sem restrição — vê tudo que o perfil permite</option>
-                    {caixas.map((c) => <option key={c.id} value={c.id}>{c.nome} — {c.unidade}</option>)}
+                    {unidades.map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
-                  {form.caixaId && (
+                  {form.unidade && (
                     <p className="text-muted" style={{ marginTop: 6, fontSize: 12 }}>
-                      Com uma unidade designada, esse login só vê a aba Caixa e só vende por essa unidade.
+                      Com uma unidade designada, esse login só vê a aba Caixa e só vende pelos caixas dessa unidade.
                     </p>
                   )}
                 </div>

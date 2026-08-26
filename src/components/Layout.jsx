@@ -50,9 +50,9 @@ export function Layout() {
   }, [colapsada]);
 
   const itensVisiveis = NAV_ITEMS.filter((item) => item.perfis.includes(usuario?.perfil))
-    // Login travado a um caixa (Usuario.caixaId) só vê a aba Caixa — ele nem
+    // Login travado a uma unidade (Usuario.unidade) só vê a aba Caixa — ele nem
     // consegue navegar pras outras (ver ProtectedRoute), então nem mostra o link.
-    .filter((item) => !usuario?.caixaId || item.to === '/admin/caixa');
+    .filter((item) => !usuario?.unidade || item.to === '/admin/caixa');
 
   // Autoatendimento: qualquer perfil (admin, vendedor, entregador) troca a própria foto
   // clicando no avatar — sem precisar de tela separada. Envia assim que escolhe o arquivo.

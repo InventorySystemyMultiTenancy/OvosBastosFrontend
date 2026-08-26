@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { SparkLineArea } from '../components/dashboard/SparkLineArea';
@@ -27,7 +28,7 @@ function formatData(data) {
   return data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-function KpiCard({ label, sublabel, value, isNegative, iconClass, Icon, variacaoPct, dias, trendInverso }) {
+function KpiCard({ label, sublabel, value, isNegative, iconClass, Icon, variacaoPct, dias, trendInverso, onClick }) {
   const temVariacao = variacaoPct !== null && variacaoPct !== undefined;
   const subiu = temVariacao && variacaoPct > 0;
   const desceu = temVariacao && variacaoPct < 0;
@@ -35,7 +36,13 @@ function KpiCard({ label, sublabel, value, isNegative, iconClass, Icon, variacao
   const trendClasse = !temVariacao ? 'is-neutral' : (trendInverso ? desceu : subiu) ? 'is-up' : (trendInverso ? subiu : desceu) ? 'is-down' : 'is-neutral';
 
   return (
-    <div className="dash-kpi-card">
+    <div
+      className={`dash-kpi-card${onClick ? ' is-clicavel' : ''}`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+    >
       <div className="dash-kpi-top">
         <div>
           <div className="dash-kpi-label">{label}</div>
@@ -63,6 +70,7 @@ function KpiCard({ label, sublabel, value, isNegative, iconClass, Icon, variacao
 
 export function Dashboard() {
   const { usuario } = useAuth();
+  const navigate = useNavigate();
   const ehAdmin = usuario?.perfil === 'ADMIN';
 
   const [dias, setDias] = useState(30);
@@ -125,6 +133,7 @@ export function Dashboard() {
                 Icon={IconLucro}
                 variacaoPct={resumo.variacaoLucroPct}
                 dias={resumo.periodoDias}
+                onClick={() => navigate(`/admin/lucro-por-unidade?dias=${dias}`)}
               />
             )}
             <KpiCard

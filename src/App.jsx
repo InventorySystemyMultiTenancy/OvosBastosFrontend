@@ -12,6 +12,7 @@ import { Caixa } from './pages/Caixa';
 import { Financeiro } from './pages/Financeiro';
 import { Recebimentos } from './pages/Recebimentos';
 import { Usuarios } from './pages/Usuarios';
+import { LucroPorUnidade } from './pages/LucroPorUnidade';
 
 // Aba de catálogo/e-commerce (Catalogo.jsx / EcommerceCatalog.jsx) fica fora de uso por
 // enquanto a pedido do cliente — código continua no repositório, só não está roteado
@@ -43,6 +44,7 @@ function App() {
                 <Route path="financeiro" element={<Financeiro />} />
                 <Route path="recebimentos" element={<Recebimentos />} />
                 <Route path="usuarios" element={<Usuarios />} />
+                <Route path="lucro-por-unidade" element={<LucroPorUnidade />} />
               </Route>
             </Route>
           </Route>
