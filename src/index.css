@@ -2484,6 +2484,26 @@ tbody tr:hover {
   background: var(--color-danger-soft);
 }
 
+.dash-divergencia-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.dash-divergencia-link:hover {
+  border-color: var(--color-danger);
+  box-shadow: var(--shadow-sm);
+}
+
+.dash-divergencia-cta {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-danger);
+}
+
 .dash-fiado-resumo {
   display: flex;
   flex-wrap: wrap;

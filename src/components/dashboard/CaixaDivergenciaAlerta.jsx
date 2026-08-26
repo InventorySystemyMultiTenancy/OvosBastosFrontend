@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 function formatBRL(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -12,7 +14,7 @@ export function CaixaDivergenciaAlerta({ divergencias }) {
   }
 
   return (
-    <div className="dash-fiado-card is-critico">
+    <Link to="/admin/financeiro?aba=caixas&divergencia=1" className="dash-fiado-card is-critico dash-divergencia-link">
       <div className="dash-fiado-resumo">
         <div>
           <span className="dash-fiado-valor">{divergencias.length}</span>
@@ -36,9 +38,9 @@ export function CaixaDivergenciaAlerta({ divergencias }) {
         ))}
       </ul>
 
-      <p className="text-muted" style={{ marginTop: 10, marginBottom: 0, fontSize: 12 }}>
-        Revise e marque como resolvido na aba Financeiro → Aberturas e fechamentos de caixa.
-      </p>
-    </div>
+      <span className="dash-divergencia-cta">
+        Ver detalhes e marcar como revisado no Financeiro →
+      </span>
+    </Link>
   );
 }

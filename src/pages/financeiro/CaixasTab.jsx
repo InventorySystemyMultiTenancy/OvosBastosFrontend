@@ -12,13 +12,13 @@ function formatDataHora(iso) {
 
 const FILTRO_VAZIO = { caixaId: '', usuarioId: '', de: '', ate: '', apenasDivergencia: false };
 
-export function CaixasTab() {
+export function CaixasTab({ focarDivergencias = false }) {
   const [sessoes, setSessoes] = useState([]);
   const [caixas, setCaixas] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
-  const [filtro, setFiltro] = useState(FILTRO_VAZIO);
+  const [filtro, setFiltro] = useState(() => (focarDivergencias ? { ...FILTRO_VAZIO, apenasDivergencia: true } : FILTRO_VAZIO));
   const [revisando, setRevisando] = useState(null);
 
   function carregar() {

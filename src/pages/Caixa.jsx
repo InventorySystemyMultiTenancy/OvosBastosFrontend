@@ -125,11 +125,17 @@ export function Caixa() {
       carregarSessao();
       carregarProdutos();
       if (resultado.divergenciaDetectada) {
-        setAvisoDivergencia({
-          valorEsperado: Number(resultado.valorEsperadoAbertura),
-          valorAbertura: Number(resultado.valorAbertura),
-          divergencia: Number(resultado.divergenciaAbertura),
-        });
+        // Pra não-admin o backend não manda valorEsperadoAbertura/divergenciaAbertura —
+        // aqui só sobra o aviso genérico, sem revelar o quanto ficou de diferença.
+        setAvisoDivergencia(
+          resultado.valorEsperadoAbertura !== undefined
+            ? {
+                valorEsperado: Number(resultado.valorEsperadoAbertura),
+                valorAbertura: Number(resultado.valorAbertura),
+                divergencia: Number(resultado.divergenciaAbertura),
+              }
+            : {}
+        );
       }
     } catch (err) {
       setErroAbrirCaixaFisico(err.message);
@@ -586,9 +592,18 @@ export function Caixa() {
           <p className="text-muted">Conte o dinheiro físico no caixa e informe o valor abaixo para abrir e começar a vender.</p>
           {sessaoInfo?.ultimoFechamento && (
             <p className="text-muted">
-              Último fechamento: <strong>{formatBRL(sessaoInfo.ultimoFechamento.valorFechamento)}</strong> por{' '}
-              {sessaoInfo.ultimoFechamento.usuarioFechamento?.nome || '—'} em{' '}
-              {new Date(sessaoInfo.ultimoFechamento.fechadaEm).toLocaleString('pt-BR')}
+              {sessaoInfo.ultimoFechamento.valorFechamento !== undefined ? (
+                <>
+                  Último fechamento: <strong>{formatBRL(sessaoInfo.ultimoFechamento.valorFechamento)}</strong> por{' '}
+                  {sessaoInfo.ultimoFechamento.usuarioFechamento?.nome || '—'} em{' '}
+                  {new Date(sessaoInfo.ultimoFechamento.fechadaEm).toLocaleString('pt-BR')}
+                </>
+              ) : (
+                <>
+                  Fechado por {sessaoInfo.ultimoFechamento.usuarioFechamento?.nome || '—'} em{' '}
+                  {new Date(sessaoInfo.ultimoFechamento.fechadaEm).toLocaleString('pt-BR')}. Conte o dinheiro físico com atenção antes de informar o valor.
+                </>
+              )}
             </p>
           )}
           <form onSubmit={abrirCaixaFisico} className="caixa-abertura-form">
@@ -996,13 +1011,19 @@ export function Caixa() {
 
       {avisoDivergencia && (
         <Modal title="Divergência na contagem do caixa" onClose={() => setAvisoDivergencia(null)}>
-          <p>
-            O fechamento anterior deste caixa registrou <strong>{formatBRL(avisoDivergencia.valorEsperado)}</strong>, mas a
-            contagem de agora encontrou <strong>{formatBRL(avisoDivergencia.valorAbertura)}</strong>.
-          </p>
-          <p className={avisoDivergencia.divergencia > 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: 700 }}>
-            Diferença: {avisoDivergencia.divergencia > 0 ? '+' : ''}{formatBRL(avisoDivergencia.divergencia)}
-          </p>
+          {avisoDivergencia.valorEsperado !== undefined ? (
+            <>
+              <p>
+                O fechamento anterior deste caixa registrou <strong>{formatBRL(avisoDivergencia.valorEsperado)}</strong>, mas a
+                contagem de agora encontrou <strong>{formatBRL(avisoDivergencia.valorAbertura)}</strong>.
+              </p>
+              <p className={avisoDivergencia.divergencia > 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: 700 }}>
+                Diferença: {avisoDivergencia.divergencia > 0 ? '+' : ''}{formatBRL(avisoDivergencia.divergencia)}
+              </p>
+            </>
+          ) : (
+            <p>A contagem de abertura não bateu com o valor esperado a partir do último fechamento.</p>
+          )}
           <p className="text-muted">O administrador foi notificado dessa divergência no Dashboard e no Financeiro.</p>
           <div className="modal-actions">
             <button type="button" className="btn btn-primary" onClick={() => setAvisoDivergencia(null)}>Entendi, continuar</button>
