@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -12,7 +12,10 @@ import {
   IconFinanceiro,
   IconUsuarios,
   IconLogout,
+  IconChevronDown,
 } from './icons';
+
+const SIDEBAR_COLAPSADA_KEY = 'eggcontrol_sidebar_colapsada';
 
 const NAV_ITEMS = [
   { to: '/admin', label: 'Dashboard', perfis: ['ADMIN', 'VENDEDOR', 'ENTREGADOR'], Icon: IconDashboard },
@@ -31,6 +34,15 @@ const PERFIL_LABEL = { ADMIN: 'Administrador', VENDEDOR: 'Vendedor', ENTREGADOR:
 export function Layout() {
   const { usuario, logout } = useAuth();
   const [menuAberto, setMenuAberto] = useState(false);
+  // Só afeta telas grandes (o botão fica escondido no mobile) — lembra a preferência do
+  // usuário entre acessos.
+  const [colapsada, setColapsada] = useState(() => {
+    try { return localStorage.getItem(SIDEBAR_COLAPSADA_KEY) === '1'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(SIDEBAR_COLAPSADA_KEY, colapsada ? '1' : '0'); } catch { /* ignora (ex: modo privado) */ }
+  }, [colapsada]);
 
   const itensVisiveis = NAV_ITEMS.filter((item) => item.perfis.includes(usuario?.perfil))
     // Login travado a um caixa (Usuario.caixaId) só vê a aba Caixa — ele nem
@@ -47,7 +59,7 @@ export function Layout() {
         tabIndex={-1}
       />
 
-      <aside className={`sidebar${menuAberto ? ' is-open' : ''}`}>
+      <aside className={`sidebar${menuAberto ? ' is-open' : ''}${colapsada ? ' is-colapsada' : ''}`}>
         <div className="sidebar-brand">
           <img src="/vrilllogo.png" alt="Vrill Ovos" className="sidebar-brand-logo" />
           <div className="sidebar-brand-text">
@@ -55,6 +67,16 @@ export function Layout() {
             <span className="sidebar-brand-tag">Qualidade em cada ovo</span>
           </div>
         </div>
+
+        <button
+          type="button"
+          className="sidebar-toggle"
+          onClick={() => setColapsada((v) => !v)}
+          aria-label={colapsada ? 'Expandir menu' : 'Recolher menu'}
+          title={colapsada ? 'Expandir menu' : 'Recolher menu'}
+        >
+          <IconChevronDown className={`sidebar-toggle-icone${colapsada ? ' is-colapsada' : ''}`} />
+        </button>
 
         <nav className="sidebar-nav">
           {itensVisiveis.map((item) => (
@@ -86,7 +108,7 @@ export function Layout() {
         </div>
       </aside>
 
-      <div className="app-main">
+      <div className={`app-main${colapsada ? ' is-colapsada' : ''}`}>
         <header className="mobile-topbar">
           <button type="button" className="mobile-menu-btn" onClick={() => setMenuAberto(true)} aria-label="Abrir menu">
             <span />

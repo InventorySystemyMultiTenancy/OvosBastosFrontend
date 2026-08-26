@@ -608,7 +608,15 @@ export function Caixa() {
               </div>
             )}
             {ehAdmin && (
-              <button type="button" className="caixa-unidade-nova" onClick={abrirNovoCaixa}>+ Novo caixa/unidade</button>
+              <button
+                type="button"
+                className="caixa-unidade-nova"
+                onClick={abrirNovoCaixa}
+                title="Novo caixa/unidade"
+                aria-label="Novo caixa/unidade"
+              >
+                <IconPlus />
+              </button>
             )}
           </div>
         )}

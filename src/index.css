@@ -26,6 +26,7 @@
   --sidebar-bg-top: #2b1a19;
   --sidebar-bg-bottom: #180f0e;
   --sidebar-width: 252px;
+  --sidebar-width-colapsada: 72px;
   --sidebar-text: rgba(255, 255, 255, 0.68);
   --sidebar-text-active: #ffffff;
 
@@ -108,6 +109,7 @@ a {
   display: flex;
   flex-direction: column;
   margin-left: var(--sidebar-width);
+  transition: margin-left 0.25s ease;
 }
 
 /* ---------- Sidebar ---------- */
@@ -124,6 +126,72 @@ a {
   background: linear-gradient(180deg, var(--sidebar-bg-top), var(--sidebar-bg-bottom));
   color: var(--sidebar-text);
   overflow-y: auto;
+  overflow-x: hidden;
+  transition: width 0.25s ease;
+}
+
+.sidebar-toggle {
+  display: none;
+}
+
+@media (min-width: 901px) {
+  /* Botãozinho "puxador" na quina direita da sidebar, sempre na mesma altura — recolhe
+     pra virar só a logo + a seta, expande de volta ao clicar de novo. Só no desktop; no
+     mobile a navegação já é pelo menu hambúrguer. */
+  .sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 50%;
+    right: -13px;
+    transform: translateY(-50%);
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    box-shadow: var(--shadow-sm);
+    z-index: 31;
+  }
+
+  .sidebar-toggle:hover {
+    color: var(--color-primary-dark);
+    border-color: var(--color-primary-light);
+  }
+
+  .sidebar-toggle-icone {
+    width: 14px;
+    height: 14px;
+    transform: rotate(-90deg);
+    transition: transform 0.2s ease;
+  }
+
+  .sidebar-toggle-icone.is-colapsada {
+    transform: rotate(90deg);
+  }
+
+  .sidebar.is-colapsada {
+    width: var(--sidebar-width-colapsada);
+  }
+
+  .sidebar.is-colapsada .sidebar-brand-text,
+  .sidebar.is-colapsada .sidebar-nav,
+  .sidebar.is-colapsada .sidebar-footer {
+    display: none;
+  }
+
+  .sidebar.is-colapsada .sidebar-brand {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .app-main.is-colapsada {
+    margin-left: var(--sidebar-width-colapsada);
+  }
 }
 
 .sidebar-brand {
@@ -452,6 +520,20 @@ a {
   box-shadow: var(--shadow-sm);
 }
 
+/* Fundo bem clarinho pra destacar os cards que agora ficam recolhidos por padrão —
+   chama a atenção pra abrir sem gritar. Tom mais claro que --color-warning-soft/
+   --color-purple-soft de propósito, pra não se confundir com as barrinhas e selos que
+   já usam essas cores dentro do card (senão a barra do gráfico "some" no fundo). */
+.dash-card-amber {
+  background: #fdf8ee;
+  border-color: #f5e4bf;
+}
+
+.dash-card-purple {
+  background: #f9f6fe;
+  border-color: #e2d3fc;
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
@@ -748,14 +830,28 @@ a {
 
 .caixa-unidade-nova {
   flex-shrink: 0;
-  padding: 8px 16px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border-radius: 999px;
   border: 1px dashed var(--color-border);
   background: none;
-  color: var(--color-text);
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--color-text-muted);
   cursor: pointer;
+}
+
+.caixa-unidade-nova svg {
+  width: 16px;
+  height: 16px;
+}
+
+.caixa-unidade-nova:hover {
+  border-color: var(--color-primary);
+  border-style: solid;
+  color: var(--color-primary-dark);
 }
 
 .caixa-sessao-bar {

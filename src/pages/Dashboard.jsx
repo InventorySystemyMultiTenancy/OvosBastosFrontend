@@ -178,10 +178,10 @@ export function Dashboard() {
           </div>
 
           <div className="dash-grid-2">
-            <div className="card">
+            <div className="card dash-card-amber">
               <AlertaReposicao />
             </div>
-            <div className="card">
+            <div className="card dash-card-purple">
               <div className="section-title" style={{ marginTop: 0 }}>Mais vendidos por unidade</div>
               <MelhoresProdutosPorCaixa dados={resumo.melhoresProdutosPorCaixa} />
             </div>
