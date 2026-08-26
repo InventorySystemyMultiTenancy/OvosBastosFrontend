@@ -1665,6 +1665,18 @@ tbody tr:hover {
   padding: 32px;
 }
 
+/* ---------- Tabela de Vendas: cor diferente por coluna ---------- */
+/* Tons "600/700" bem saturados — mantêm contraste confortável em fundo branco (a maioria
+   passa AA pra texto normal) e ficam bem distintos um do outro coluna a coluna. */
+
+.vendas-col-id { color: #4f46e5; font-weight: 700; }
+.vendas-col-cliente { color: #2563eb; font-weight: 600; }
+.vendas-col-vendedor { color: #7c3aed; font-weight: 600; }
+.vendas-col-unidade { color: #0d9488; font-weight: 600; }
+.vendas-col-pagamento { color: #db2777; font-weight: 600; }
+.vendas-col-total { color: #16a34a; font-weight: 700; }
+.vendas-col-data { color: #c2410c; font-weight: 600; }
+
 /* ---------- Thumbnail de produto ---------- */
 
 .produto-thumb {

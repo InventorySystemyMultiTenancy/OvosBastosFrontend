@@ -163,18 +163,30 @@ export function Vendas() {
   }
 
   const columns = [
-    { key: 'id', header: '#' },
-    { key: 'cliente', header: 'Cliente', render: (v) => v.cliente.nome },
-    { key: 'vendedor', header: 'Vendedor', render: (v) => v.vendedor?.nome || 'Loja Online' },
-    { key: 'caixa', header: 'Unidade', render: (v) => v.caixa?.nome || '—' },
+    { key: 'id', header: '#', render: (v) => <span className="vendas-col-id">{v.id}</span> },
+    { key: 'cliente', header: 'Cliente', render: (v) => <span className="vendas-col-cliente">{v.cliente.nome}</span> },
+    {
+      key: 'vendedor',
+      header: 'Vendedor',
+      render: (v) => <span className="vendas-col-vendedor">{v.vendedor?.nome || 'Loja Online'}</span>,
+    },
+    { key: 'caixa', header: 'Unidade', render: (v) => <span className="vendas-col-unidade">{v.caixa?.nome || '—'}</span> },
     { key: 'status', header: 'Status', render: (v) => <span className={`badge ${STATUS_BADGE[v.status]}`}>{STATUS_LABEL[v.status]}</span> },
     {
       key: 'formaPagamento',
       header: 'Pagamento',
-      render: (v) => (Number(v.valorDinheiro || 0) > 0 ? 'Dinheiro + Maquininha' : v.formaPagamento || '—'),
+      render: (v) => (
+        <span className="vendas-col-pagamento">
+          {Number(v.valorDinheiro || 0) > 0 ? 'Dinheiro + Maquininha' : v.formaPagamento || '—'}
+        </span>
+      ),
     },
-    { key: 'total', header: 'Total', render: (v) => formatBRL(v.total) },
-    { key: 'createdAt', header: 'Data', render: (v) => new Date(v.createdAt).toLocaleDateString('pt-BR') },
+    { key: 'total', header: 'Total', render: (v) => <span className="vendas-col-total">{formatBRL(v.total)}</span> },
+    {
+      key: 'createdAt',
+      header: 'Data',
+      render: (v) => <span className="vendas-col-data">{new Date(v.createdAt).toLocaleDateString('pt-BR')}</span>,
+    },
     {
       key: 'acoes',
       header: '',
