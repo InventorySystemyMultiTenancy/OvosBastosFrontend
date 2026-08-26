@@ -177,6 +177,87 @@ export function IconCalendar(props) {
   );
 }
 
+export function IconBasket(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 9h16l-1.5 10.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5z" />
+      <path d="M8 9 9.5 3.5" />
+      <path d="M16 9 14.5 3.5" />
+      <path d="M9 13.5v4" />
+      <path d="M12 13.5v4" />
+      <path d="M15 13.5v4" />
+    </svg>
+  );
+}
+
+export function IconSearch(props) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="M20 20l-4.7-4.7" />
+    </svg>
+  );
+}
+
+export function IconGrid(props) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+    </svg>
+  );
+}
+
+export function IconCartao(props) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="2.5" y="5.5" width="19" height="13" rx="2.2" />
+      <path d="M2.5 10h19" />
+      <path d="M6 14.5h4" />
+    </svg>
+  );
+}
+
+export function IconDinheiro(props) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M5.5 9v.01" />
+      <path d="M18.5 15v.01" />
+    </svg>
+  );
+}
+
+export function IconDividir(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 12h16" />
+      <circle cx="12" cy="6" r="2" />
+      <circle cx="12" cy="18" r="2" />
+    </svg>
+  );
+}
+
+export function IconPlus(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 4v16" />
+      <path d="M4 12h16" />
+    </svg>
+  );
+}
+
+export function IconChevronDown(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M5 8.5 12 15.5 19 8.5" />
+    </svg>
+  );
+}
+
 export function IconSpark(props) {
   return (
     <svg {...base} {...props}>

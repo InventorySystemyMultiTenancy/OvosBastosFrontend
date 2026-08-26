@@ -10,10 +10,10 @@ function formatDiaCurto(iso) {
 }
 
 const LARGURA = 640;
-const ALTURA = 200;
+const ALTURA = 220;
 const PAD_X = 12;
 const PAD_TOP = 16;
-const PAD_BOTTOM = 28;
+const PAD_BOTTOM = 34;
 
 export function SparkLineArea({ dados }) {
   const svgRef = useRef(null);
@@ -76,6 +76,14 @@ export function SparkLineArea({ dados }) {
         <path d={area} className="dash-chart-area" />
         <path d={linha} className="dash-chart-line" />
 
+        {/* Ponto "vivo" no dado mais recente — pulsa como um monitor de batimento. */}
+        {pontos.length > 0 && (
+          <>
+            <circle cx={pontos[pontos.length - 1].x} cy={pontos[pontos.length - 1].y} r="5" className="dash-chart-dot" />
+            <circle cx={pontos[pontos.length - 1].x} cy={pontos[pontos.length - 1].y} r="5" className="dash-chart-dot-live" />
+          </>
+        )}
+
         {ativo && (
           <>
             <line x1={ativo.x} y1={PAD_TOP} x2={ativo.x} y2={baseline} className="dash-chart-guide" />
@@ -83,10 +91,10 @@ export function SparkLineArea({ dados }) {
           </>
         )}
 
-        <text x={pontos[0].x} y={ALTURA - 8} className="dash-chart-axis-label" textAnchor="start">
+        <text x={pontos[0].x} y={ALTURA - 10} className="dash-chart-axis-label" textAnchor="start">
           {formatDiaCurto(pontos[0].data)}
         </text>
-        <text x={pontos[pontos.length - 1].x} y={ALTURA - 8} className="dash-chart-axis-label" textAnchor="end">
+        <text x={pontos[pontos.length - 1].x} y={ALTURA - 10} className="dash-chart-axis-label" textAnchor="end">
           {formatDiaCurto(pontos[pontos.length - 1].data)}
         </text>
       </svg>

@@ -2,14 +2,26 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, resolveUploadUrl } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/Modal';
+import {
+  IconBasket,
+  IconSearch,
+  IconGrid,
+  IconCartao,
+  IconDinheiro,
+  IconDividir,
+  IconPlus,
+  IconChevronDown,
+  IconVendas,
+} from '../components/icons';
 
 const CAIXA_STORAGE_KEY = 'eggcontrol_caixa_id';
 const CAIXA_VAZIO = { nome: '', unidade: '' };
+const PRODUTOS_POR_PAGINA = 8;
 
 const FORMAS_PAGAMENTO = [
-  { id: 'MAQUININHA', label: 'Maquininha', icon: '💳' },
-  { id: 'DINHEIRO', label: 'Dinheiro', icon: '💵' },
-  { id: 'DIVIDIDO', label: 'Dividir', icon: '➗' },
+  { id: 'MAQUININHA', label: 'Maquininha', Icon: IconCartao },
+  { id: 'DINHEIRO', label: 'Dinheiro', Icon: IconDinheiro },
+  { id: 'DIVIDIDO', label: 'Dividir', Icon: IconDividir },
 ];
 
 const LABEL_FORMA = { DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' };
@@ -36,6 +48,18 @@ export function Caixa() {
   const [erro, setErro] = useState('');
   const [busca, setBusca] = useState('');
   const [categoriaAtiva, setCategoriaAtiva] = useState('Todos');
+  const [categoriasAbertas, setCategoriasAbertas] = useState(false);
+  const categoriasRef = useRef(null);
+  const [produtosVisiveis, setProdutosVisiveis] = useState(PRODUTOS_POR_PAGINA);
+
+  useEffect(() => {
+    if (!categoriasAbertas) return;
+    function aoClicarFora(e) {
+      if (categoriasRef.current && !categoriasRef.current.contains(e.target)) setCategoriasAbertas(false);
+    }
+    document.addEventListener('mousedown', aoClicarFora);
+    return () => document.removeEventListener('mousedown', aoClicarFora);
+  }, [categoriasAbertas]);
 
   const [caixas, setCaixas] = useState([]);
   const [caixaId, setCaixaId] = useState(() => {
@@ -319,6 +343,13 @@ export function Caixa() {
     });
   }, [produtos, categoriaAtiva, busca]);
 
+  // Volta pra primeira página de produtos sempre que o filtro muda — senão "carregar mais"
+  // fica com uma contagem que não bate com a lista nova.
+  useEffect(() => setProdutosVisiveis(PRODUTOS_POR_PAGINA), [categoriaAtiva, busca, caixaId]);
+
+  const produtosParaExibir = produtosFiltrados.slice(0, produtosVisiveis);
+  const temMaisProdutos = produtosVisiveis < produtosFiltrados.length;
+
   function quantidadeNoCarrinho(produtoId) {
     return carrinho.find((i) => i.produtoId === produtoId)?.quantidade || 0;
   }
@@ -531,8 +562,8 @@ export function Caixa() {
     <div className="caixa-page">
       <div className="page-header">
         <div>
-          <h1>Caixa</h1>
-          <p>Monte o pedido do cliente, escolha a forma de pagamento e finalize a venda.</p>
+          <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}><IconBasket /> Caixa</h1>
+          <p>Selecione os produtos para adicionar ao pedido.</p>
         </div>
       </div>
 
@@ -641,13 +672,41 @@ export function Caixa() {
       <div className="caixa-layout">
         <div className="caixa-produtos-col">
           <div className="caixa-filtros">
-            <input
-              className="caixa-busca"
-              type="search"
-              placeholder="Buscar produto..."
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-            />
+            <div className="caixa-busca-row">
+              <div className="caixa-icone-campo">
+                <IconSearch className="caixa-icone-campo-icone" />
+                <input
+                  className="caixa-busca"
+                  type="search"
+                  placeholder="Buscar produto..."
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                />
+              </div>
+              <div className="caixa-categorias-menu" ref={categoriasRef}>
+                <button
+                  type="button"
+                  className="caixa-ver-categorias-btn"
+                  onClick={() => setCategoriasAbertas((v) => !v)}
+                >
+                  <IconGrid /> Ver categorias
+                </button>
+                {categoriasAbertas && (
+                  <div className="caixa-categorias-dropdown">
+                    {categorias.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        className={categoriaAtiva === c ? 'is-active' : ''}
+                        onClick={() => { setCategoriaAtiva(c); setCategoriasAbertas(false); }}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="caixa-categorias">
               {categorias.map((c) => (
                 <button
@@ -667,45 +726,74 @@ export function Caixa() {
           ) : produtosFiltrados.length === 0 ? (
             <p className="text-muted">Nenhum produto encontrado.</p>
           ) : (
-            <div className="caixa-produtos-grid">
-              {produtosFiltrados.map((p) => {
-                const qtdCarrinho = quantidadeNoCarrinho(p.id);
-                const disponivelRestante = p.quantidade - qtdCarrinho;
-                const esgotado = p.quantidade <= 0;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className={`caixa-produto-btn${esgotado ? ' is-esgotado' : ''}`}
-                    onClick={() => adicionar(p)}
-                    disabled={esgotado || disponivelRestante <= 0}
-                  >
-                    {qtdCarrinho > 0 && <span className="caixa-produto-badge">{qtdCarrinho}</span>}
-                    <div className="caixa-produto-img">
-                      {p.imagemUrl ? <img src={resolveUploadUrl(p.imagemUrl)} alt={p.nome} /> : <span aria-hidden="true">🥚</span>}
+            <>
+              <div className="caixa-produtos-grid">
+                {produtosParaExibir.map((p) => {
+                  const qtdCarrinho = quantidadeNoCarrinho(p.id);
+                  const disponivelRestante = p.quantidade - qtdCarrinho;
+                  const esgotado = p.quantidade <= 0;
+                  return (
+                    <div key={p.id} className={`caixa-produto-card${esgotado ? ' is-esgotado' : ''}`}>
+                      {qtdCarrinho > 0 && <span className="caixa-produto-badge">{qtdCarrinho}</span>}
+                      <div className="caixa-produto-img">
+                        {p.imagemUrl ? <img src={resolveUploadUrl(p.imagemUrl)} alt={p.nome} /> : <span aria-hidden="true">🥚</span>}
+                      </div>
+                      <div className="caixa-produto-corpo">
+                        <strong className="caixa-produto-nome">{p.nome}</strong>
+                        <span className="caixa-produto-unidade">{p.unidade}</span>
+                        <div className="caixa-produto-rodape">
+                          {esgotado ? (
+                            <span className="caixa-produto-esgotado-label">Esgotado</span>
+                          ) : (
+                            <>
+                              <span className="caixa-produto-preco">{formatBRL(p.precoVenda)}</span>
+                              <button
+                                type="button"
+                                className="caixa-produto-add"
+                                onClick={() => adicionar(p)}
+                                disabled={disponivelRestante <= 0}
+                                aria-label={`Adicionar ${p.nome}`}
+                              >
+                                <IconPlus />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <strong className="caixa-produto-nome">{p.nome}</strong>
-                    <span className="text-muted caixa-produto-unidade">{p.unidade}</span>
-                    <span className="caixa-produto-preco">{formatBRL(p.precoVenda)}</span>
-                    {esgotado && <span className="caixa-produto-esgotado-tag">Esgotado</span>}
+                  );
+                })}
+              </div>
+              {temMaisProdutos && (
+                <div className="caixa-carregar-mais-wrap">
+                  <button
+                    type="button"
+                    className="caixa-carregar-mais-btn"
+                    onClick={() => setProdutosVisiveis((v) => v + PRODUTOS_POR_PAGINA)}
+                  >
+                    Carregar mais produtos <IconChevronDown />
                   </button>
-                );
-              })}
-            </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 
         <div className="caixa-carrinho-col">
           <div className="caixa-carrinho-card">
             <div className="caixa-carrinho-topo">
-              <div className="section-title" style={{ margin: 0 }}>Pedido atual</div>
+              <div className="caixa-carrinho-titulo"><IconVendas /> Pedido atual</div>
               {carrinho.length > 0 && (
                 <button type="button" className="caixa-limpar-btn" onClick={limparVenda}>Limpar</button>
               )}
             </div>
 
             {carrinho.length === 0 ? (
-              <p className="text-muted">Nenhum item ainda. Clique nos produtos ao lado pra adicionar.</p>
+              <div className="caixa-carrinho-vazio">
+                <IconVendas />
+                <p>Nenhum item ainda.</p>
+                <span>Clique nos produtos ao lado para adicionar.</span>
+              </div>
             ) : (
               <ul className="caixa-itens-lista">
                 {carrinho.map((i) => (
@@ -736,47 +824,50 @@ export function Caixa() {
             <form onSubmit={finalizarVenda}>
               <div className="caixa-resumo">
                 <div className="caixa-resumo-linha">
-                  <span>{totalItens} {totalItens === 1 ? 'item' : 'itens'} · Subtotal</span>
-                  <span>{formatBRL(subtotal)}</span>
+                  <span>{totalItens} {totalItens === 1 ? 'item' : 'itens'}</span>
+                  <span>Subtotal <strong>{formatBRL(subtotal)}</strong></span>
                 </div>
                 <div className="field">
                   <label>Desconto (R$)</label>
                   <input type="number" min="0" step="0.01" value={desconto} onChange={(e) => setDesconto(e.target.value)} />
                 </div>
-                <div className="caixa-resumo-linha caixa-resumo-total">
+                <div className="caixa-resumo-total-box">
                   <span>Total</span>
                   <span>{formatBRL(total)}</span>
                 </div>
               </div>
 
-              <div className="field" style={{ marginTop: 14, marginBottom: 14 }}>
+              <div className="field caixa-campo-cliente">
                 <label>Cliente</label>
-                <input value={nomeCliente} onChange={(e) => setNomeCliente(e.target.value)} placeholder="Cliente Balcão" />
+                <div className="caixa-icone-campo">
+                  <IconSearch className="caixa-icone-campo-icone" />
+                  <input value={nomeCliente} onChange={(e) => setNomeCliente(e.target.value)} placeholder="Buscar cliente..." />
+                </div>
               </div>
 
               <div className="field" style={{ marginBottom: 14 }}>
                 <label>Forma de pagamento *</label>
-                <div className="ecommerce-payment-options" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                <div className="caixa-formas-pagamento">
                   {FORMAS_PAGAMENTO.map((f) => {
                     const indisponivel = (f.id === 'MAQUININHA' || f.id === 'DIVIDIDO') && !maquininhaDisponivel;
                     return (
                       <button
                         type="button"
                         key={f.id}
-                        className={`ecommerce-payment-option${formaPagamento === f.id ? ' is-active' : ''}`}
+                        className={`caixa-forma-btn is-${f.id.toLowerCase()}${formaPagamento === f.id ? ' is-active' : ''}`}
                         onClick={() => setFormaPagamento(f.id)}
                         disabled={indisponivel}
                         title={indisponivel ? 'Configure a maquininha deste caixa em "Editar caixa"' : undefined}
                       >
-                        <span>{f.icon}</span>
+                        <span className="caixa-forma-icone"><f.Icon /></span>
                         {f.label}
                       </button>
                     );
                   })}
                 </div>
                 {caixaId && !maquininhaDisponivel && (
-                  <p className="text-muted" style={{ marginTop: 6, fontSize: 12 }}>
-                    Este caixa não tem maquininha configurada. {ehAdmin ? 'Configure em "Editar caixa".' : 'Peça para um administrador configurar.'}
+                  <p className="alert-box caixa-aviso-maquininha">
+                    ⚠️ Este caixa não tem maquininha configurada. {ehAdmin ? 'Configure em "Editar caixa".' : 'Peça para um administrador configurar.'}
                   </p>
                 )}
               </div>

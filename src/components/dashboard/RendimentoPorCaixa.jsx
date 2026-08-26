@@ -8,27 +8,22 @@ export function RendimentoPorCaixa({ dados, mostrarSaldo }) {
   const maxValor = Math.max(1, ...dados.map((c) => c.receitas));
 
   return (
-    <div className="dash-barlist">
+    <div className="dash-vbar-chart">
       {dados.map((c) => (
-        <div className="dash-barlist-row is-wide" key={c.caixaId ?? 'sem-caixa'}>
-          <span className="dash-barlist-label" title={c.unidade ? `${c.nome} — ${c.unidade}` : c.nome}>
-            {c.nome}
-            {c.unidade && <span className="text-muted"> · {c.unidade}</span>}
-          </span>
-          <div className="dash-barlist-track is-green">
+        <div className="dash-vbar-col" key={c.caixaId ?? 'sem-caixa'}>
+          <span className="dash-vbar-value">{formatBRL(c.receitas)}</span>
+          <div className="dash-vbar-track is-green">
             <div
-              className={`dash-barlist-fill${c.caixaId === null ? ' is-outros' : ' is-green'}`}
-              style={{ width: `${Math.max((c.receitas / maxValor) * 100, 3)}%` }}
+              className={`dash-vbar-fill${c.caixaId === null ? ' is-outros' : ' is-green'}`}
+              style={{ height: `${Math.max((c.receitas / maxValor) * 100, 3)}%` }}
             />
           </div>
-          <span className="dash-barlist-value-col">
-            <span className="dash-barlist-value">{formatBRL(c.receitas)}</span>
-            {mostrarSaldo && c.saldo !== undefined && (
-              <span className={`dash-barlist-saldo ${c.saldo >= 0 ? 'text-success' : 'text-danger'}`}>
-                líquido {formatBRL(c.saldo)}
-              </span>
-            )}
-          </span>
+          <span className="dash-vbar-label" title={c.unidade ? `${c.nome} — ${c.unidade}` : c.nome}>{c.nome}</span>
+          {mostrarSaldo && c.saldo !== undefined && (
+            <span className={`dash-vbar-sub ${c.saldo >= 0 ? 'text-success' : 'text-danger'}`}>
+              {c.saldo >= 0 ? '+' : ''}{formatBRL(c.saldo)}
+            </span>
+          )}
         </div>
       ))}
     </div>
