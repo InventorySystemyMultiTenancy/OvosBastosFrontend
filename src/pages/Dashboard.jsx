@@ -179,7 +179,6 @@ export function Dashboard() {
 
           <div className="dash-grid-2">
             <div className="card">
-              <div className="section-title" style={{ marginTop: 0 }}>🐣 Reposição recomendada · por Clara, IA da Vrill Ovos</div>
               <AlertaReposicao />
             </div>
             <div className="card">

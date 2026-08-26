@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../api/client';
 import { Modal } from '../Modal';
 import { Table } from '../Table';
+import { IconChevronDown } from '../icons';
 
 function formatDataHora(iso) {
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -25,6 +26,10 @@ const COLUNAS_REPOSICAO = [
 ];
 
 export function AlertaReposicao() {
+  // Fechado por padrão, igual "Mais vendidos por unidade" — a análise da Clara só aparece
+  // quando o admin clica na seta, pra não poluir o dashboard com texto o tempo todo.
+  const [aberto, setAberto] = useState(false);
+
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -51,56 +56,71 @@ export function AlertaReposicao() {
     api.get('/dashboard/analise-reposicao').then(setDados).catch((e) => setErro(e.message)).finally(() => setCarregando(false));
   }
 
+  // Busca em segundo plano mesmo fechado, pra já estar pronto quando o admin abrir.
   useEffect(carregar, []);
-
-  if (carregando) {
-    return <p className="text-muted">Clara está analisando o estoque das unidades...</p>;
-  }
-
-  if (erro && !dados) {
-    return <div className="alert-box">{erro}</div>;
-  }
 
   const itens = dados?.itens || [];
 
   return (
     <div>
-      {erro && <div className="alert-box">{erro}</div>}
+      <button
+        type="button"
+        className="dash-melhores-caixa-header"
+        onClick={() => setAberto((v) => !v)}
+        aria-expanded={aberto}
+      >
+        <span>🐣 Reposição recomendada · por Clara, IA da Vrill Ovos</span>
+        <IconChevronDown className={`dash-melhores-caixa-seta${aberto ? ' is-aberto' : ''}`} />
+      </button>
 
-      {dados?.resumo && <p style={{ marginTop: 0 }}>{dados.resumo}</p>}
+      {aberto && (
+        <div style={{ marginTop: 12 }}>
+          {carregando ? (
+            <p className="text-muted">Clara está analisando o estoque das unidades...</p>
+          ) : erro && !dados ? (
+            <div className="alert-box">{erro}</div>
+          ) : (
+            <>
+              {erro && <div className="alert-box">{erro}</div>}
 
-      {itens.length === 0 ? (
-        <div className="alert-box dash-fiado-ok">Clara não encontrou nenhuma unidade com risco de ruptura no momento. 🎉</div>
-      ) : (
-        <ul className="dash-fiado-lista">
-          {itens.map((d) => (
-            <li key={`${d.caixaId}-${d.produtoId}`} className={d.urgencia === 'alta' || d.coberturaDias <= 1 ? 'is-vencida' : ''}>
-              <span className="dash-fiado-cliente">
-                {d.produtoNome} — {d.caixaNome}
-                {d.caixaUnidade && <span className="text-muted"> · {d.caixaUnidade}</span>}
-              </span>
-              <span>{d.estoqueAtual} em estoque</span>
-              <span className="text-muted">{d.coberturaDias == null ? '—' : `~${Number(d.coberturaDias).toFixed(1)} dias de cobertura`}</span>
-            </li>
-          ))}
-        </ul>
+              {dados?.resumo && <p style={{ marginTop: 0 }}>{dados.resumo}</p>}
+
+              {itens.length === 0 ? (
+                <div className="alert-box dash-fiado-ok">Clara não encontrou nenhuma unidade com risco de ruptura no momento. 🎉</div>
+              ) : (
+                <ul className="dash-fiado-lista">
+                  {itens.map((d) => (
+                    <li key={`${d.caixaId}-${d.produtoId}`} className={d.urgencia === 'alta' || d.coberturaDias <= 1 ? 'is-vencida' : ''}>
+                      <span className="dash-fiado-cliente">
+                        {d.produtoNome} — {d.caixaNome}
+                        {d.caixaUnidade && <span className="text-muted"> · {d.caixaUnidade}</span>}
+                      </span>
+                      <span>{d.estoqueAtual} em estoque</span>
+                      <span className="text-muted">{d.coberturaDias == null ? '—' : `~${Number(d.coberturaDias).toFixed(1)} dias de cobertura`}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="modal-actions" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
+                <button type="button" className="btn btn-primary btn-sm" onClick={abrirReposicaoMensal}>
+                  📦 Ver o que repor
+                </button>
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <span className="text-muted" style={{ fontSize: 12 }}>
+                  {dados?.modoFallback
+                    ? 'Cálculo automático — Clara (IA) ainda não foi configurada.'
+                    : dados?.geradoEm
+                      ? `${dados.stale ? 'Última análise semanal da Clara' : 'Clara analisou esta semana'} em ${formatDataHora(dados.geradoEm)} — atualiza automaticamente toda semana`
+                      : null}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
       )}
-
-      <div className="modal-actions" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
-        <button type="button" className="btn btn-primary btn-sm" onClick={abrirReposicaoMensal}>
-          📦 Ver o que repor
-        </button>
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <span className="text-muted" style={{ fontSize: 12 }}>
-          {dados?.modoFallback
-            ? 'Cálculo automático — Clara (IA) ainda não foi configurada.'
-            : dados?.geradoEm
-              ? `${dados.stale ? 'Última análise semanal da Clara' : 'Clara analisou esta semana'} em ${formatDataHora(dados.geradoEm)} — atualiza automaticamente toda semana`
-              : null}
-        </span>
-      </div>
 
       {modalReposicao && (
         <Modal title="O que repor pra voltar ao início do mês" onClose={() => setModalReposicao(false)}>
