@@ -78,7 +78,6 @@ export function AlertaReposicao() {
               <span className="dash-fiado-cliente">
                 {d.produtoNome} — {d.caixaNome}
                 {d.caixaUnidade && <span className="text-muted"> · {d.caixaUnidade}</span>}
-                {d.motivo && <span className="text-muted" style={{ display: 'block', fontSize: 12 }}>{d.motivo}</span>}
               </span>
               <span>{d.estoqueAtual} em estoque</span>
               <span className="text-muted">{d.coberturaDias == null ? '—' : `~${Number(d.coberturaDias).toFixed(1)} dias de cobertura`}</span>

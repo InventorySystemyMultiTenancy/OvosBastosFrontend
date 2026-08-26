@@ -46,6 +46,15 @@ html, body, #root {
   height: 100%;
 }
 
+html, body {
+  /* Rede de segurança: nada no site deve empurrar a largura além da viewport no mobile.
+     Cada componente já é responsivo por conta própria — isso é só o último backstop pra
+     garantir que nunca aparece scroll horizontal, mesmo se algo escapar (ex: a sidebar
+     fixed+transform fora da tela, que sem isso conta pra scrollWidth do documento). */
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -557,6 +566,13 @@ a {
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   font-size: 14px;
+}
+
+/* Especificidade extra pra garantir que isso vence ".field input" (mesmo esquema de
+   classe+tag, mas declarado depois no arquivo) — sem isso o ícone cai por cima do texto,
+   já que o campo Cliente do caixa fica dentro de um ".field". */
+.field .caixa-icone-campo input {
+  padding-left: 40px;
 }
 
 .caixa-icone-campo input:focus {
@@ -1278,6 +1294,35 @@ a {
 
   .caixa-carrinho-card {
     max-height: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .caixa-busca-row {
+    flex-wrap: wrap;
+  }
+
+  .caixa-icone-campo {
+    flex-basis: 100%;
+  }
+
+  .caixa-categorias-menu {
+    flex: 1;
+  }
+
+  .caixa-ver-categorias-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .caixa-categorias-dropdown {
+    left: 0;
+    right: 0;
+  }
+
+  .caixa-produtos-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
+    gap: 12px;
   }
 }
 
@@ -2656,6 +2701,27 @@ tbody tr:hover {
   .dash-vbar-value {
     font-size: 14px;
   }
+
+  /* Com 7-8 colunas, espremer tudo na tela deixa o valor ilegível (corta pra "R$ ...").
+     Mesma solução já usada nas tabelas: em vez de espremer, rola por dentro do card —
+     a página continua sem overflow, só esse gráfico específico ganha uma faixa scrollável. */
+  .dash-vbar-chart.is-denso {
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding-bottom: 6px;
+    margin: 0 -4px;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .dash-vbar-chart.is-denso .dash-vbar-col {
+    flex: 0 0 auto;
+    width: 64px;
+  }
+
+  .dash-vbar-chart.is-denso .dash-vbar-value {
+    font-size: 13px;
+  }
 }
 
 /* Seção secundária (resumo mais compacto, abaixo do que importa mais) */
@@ -2839,16 +2905,41 @@ tbody tr:hover {
   gap: 20px;
 }
 
-.dash-melhores-caixa-bloco strong {
-  display: block;
+.dash-melhores-caixa-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 0;
   font-size: var(--chart-label-fs);
-  margin-bottom: 12px;
+  font-weight: 700;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.dash-melhores-caixa-header:hover {
+  color: var(--color-primary-darker);
+}
+
+.dash-melhores-caixa-seta {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+  transition: transform 0.15s ease;
+}
+
+.dash-melhores-caixa-seta.is-aberto {
+  transform: rotate(180deg);
 }
 
 .dash-melhores-caixa-lista {
   list-style: none;
   padding: 0;
-  margin: 0;
+  margin: 12px 0 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
