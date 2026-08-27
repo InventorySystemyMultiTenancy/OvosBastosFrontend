@@ -23,8 +23,8 @@
   --color-purple: #8b5cf6;
   --color-purple-soft: #f1ebfe;
 
-  --sidebar-bg-top: #9c7d1f;
-  --sidebar-bg-bottom: #5c4a14;
+  --sidebar-bg-top: #f5960c;
+  --sidebar-bg-bottom: #ec8f0a;
   --sidebar-width: 252px;
   --sidebar-width-colapsada: 72px;
   --sidebar-text: rgba(255, 255, 255, 0.68);
@@ -222,6 +222,9 @@ a {
   object-fit: contain;
   display: block;
   flex-shrink: 0;
+  /* Fundo agora é laranja mostarda — sem esse brilho vermelho atrás, a logo (e o
+     branco/creme dela) fica apagada, quase invisível contra o laranja. */
+  filter: drop-shadow(0 0 14px rgba(207, 23, 23, 0.85));
 }
 
 .sidebar-brand-text {
@@ -2042,7 +2045,9 @@ tbody tr:hover {
   padding: 40px;
   width: 100%;
   max-width: 380px;
-  box-shadow: var(--shadow-md);
+  /* Brilho vermelho por trás do card branco — sem isso ele fica meio "apagado" em cima
+     do laranja mostarda do fundo, os dois ficam próximos demais em tom. */
+  box-shadow: 0 0 90px 12px rgba(207, 23, 23, 0.45), var(--shadow-md);
 }
 
 .login-logo {
@@ -2051,6 +2056,8 @@ tbody tr:hover {
   width: 84px;
   object-fit: contain;
   margin: 0 auto 12px;
+  /* Mesmo motivo do logo da sidebar: precisa de destaque pra não sumir no laranja. */
+  filter: drop-shadow(0 0 22px rgba(207, 23, 23, 0.8));
 }
 
 @media (max-width: 480px) {
