@@ -204,6 +204,9 @@ export function Vendas() {
           {v.status === 'CONFIRMADA' && (
             <button className="btn btn-secondary btn-sm" onClick={() => verComprovante(v)}>Comprovante</button>
           )}
+          {v.status !== 'ORCAMENTO' && v.pagamentoPointMP && STATUS_MP_ATIVOS.includes(v.pagamentoPointMP.status) && (
+            <button className="btn btn-secondary btn-sm" onClick={() => abrirMaquininha(v)}>Maquininha</button>
+          )}
         </div>
       ),
     },
@@ -306,7 +309,7 @@ export function Vendas() {
                     {cancelandoMp ? 'Cancelando...' : 'Cancelar cobrança'}
                   </button>
                 )}
-                {['REJEITADO', 'CANCELADO'].includes(pagamentoMp.status) && (
+                {['REJEITADO', 'CANCELADO'].includes(pagamentoMp.status) && modalMaquininha.status === 'ORCAMENTO' && (
                   <button type="button" className="btn btn-primary" onClick={enviarCobrancaMaquininha} disabled={enviandoMp}>
                     {enviandoMp ? 'Enviando...' : 'Tentar novamente'}
                   </button>

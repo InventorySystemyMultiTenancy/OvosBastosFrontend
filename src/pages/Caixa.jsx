@@ -475,12 +475,23 @@ export function Caixa() {
     if (!pagamentoAndamento) return;
     setCancelandoPagamento(true);
     pararTimersPagamento();
+    let falhaAoCancelarNaMaquininha = false;
     try {
-      await api.delete(`/vendas/${pagamentoAndamento.venda.id}/pagamento-maquininha`).catch(() => {});
+      await api.delete(`/vendas/${pagamentoAndamento.venda.id}/pagamento-maquininha`).catch(() => {
+        falhaAoCancelarNaMaquininha = true;
+      });
       await api.put(`/vendas/${pagamentoAndamento.venda.id}/cancelar`, {}).catch(() => {});
     } finally {
       setCancelandoPagamento(false);
       setPagamentoAndamento(null);
+      // Alguns estados do Mercado Pago (ex: cobrança já entregue ao terminal) só podem ser
+      // cancelados direto no aparelho, não pela API — a venda é cancelada mesmo assim, mas a
+      // cobrança pode continuar ativa na maquininha até ser resolvida lá ou na aba Vendas.
+      if (falhaAoCancelarNaMaquininha) {
+        alert(
+          'A venda foi cancelada, mas não foi possível cancelar a cobrança na maquininha automaticamente. Cancele direto no aparelho, ou acompanhe/cancele pela aba Vendas.'
+        );
+      }
     }
   }
 
