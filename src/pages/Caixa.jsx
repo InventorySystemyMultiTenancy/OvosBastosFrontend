@@ -217,11 +217,12 @@ export function Caixa() {
   const caixaAtual = caixas.find((c) => c.id === caixaId);
   const maquininhaDisponivel = Boolean(caixaAtual?.mpConfigurado);
 
+  // Maquininha é a forma padrão sempre que a unidade tem uma configurada — só troca de
+  // novo quando a unidade muda (ou a maquininha some), nunca por cima de uma escolha manual
+  // do usuário no meio da venda atual (por isso formaPagamento não entra nas dependências).
   useEffect(() => {
-    if ((formaPagamento === 'MAQUININHA' || formaPagamento === 'DIVIDIDO') && !maquininhaDisponivel) {
-      setFormaPagamento('DINHEIRO');
-    }
-  }, [caixaId, maquininhaDisponivel, formaPagamento]);
+    setFormaPagamento(maquininhaDisponivel ? 'MAQUININHA' : 'DINHEIRO');
+  }, [caixaId, maquininhaDisponivel]);
 
   useEffect(() => () => pararTimersPagamento(), []);
 
@@ -420,7 +421,7 @@ export function Caixa() {
     setCarrinho([]);
     setNomeCliente('');
     setDesconto(0);
-    setFormaPagamento('DINHEIRO');
+    setFormaPagamento(maquininhaDisponivel ? 'MAQUININHA' : 'DINHEIRO');
     setValorRecebido('');
     setValorDinheiroDividido('');
     setErroVenda('');
