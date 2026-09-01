@@ -86,6 +86,7 @@ export function Caixa() {
   const [carrinhoMobileAberto, setCarrinhoMobileAberto] = useState(false);
   const [nomeCliente, setNomeCliente] = useState('');
   const [desconto, setDesconto] = useState(0);
+  const [acrescimo, setAcrescimo] = useState(0);
   const [formaPagamento, setFormaPagamento] = useState('DINHEIRO');
   const [valorRecebido, setValorRecebido] = useState('');
   const [valorDinheiroDividido, setValorDinheiroDividido] = useState('');
@@ -454,7 +455,7 @@ export function Caixa() {
 
   const subtotal = useMemo(() => carrinho.reduce((s, i) => s + Number(i.precoVenda) * i.quantidade, 0), [carrinho]);
   const totalItens = carrinho.reduce((s, i) => s + i.quantidade, 0);
-  const total = Math.max(subtotal - (Number(desconto) || 0), 0);
+  const total = Math.max(subtotal - (Number(desconto) || 0) + (Number(acrescimo) || 0), 0);
   const troco = Math.max(Number(valorRecebido || 0) - total, 0);
   const faltaReceber = Math.max(total - Number(valorRecebido || 0), 0);
   const valorMaquininhaDividido = Math.max(total - (Number(valorDinheiroDividido) || 0), 0);
@@ -465,6 +466,7 @@ export function Caixa() {
     setCarrinho([]);
     setNomeCliente('');
     setDesconto(0);
+    setAcrescimo(0);
     setFormaPagamento(maquininhaDisponivel ? 'MAQUININHA' : 'DINHEIRO');
     setValorRecebido('');
     setValorDinheiroDividido('');
@@ -560,6 +562,7 @@ export function Caixa() {
         itens,
         formaPagamento: viaMaquininha ? 'MAQUININHA' : formaPagamento,
         desconto: Number(desconto) || 0,
+        acrescimo: Number(acrescimo) || 0,
         caixaId,
         valorDinheiro: formaPagamento === 'DIVIDIDO' ? Number(valorDinheiroDividido) : undefined,
       };
@@ -610,6 +613,9 @@ export function Caixa() {
 
             {Number(vendaConcluida.desconto) > 0 && (
               <p className="text-muted">Desconto aplicado: <strong>{formatBRL(vendaConcluida.desconto)}</strong></p>
+            )}
+            {Number(vendaConcluida.acrescimo) > 0 && (
+              <p className="text-muted">Acréscimo aplicado: <strong>{formatBRL(vendaConcluida.acrescimo)}</strong></p>
             )}
             <p className="caixa-recibo-total">Total: <strong>{formatBRL(vendaConcluida.total)}</strong></p>
             {Number(vendaConcluida.valorDinheiro || 0) > 0 ? (
@@ -972,9 +978,15 @@ export function Caixa() {
                   <span>{totalItens} {totalItens === 1 ? 'item' : 'itens'}</span>
                   <span>Subtotal <strong>{formatBRL(subtotal)}</strong></span>
                 </div>
-                <div className="field">
-                  <label>Desconto (R$)</label>
-                  <input type="number" min="0" step="0.01" value={desconto} onChange={(e) => setDesconto(e.target.value)} />
+                <div className="caixa-resumo-ajustes">
+                  <div className="field">
+                    <label>Desconto (R$)</label>
+                    <input type="number" min="0" step="0.01" value={desconto} onChange={(e) => setDesconto(e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>Acréscimo (R$)</label>
+                    <input type="number" min="0" step="0.01" value={acrescimo} onChange={(e) => setAcrescimo(e.target.value)} />
+                  </div>
                 </div>
                 <div className="caixa-resumo-total-box">
                   <span>Total</span>

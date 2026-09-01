@@ -1421,6 +1421,16 @@ a {
   font-weight: 700;
 }
 
+.caixa-resumo-ajustes {
+  display: flex;
+  gap: 10px;
+}
+
+.caixa-resumo-ajustes .field {
+  flex: 1;
+  min-width: 0;
+}
+
 .caixa-resumo-total-box {
   display: flex;
   align-items: center;

@@ -376,6 +376,9 @@ export function Vendas() {
               ))}
             </ul>
             <p><strong>Desconto:</strong> <strong>{formatBRL(comprovante.desconto)}</strong></p>
+            {Number(comprovante.acrescimo) > 0 && (
+              <p><strong>Acréscimo:</strong> <strong>{formatBRL(comprovante.acrescimo)}</strong></p>
+            )}
             <p className="caixa-recibo-total" style={{ marginTop: 0 }}>Total: <strong>{formatBRL(comprovante.total)}</strong></p>
           </div>
           <div className="modal-actions">
