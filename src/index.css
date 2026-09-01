@@ -1588,13 +1588,13 @@ a {
    a impressora ainda pode ter sua própria config de papel no driver do SO, isso aqui
    é o que dá pro navegador mandar certo. */
 @media print {
-  /* Margem na @page (não no elemento) — position: absolute com top/left:0 usa a caixa de
-     conteúdo da página como origem, então isso é o que garante a folga real da borda do
-     papel. Compensar só com padding no elemento cortava o começo das palavras: a margem
-     "de verdade" (área não-imprimível da impressora) ficava maior que o padding. */
+  /* width fixo em mm (não 100%) — em algumas engines de impressão o % de um elemento
+     position:absolute é calculado contra o papel inteiro, não contra a área já descontada
+     da margem de @page, e isso cortava o canto direito. 52mm dentro de uma bobina de 58mm
+     sobra ~3mm de folga de cada lado, sem depender de como o navegador resolve o cálculo. */
   @page {
     size: 58mm auto;
-    margin: 3mm 2mm;
+    margin: 3mm 3mm;
   }
 
   body * {
@@ -1610,18 +1610,28 @@ a {
     position: absolute;
     top: 0;
     left: 0;
-    width: 100%;
+    width: 52mm;
+    box-sizing: border-box;
     padding: 0;
     margin: 0;
     font-family: 'Courier New', Courier, monospace;
     font-size: 11px;
+    font-weight: 600;
     line-height: 1.35;
     color: #000;
+  }
+
+  /* Bobina térmica imprime por calor — traço fino sai fraco. Negrito de verdade (não só
+     o font-weight: 600 da base) garante contraste em qualquer impressora dessas. */
+  .recibo-termico strong,
+  .recibo-termico b {
+    font-weight: 700;
   }
 
   .recibo-termico h2,
   .recibo-termico h3 {
     font-size: 13px;
+    font-weight: 700;
     text-align: center;
     margin: 0 0 6px;
   }
@@ -1632,6 +1642,7 @@ a {
 
   .recibo-termico .section-title {
     font-size: 11px;
+    font-weight: 700;
     border-top: 1px dashed #000;
     padding-top: 4px;
     margin: 6px 0 4px;
@@ -1645,6 +1656,7 @@ a {
 
   .recibo-termico .caixa-recibo-total {
     font-size: 13px;
+    font-weight: 700;
     border-top: 1px dashed #000;
     padding-top: 4px;
     color: #000;

@@ -360,18 +360,23 @@ export function Vendas() {
             <p><strong>Data:</strong> {new Date(comprovante.data).toLocaleString('pt-BR')}</p>
             <p>
               <strong>Forma de pagamento:</strong>{' '}
-              {Number(comprovante.valorDinheiro || 0) > 0
-                ? `Dinheiro (${formatBRL(comprovante.valorDinheiro)}) + Maquininha (${formatBRL(Number(comprovante.total) - Number(comprovante.valorDinheiro))})`
-                : comprovante.formaPagamento}
+              {Number(comprovante.valorDinheiro || 0) > 0 ? (
+                <>
+                  Dinheiro (<strong>{formatBRL(comprovante.valorDinheiro)}</strong>) + Maquininha (
+                  <strong>{formatBRL(Number(comprovante.total) - Number(comprovante.valorDinheiro))}</strong>)
+                </>
+              ) : (
+                comprovante.formaPagamento
+              )}
             </p>
             <div className="section-title">Itens</div>
             <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0' }}>
               {comprovante.itens.map((i, idx) => (
-                <li key={idx}>{i.quantidade}x {i.produto} — {formatBRL(i.subtotal)}</li>
+                <li key={idx}><strong>{i.quantidade}x</strong> {i.produto} — <strong>{formatBRL(i.subtotal)}</strong></li>
               ))}
             </ul>
-            <p><strong>Desconto:</strong> {formatBRL(comprovante.desconto)}</p>
-            <p className="caixa-recibo-total" style={{ marginTop: 0 }}>Total: {formatBRL(comprovante.total)}</p>
+            <p><strong>Desconto:</strong> <strong>{formatBRL(comprovante.desconto)}</strong></p>
+            <p className="caixa-recibo-total" style={{ marginTop: 0 }}>Total: <strong>{formatBRL(comprovante.total)}</strong></p>
           </div>
           <div className="modal-actions">
             <button className="btn btn-primary" onClick={() => window.print()}>Imprimir</button>

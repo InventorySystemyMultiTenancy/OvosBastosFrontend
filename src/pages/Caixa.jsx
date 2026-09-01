@@ -558,26 +558,26 @@ export function Caixa() {
             <ul className="caixa-recibo-itens">
               {vendaConcluida.itens.map((i) => (
                 <li key={i.id}>
-                  <span>{i.quantidade}x {i.produto.nome}</span>
-                  <span>{formatBRL(Number(i.precoUnit) * i.quantidade)}</span>
+                  <span><strong>{i.quantidade}x</strong> {i.produto.nome}</span>
+                  <strong>{formatBRL(Number(i.precoUnit) * i.quantidade)}</strong>
                 </li>
               ))}
             </ul>
 
             {Number(vendaConcluida.desconto) > 0 && (
-              <p className="text-muted">Desconto aplicado: {formatBRL(vendaConcluida.desconto)}</p>
+              <p className="text-muted">Desconto aplicado: <strong>{formatBRL(vendaConcluida.desconto)}</strong></p>
             )}
-            <p className="caixa-recibo-total">Total: {formatBRL(vendaConcluida.total)}</p>
+            <p className="caixa-recibo-total">Total: <strong>{formatBRL(vendaConcluida.total)}</strong></p>
             {Number(vendaConcluida.valorDinheiro || 0) > 0 ? (
               <p className="text-muted">
-                Pagamento: Dinheiro ({formatBRL(vendaConcluida.valorDinheiro)}) + Maquininha ({formatBRL(Number(vendaConcluida.total) - Number(vendaConcluida.valorDinheiro))})
+                Pagamento: Dinheiro (<strong>{formatBRL(vendaConcluida.valorDinheiro)}</strong>) + Maquininha (<strong>{formatBRL(Number(vendaConcluida.total) - Number(vendaConcluida.valorDinheiro))}</strong>)
               </p>
             ) : (
               <p className="text-muted">Pagamento: {LABEL_FORMA[vendaConcluida.formaPagamento] || vendaConcluida.formaPagamento}</p>
             )}
 
             {vendaConcluida.formaPagamento === 'DINHEIRO' && valorRecebido !== '' && (
-              <p className="text-muted">Recebido: {formatBRL(valorRecebido)} · Troco: {formatBRL(troco)}</p>
+              <p className="text-muted">Recebido: <strong>{formatBRL(valorRecebido)}</strong> · Troco: <strong>{formatBRL(troco)}</strong></p>
             )}
           </div>
 
