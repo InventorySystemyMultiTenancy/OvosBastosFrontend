@@ -6,6 +6,7 @@ import { Modal } from '../../components/Modal';
 const PRODUTO_VAZIO = { nome: '', tipo: '', unidade: 'dúzia', precoVenda: '', precoCusto: '', estoqueMinimo: 0, quantidade: 0 };
 const MOVIMENTO_VAZIO = { produtoId: '', caixaId: '', quantidade: '', validade: '', motivo: '' };
 const NOVA_CATEGORIA = '__nova__';
+const EMBALAGEM_VAZIA = { nome: '', quantidadeBandejas: '', preco: '' };
 
 export function ProdutosTab() {
   const [produtos, setProdutos] = useState([]);
@@ -21,6 +22,10 @@ export function ProdutosTab() {
   const [imagemArquivo, setImagemArquivo] = useState(null);
   const [imagemPreview, setImagemPreview] = useState(null);
   const [salvandoProduto, setSalvandoProduto] = useState(false);
+
+  const [embalagens, setEmbalagens] = useState([]);
+  const [formEmbalagem, setFormEmbalagem] = useState(EMBALAGEM_VAZIA);
+  const [salvandoEmbalagem, setSalvandoEmbalagem] = useState(false);
 
   const categoriasExistentes = useMemo(
     () => Array.from(new Set(produtos.map((p) => p.tipo).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
@@ -45,12 +50,18 @@ export function ProdutosTab() {
 
   useEffect(carregar, []);
 
+  function carregarEmbalagens(produtoId) {
+    api.get(`/produtos/${produtoId}/embalagens`).then(setEmbalagens).catch(() => setEmbalagens([]));
+  }
+
   function abrirNovoProduto() {
     setEditandoId(null);
     setFormProduto(PRODUTO_VAZIO);
     setModoNovaCategoria(false);
     setImagemArquivo(null);
     setImagemPreview(null);
+    setEmbalagens([]);
+    setFormEmbalagem(EMBALAGEM_VAZIA);
     setModalProduto(true);
   }
 
@@ -70,7 +81,37 @@ export function ProdutosTab() {
     setModoNovaCategoria(Boolean(produto.tipo) && !categoriasExistentes.includes(produto.tipo));
     setImagemArquivo(null);
     setImagemPreview(resolveUploadUrl(produto.imagemUrl));
+    setFormEmbalagem(EMBALAGEM_VAZIA);
+    carregarEmbalagens(produto.id);
     setModalProduto(true);
+  }
+
+  async function adicionarEmbalagem(e) {
+    e.preventDefault();
+    setSalvandoEmbalagem(true);
+    try {
+      await api.post(`/produtos/${editandoId}/embalagens`, {
+        nome: formEmbalagem.nome.trim(),
+        quantidadeBandejas: Number(formEmbalagem.quantidadeBandejas),
+        preco: Number(formEmbalagem.preco),
+      });
+      setFormEmbalagem(EMBALAGEM_VAZIA);
+      carregarEmbalagens(editandoId);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSalvandoEmbalagem(false);
+    }
+  }
+
+  async function removerEmbalagem(embalagem) {
+    if (!confirm(`Remover a caixa "${embalagem.nome}"?`)) return;
+    try {
+      await api.delete(`/produtos/${editandoId}/embalagens/${embalagem.id}`);
+      carregarEmbalagens(editandoId);
+    } catch (err) {
+      alert(err.message);
+    }
   }
 
   function selecionarCategoria(valor) {
@@ -111,10 +152,19 @@ export function ProdutosTab() {
         await api.upload(`/produtos/${produtoSalvo.id}/imagem`, dados);
       }
 
-      setModalProduto(false);
-      setFormProduto(PRODUTO_VAZIO);
-      setImagemArquivo(null);
-      setImagemPreview(null);
+      if (editandoId) {
+        setModalProduto(false);
+        setFormProduto(PRODUTO_VAZIO);
+        setImagemArquivo(null);
+        setImagemPreview(null);
+      } else {
+        // Produto recém-criado: mantém o modal aberto, agora em modo edição, pra dar pra
+        // cadastrar as caixas dele na hora sem precisar reabrir.
+        setEditandoId(produtoSalvo.id);
+        setImagemArquivo(null);
+        setImagemPreview(resolveUploadUrl(produtoSalvo.imagemUrl));
+        carregarEmbalagens(produtoSalvo.id);
+      }
       carregar();
     } catch (err) {
       alert(err.message);
@@ -301,6 +351,67 @@ export function ProdutosTab() {
               <button type="submit" className="btn btn-primary" disabled={salvandoProduto}>{salvandoProduto ? 'Salvando...' : 'Salvar'}</button>
             </div>
           </form>
+
+          {editandoId && (
+            <div style={{ marginTop: 24, borderTop: '1px solid var(--color-border)', paddingTop: 18 }}>
+              <div className="section-title" style={{ marginTop: 0 }}>Caixas deste produto</div>
+              <p className="text-muted" style={{ marginBottom: 12, fontSize: 13 }}>
+                Uma caixa é um jeito de vender várias bandejas de uma vez, com preço fechado — não tem estoque
+                próprio, na venda ela desconta as bandejas direto do estoque deste produto.
+              </p>
+
+              {embalagens.length > 0 && (
+                <ul className="produto-embalagens-lista">
+                  {embalagens.map((emb) => (
+                    <li key={emb.id}>
+                      <span>
+                        <strong>{emb.nome}</strong>
+                        <span className="text-muted"> · {emb.quantidadeBandejas} {formProduto.unidade}</span>
+                      </span>
+                      <span>{Number(emb.preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                      <button type="button" className="btn btn-danger btn-sm" onClick={() => removerEmbalagem(emb)}>Remover</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <form onSubmit={adicionarEmbalagem} className="form-grid produto-embalagem-form">
+                <div className="field">
+                  <label>Nome</label>
+                  <input
+                    value={formEmbalagem.nome}
+                    onChange={(e) => setFormEmbalagem({ ...formEmbalagem, nome: e.target.value })}
+                    placeholder="Ex: Caixa com 30 bandejas"
+                    required
+                  />
+                </div>
+                <div className="field">
+                  <label>Bandejas por caixa</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formEmbalagem.quantidadeBandejas}
+                    onChange={(e) => setFormEmbalagem({ ...formEmbalagem, quantidadeBandejas: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="field">
+                  <label>Preço da caixa (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formEmbalagem.preco}
+                    onChange={(e) => setFormEmbalagem({ ...formEmbalagem, preco: e.target.value })}
+                    required
+                  />
+                </div>
+                <button type="submit" className="btn btn-secondary" disabled={salvandoEmbalagem}>
+                  {salvandoEmbalagem ? 'Adicionando...' : '+ Adicionar caixa'}
+                </button>
+              </form>
+            </div>
+          )}
         </Modal>
       )}
 

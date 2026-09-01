@@ -1148,6 +1148,27 @@ a {
   cursor: not-allowed;
 }
 
+/* Card de embalagem/"caixa" (ex: caixa com 30 bandejas) — mesmo card de produto, só com uma
+   borda e uma tag pra diferenciar rápido do card avulso do mesmo produto na grade. */
+.caixa-produto-card-embalagem {
+  border-color: var(--color-purple);
+}
+
+.caixa-produto-tag-embalagem {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1;
+  background: var(--color-purple);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
 .caixa-produto-badge {
   position: absolute;
   top: 10px;
@@ -2052,6 +2073,31 @@ tbody tr:hover {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 14px;
+}
+
+.produto-embalagem-form .btn {
+  align-self: end;
+}
+
+.produto-embalagens-lista {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.produto-embalagens-lista li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  padding: 8px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
 }
 
 .field {
