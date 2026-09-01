@@ -353,23 +353,26 @@ export function Vendas() {
 
       {comprovante && (
         <Modal title={`Comprovante — Venda #${comprovante.numero}`} onClose={() => setComprovante(null)}>
-          <p><strong>Cliente:</strong> {comprovante.cliente}</p>
-          <p><strong>Vendedor:</strong> {comprovante.vendedor}</p>
-          <p><strong>Data:</strong> {new Date(comprovante.data).toLocaleString('pt-BR')}</p>
-          <p>
-            <strong>Forma de pagamento:</strong>{' '}
-            {Number(comprovante.valorDinheiro || 0) > 0
-              ? `Dinheiro (${formatBRL(comprovante.valorDinheiro)}) + Maquininha (${formatBRL(Number(comprovante.total) - Number(comprovante.valorDinheiro))})`
-              : comprovante.formaPagamento}
-          </p>
-          <div className="section-title">Itens</div>
-          <ul style={{ paddingLeft: 18 }}>
-            {comprovante.itens.map((i, idx) => (
-              <li key={idx}>{i.quantidade}x {i.produto} — {formatBRL(i.subtotal)}</li>
-            ))}
-          </ul>
-          <p><strong>Desconto:</strong> {formatBRL(comprovante.desconto)}</p>
-          <p style={{ fontSize: 18, fontWeight: 700 }}>Total: {formatBRL(comprovante.total)}</p>
+          <div className="recibo-termico">
+            <h3>Comprovante #{comprovante.numero}</h3>
+            <p><strong>Cliente:</strong> {comprovante.cliente}</p>
+            <p><strong>Vendedor:</strong> {comprovante.vendedor}</p>
+            <p><strong>Data:</strong> {new Date(comprovante.data).toLocaleString('pt-BR')}</p>
+            <p>
+              <strong>Forma de pagamento:</strong>{' '}
+              {Number(comprovante.valorDinheiro || 0) > 0
+                ? `Dinheiro (${formatBRL(comprovante.valorDinheiro)}) + Maquininha (${formatBRL(Number(comprovante.total) - Number(comprovante.valorDinheiro))})`
+                : comprovante.formaPagamento}
+            </p>
+            <div className="section-title">Itens</div>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0' }}>
+              {comprovante.itens.map((i, idx) => (
+                <li key={idx}>{i.quantidade}x {i.produto} — {formatBRL(i.subtotal)}</li>
+              ))}
+            </ul>
+            <p><strong>Desconto:</strong> {formatBRL(comprovante.desconto)}</p>
+            <p className="caixa-recibo-total" style={{ marginTop: 0 }}>Total: {formatBRL(comprovante.total)}</p>
+          </div>
           <div className="modal-actions">
             <button className="btn btn-primary" onClick={() => window.print()}>Imprimir</button>
           </div>

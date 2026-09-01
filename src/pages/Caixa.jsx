@@ -546,38 +546,40 @@ export function Caixa() {
     return (
       <div className="caixa-recibo-wrap">
         <div className="caixa-recibo">
-          <div className="caixa-recibo-icone">✓</div>
-          <h2>Venda #{vendaConcluida.id} concluída</h2>
-          <p className="text-muted">Cliente: {vendaConcluida.cliente.nome}</p>
-          {vendaConcluida.caixa && (
-            <p className="text-muted">Caixa: {vendaConcluida.caixa.nome} · {vendaConcluida.caixa.unidade}</p>
-          )}
+          <div className="recibo-termico">
+            <div className="caixa-recibo-icone">✓</div>
+            <h2>Venda #{vendaConcluida.id} concluída</h2>
+            <p className="text-muted">Cliente: {vendaConcluida.cliente.nome}</p>
+            {vendaConcluida.caixa && (
+              <p className="text-muted">Caixa: {vendaConcluida.caixa.nome} · {vendaConcluida.caixa.unidade}</p>
+            )}
 
-          <div className="section-title">Itens</div>
-          <ul className="caixa-recibo-itens">
-            {vendaConcluida.itens.map((i) => (
-              <li key={i.id}>
-                <span>{i.quantidade}x {i.produto.nome}</span>
-                <span>{formatBRL(Number(i.precoUnit) * i.quantidade)}</span>
-              </li>
-            ))}
-          </ul>
+            <div className="section-title">Itens</div>
+            <ul className="caixa-recibo-itens">
+              {vendaConcluida.itens.map((i) => (
+                <li key={i.id}>
+                  <span>{i.quantidade}x {i.produto.nome}</span>
+                  <span>{formatBRL(Number(i.precoUnit) * i.quantidade)}</span>
+                </li>
+              ))}
+            </ul>
 
-          {Number(vendaConcluida.desconto) > 0 && (
-            <p className="text-muted">Desconto aplicado: {formatBRL(vendaConcluida.desconto)}</p>
-          )}
-          <p className="caixa-recibo-total">Total: {formatBRL(vendaConcluida.total)}</p>
-          {Number(vendaConcluida.valorDinheiro || 0) > 0 ? (
-            <p className="text-muted">
-              Pagamento: Dinheiro ({formatBRL(vendaConcluida.valorDinheiro)}) + Maquininha ({formatBRL(Number(vendaConcluida.total) - Number(vendaConcluida.valorDinheiro))})
-            </p>
-          ) : (
-            <p className="text-muted">Pagamento: {LABEL_FORMA[vendaConcluida.formaPagamento] || vendaConcluida.formaPagamento}</p>
-          )}
+            {Number(vendaConcluida.desconto) > 0 && (
+              <p className="text-muted">Desconto aplicado: {formatBRL(vendaConcluida.desconto)}</p>
+            )}
+            <p className="caixa-recibo-total">Total: {formatBRL(vendaConcluida.total)}</p>
+            {Number(vendaConcluida.valorDinheiro || 0) > 0 ? (
+              <p className="text-muted">
+                Pagamento: Dinheiro ({formatBRL(vendaConcluida.valorDinheiro)}) + Maquininha ({formatBRL(Number(vendaConcluida.total) - Number(vendaConcluida.valorDinheiro))})
+              </p>
+            ) : (
+              <p className="text-muted">Pagamento: {LABEL_FORMA[vendaConcluida.formaPagamento] || vendaConcluida.formaPagamento}</p>
+            )}
 
-          {vendaConcluida.formaPagamento === 'DINHEIRO' && valorRecebido !== '' && (
-            <p className="text-muted">Recebido: {formatBRL(valorRecebido)} · Troco: {formatBRL(troco)}</p>
-          )}
+            {vendaConcluida.formaPagamento === 'DINHEIRO' && valorRecebido !== '' && (
+              <p className="text-muted">Recebido: {formatBRL(valorRecebido)} · Troco: {formatBRL(troco)}</p>
+            )}
+          </div>
 
           <div className="modal-actions" style={{ justifyContent: 'center' }}>
             <button type="button" className="btn btn-secondary" onClick={() => window.print()}>Imprimir</button>

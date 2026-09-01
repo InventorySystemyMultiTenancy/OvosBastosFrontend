@@ -1581,6 +1581,76 @@ a {
   color: var(--color-primary-darker);
 }
 
+/* ---------- Impressão do comprovante (bobina térmica ~58mm, não A4) ----------
+   .recibo-termico marca só o trecho que deve sair no papel — tudo mais na página
+   (sidebar, cabeçalho do modal, botões) fica escondido no print via visibility.
+   @page força o navegador a tentar usar a largura da bobina em vez do A4 padrão;
+   a impressora ainda pode ter sua própria config de papel no driver do SO, isso aqui
+   é o que dá pro navegador mandar certo. */
+@media print {
+  @page {
+    size: 58mm auto;
+    margin: 0;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .recibo-termico,
+  .recibo-termico * {
+    visibility: visible;
+  }
+
+  .recibo-termico {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 54mm;
+    padding: 2mm;
+    margin: 0;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    line-height: 1.35;
+    color: #000;
+  }
+
+  .recibo-termico h2,
+  .recibo-termico h3 {
+    font-size: 13px;
+    text-align: center;
+    margin: 0 0 6px;
+  }
+
+  .recibo-termico p {
+    margin: 2px 0;
+  }
+
+  .recibo-termico .section-title {
+    font-size: 11px;
+    border-top: 1px dashed #000;
+    padding-top: 4px;
+    margin: 6px 0 4px;
+  }
+
+  .recibo-termico .caixa-recibo-itens,
+  .recibo-termico ul {
+    font-size: 11px;
+    padding-left: 0;
+  }
+
+  .recibo-termico .caixa-recibo-total {
+    font-size: 13px;
+    border-top: 1px dashed #000;
+    padding-top: 4px;
+    color: #000;
+  }
+
+  .recibo-termico .caixa-recibo-icone {
+    display: none;
+  }
+}
+
 /* Carrinho flutuante (mobile) — escondido em telas largas, onde o carrinho já fica
    sempre visível na coluna lateral. */
 .caixa-fab-carrinho {
