@@ -18,7 +18,7 @@ export function CaixaDivergenciaAlerta({ divergencias }) {
       <div className="dash-fiado-resumo">
         <div>
           <span className="dash-fiado-valor">{divergencias.length}</span>
-          <span className="text-muted"> {divergencias.length === 1 ? 'divergência recente' : 'divergências recentes'} de contagem de caixa</span>
+          <span className="text-muted"> {divergencias.length === 1 ? 'divergência recente' : 'divergências recentes'} de fundo de caixa</span>
         </div>
         <span className="badge badge-red">Requer revisão</span>
       </div>
@@ -28,8 +28,8 @@ export function CaixaDivergenciaAlerta({ divergencias }) {
           <li key={d.id} className="is-vencida" style={{ gridTemplateColumns: '1fr' }}>
             <span>
               <strong>{d.caixaNome}</strong> <span className="text-muted">({d.caixaUnidade})</span> ·{' '}
-              {d.usuarioFechamento || 'alguém'} deixou {formatBRL(d.valorFechamento)}, {d.usuarioAbertura} contou{' '}
-              {formatBRL(d.valorAbertura)} ao abrir em {formatDataHora(d.abertaEm)} ·{' '}
+              {d.usuarioFechamento || 'alguém'} deixou {formatBRL(d.valorFechamento)} de fundo, {d.usuarioAbertura} informou{' '}
+              {formatBRL(d.valorAbertura)} de fundo ao abrir em {formatDataHora(d.abertaEm)} ·{' '}
               <strong className={Number(d.divergencia) > 0 ? 'text-success' : 'text-danger'}>
                 diferença {Number(d.divergencia) > 0 ? '+' : ''}{formatBRL(d.divergencia)}
               </strong>

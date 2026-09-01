@@ -4,12 +4,14 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { SparkLineArea } from '../components/dashboard/SparkLineArea';
 import { ProdutoBarChart } from '../components/dashboard/ProdutoBarChart';
+import { LucroPorProduto } from '../components/dashboard/LucroPorProduto';
 import { TopClientesList } from '../components/dashboard/TopClientesList';
 import { FiadoAlerta } from '../components/dashboard/FiadoAlerta';
 import { RendimentoPorCaixa } from '../components/dashboard/RendimentoPorCaixa';
 import { VendasPorDiaSemana } from '../components/dashboard/VendasPorDiaSemana';
 import { VendasPorHora } from '../components/dashboard/VendasPorHora';
 import { AlertaReposicao } from '../components/dashboard/AlertaReposicao';
+import { EstoquePorUnidadeBotao } from '../components/dashboard/EstoquePorUnidadeBotao';
 import { MelhoresProdutosPorCaixa } from '../components/dashboard/MelhoresProdutosPorCaixa';
 import { CaixaDivergenciaAlerta } from '../components/dashboard/CaixaDivergenciaAlerta';
 import { IconLucro, IconFaturamento, IconGastos, IconVendas, IconArrowUp, IconArrowDown, IconCalendar } from '../components/icons';
@@ -101,6 +103,7 @@ export function Dashboard() {
             <IconCalendar />
             {formatData(new Date())}
           </span>
+          <EstoquePorUnidadeBotao />
           <div className="dash-periodo-toggle">
             {PERIODOS.map((p) => (
               <button
@@ -185,6 +188,13 @@ export function Dashboard() {
               <ProdutoBarChart dados={resumo.vendasPorProduto} />
             </div>
           </div>
+
+          {ehAdmin && resumo.lucroPorProduto && resumo.lucroPorProduto.length > 0 && (
+            <div className="card" style={{ marginBottom: 24 }}>
+              <div className="section-title" style={{ marginTop: 0 }}>Lucro por produto</div>
+              <LucroPorProduto dados={resumo.lucroPorProduto} />
+            </div>
+          )}
 
           <div className="dash-grid-2">
             <div className="card dash-card-amber">

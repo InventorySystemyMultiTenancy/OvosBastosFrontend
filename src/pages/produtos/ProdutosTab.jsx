@@ -1,23 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, resolveUploadUrl } from '../../api/client';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 
 const PRODUTO_VAZIO = { nome: '', tipo: '', unidade: 'dúzia', precoVenda: '', precoCusto: '', estoqueMinimo: 0, quantidade: 0 };
-const MOVIMENTO_VAZIO = { produtoId: '', quantidade: '', validade: '', motivo: '' };
+const MOVIMENTO_VAZIO = { produtoId: '', caixaId: '', quantidade: '', validade: '', motivo: '' };
+const NOVA_CATEGORIA = '__nova__';
 
 export function ProdutosTab() {
   const [produtos, setProdutos] = useState([]);
   const [alertas, setAlertas] = useState({ estoqueBaixo: [], validadeProxima: [] });
+  const [caixas, setCaixas] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
   const [modalProduto, setModalProduto] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [formProduto, setFormProduto] = useState(PRODUTO_VAZIO);
+  const [modoNovaCategoria, setModoNovaCategoria] = useState(false);
   const [imagemArquivo, setImagemArquivo] = useState(null);
   const [imagemPreview, setImagemPreview] = useState(null);
   const [salvandoProduto, setSalvandoProduto] = useState(false);
+
+  const categoriasExistentes = useMemo(
+    () => Array.from(new Set(produtos.map((p) => p.tipo).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [produtos]
+  );
 
   const [modalMovimento, setModalMovimento] = useState(null); // 'entrada' | 'saida' | null
   const [formMovimento, setFormMovimento] = useState(MOVIMENTO_VAZIO);
@@ -25,10 +33,11 @@ export function ProdutosTab() {
 
   function carregar() {
     setCarregando(true);
-    Promise.all([api.get('/produtos'), api.get('/estoque/alertas')])
-      .then(([p, a]) => {
+    Promise.all([api.get('/produtos'), api.get('/estoque/alertas'), api.get('/caixas?ativo=true')])
+      .then(([p, a, c]) => {
         setProdutos(p);
         setAlertas(a);
+        setCaixas(c);
       })
       .catch((e) => setErro(e.message))
       .finally(() => setCarregando(false));
@@ -39,6 +48,7 @@ export function ProdutosTab() {
   function abrirNovoProduto() {
     setEditandoId(null);
     setFormProduto(PRODUTO_VAZIO);
+    setModoNovaCategoria(false);
     setImagemArquivo(null);
     setImagemPreview(null);
     setModalProduto(true);
@@ -55,9 +65,21 @@ export function ProdutosTab() {
       estoqueMinimo: produto.estoqueMinimo,
       quantidade: produto.quantidade,
     });
+    // Se o produto já tem um tipo fora da lista atual (não deveria acontecer, mas por
+    // segurança), abre direto no campo de texto em vez de um <select> sem essa opção.
+    setModoNovaCategoria(Boolean(produto.tipo) && !categoriasExistentes.includes(produto.tipo));
     setImagemArquivo(null);
     setImagemPreview(resolveUploadUrl(produto.imagemUrl));
     setModalProduto(true);
+  }
+
+  function selecionarCategoria(valor) {
+    if (valor === NOVA_CATEGORIA) {
+      setModoNovaCategoria(true);
+      setFormProduto({ ...formProduto, tipo: '' });
+    } else {
+      setFormProduto({ ...formProduto, tipo: valor });
+    }
   }
 
   function selecionarImagem(e) {
@@ -124,7 +146,7 @@ export function ProdutosTab() {
       if (modalMovimento === 'entrada') {
         await api.post('/estoque/entrada', { ...payload, validade: formMovimento.validade || undefined });
       } else {
-        await api.post('/estoque/saida', payload);
+        await api.post('/estoque/saida', { ...payload, caixaId: Number(formMovimento.caixaId) });
       }
       setModalMovimento(null);
       carregar();
@@ -221,8 +243,30 @@ export function ProdutosTab() {
                 <input value={formProduto.nome} onChange={(e) => setFormProduto({ ...formProduto, nome: e.target.value })} required />
               </div>
               <div className="field">
-                <label>Tipo</label>
-                <input value={formProduto.tipo} onChange={(e) => setFormProduto({ ...formProduto, tipo: e.target.value })} placeholder="branco, vermelho, caipira..." />
+                <label>Categoria</label>
+                {modoNovaCategoria ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      value={formProduto.tipo}
+                      onChange={(e) => setFormProduto({ ...formProduto, tipo: e.target.value })}
+                      placeholder="Nome da nova categoria"
+                      autoFocus
+                    />
+                    {categoriasExistentes.length > 0 && (
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => selecionarCategoria('')}>
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <select value={formProduto.tipo} onChange={(e) => selecionarCategoria(e.target.value)}>
+                    <option value="">Sem categoria</option>
+                    {categoriasExistentes.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                    <option value={NOVA_CATEGORIA}>+ Nova categoria...</option>
+                  </select>
+                )}
               </div>
               <div className="field">
                 <label>Unidade</label>
@@ -261,9 +305,25 @@ export function ProdutosTab() {
       )}
 
       {modalMovimento && (
-        <Modal title={modalMovimento === 'entrada' ? 'Entrada de estoque' : 'Saída de estoque'} onClose={() => setModalMovimento(null)}>
+        <Modal title={modalMovimento === 'entrada' ? 'Entrada de estoque' : 'Saída para uma unidade'} onClose={() => setModalMovimento(null)}>
           <form onSubmit={salvarMovimento}>
+            {modalMovimento === 'saida' && (
+              <p className="text-muted" style={{ marginTop: 0, marginBottom: 14 }}>
+                Tira do não distribuído e envia pra uma unidade. Pode repetir quantas vezes quiser pra redistribuir.
+              </p>
+            )}
             <div className="form-grid">
+              {modalMovimento === 'saida' && (
+                <div className="field">
+                  <label>Unidade de destino *</label>
+                  <select value={formMovimento.caixaId} onChange={(e) => setFormMovimento({ ...formMovimento, caixaId: e.target.value })} required>
+                    <option value="" disabled>Selecione...</option>
+                    {caixas.map((c) => (
+                      <option key={c.id} value={c.id}>{c.nome} — {c.unidade}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="field">
                 <label>Quantidade *</label>
                 <input type="number" min="1" value={formMovimento.quantidade} onChange={(e) => setFormMovimento({ ...formMovimento, quantidade: e.target.value })} required />

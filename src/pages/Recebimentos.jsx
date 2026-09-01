@@ -39,6 +39,7 @@ export function Recebimentos() {
 
   const [modalNovo, setModalNovo] = useState(false);
   const [quantidadesRecebidas, setQuantidadesRecebidas] = useState({});
+  const [precosCusto, setPrecosCusto] = useState({});
   const [observacao, setObservacao] = useState('');
   const [salvandoNovo, setSalvandoNovo] = useState(false);
   const [erroNovo, setErroNovo] = useState('');
@@ -68,6 +69,9 @@ export function Recebimentos() {
 
   function abrirNovo() {
     setQuantidadesRecebidas({});
+    // Pré-preenchido com o preço de custo atual de cada produto — editável aqui mesmo; o
+    // valor confirmado vira o novo Produto.precoCusto definitivo (ver salvarNovo).
+    setPrecosCusto(Object.fromEntries(produtos.map((p) => [p.id, p.precoCusto || ''])));
     setObservacao('');
     setErroNovo('');
     setModalNovo(true);
@@ -123,7 +127,11 @@ export function Recebimentos() {
     setErroNovo('');
     try {
       const itens = Object.entries(quantidadesRecebidas)
-        .map(([produtoId, quantidade]) => ({ produtoId: Number(produtoId), quantidade: Number(quantidade) }))
+        .map(([produtoId, quantidade]) => ({
+          produtoId: Number(produtoId),
+          quantidade: Number(quantidade),
+          precoCusto: precosCusto[produtoId] !== '' && precosCusto[produtoId] !== undefined ? Number(precosCusto[produtoId]) : undefined,
+        }))
         .filter((i) => i.quantidade > 0);
       const criado = await api.post('/recebimentos', { itens, observacao: observacao.trim() || undefined });
       setModalNovo(false);
@@ -212,13 +220,18 @@ export function Recebimentos() {
       {modalNovo && (
         <Modal title="Novo recebimento" onClose={() => setModalNovo(false)}>
           <form onSubmit={salvarNovo}>
-            <p className="text-muted" style={{ marginBottom: 10 }}>Informe quanto chegou de cada produto. Deixe em branco o que não veio nessa entrega.</p>
+            <p className="text-muted" style={{ marginBottom: 10 }}>
+              Informe quanto chegou de cada produto. Deixe em branco o que não veio nessa entrega. O preço de custo já
+              vem preenchido com o valor atual — mude se o fornecedor cobrou diferente dessa vez, e o novo valor fica
+              valendo pra sempre.
+            </p>
             <div className="table-wrap" style={{ marginBottom: 14 }}>
               <table>
                 <thead>
                   <tr>
                     <th>Produto</th>
                     <th>Quantidade recebida</th>
+                    <th>Preço de custo (R$)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -232,6 +245,16 @@ export function Recebimentos() {
                           style={{ width: 100 }}
                           value={quantidadesRecebidas[p.id] || ''}
                           onChange={(e) => setQuantidadesRecebidas({ ...quantidadesRecebidas, [p.id]: e.target.value })}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          style={{ width: 100 }}
+                          value={precosCusto[p.id] ?? ''}
+                          onChange={(e) => setPrecosCusto({ ...precosCusto, [p.id]: e.target.value })}
                         />
                       </td>
                     </tr>

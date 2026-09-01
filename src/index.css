@@ -886,6 +886,13 @@ a {
   color: var(--color-text-muted);
 }
 
+.caixa-unidade-total {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-success);
+  margin-top: 2px;
+}
+
 .caixa-unidade-pill.is-active {
   border-color: var(--color-primary);
   background: var(--color-primary-soft);
@@ -977,6 +984,33 @@ a {
 .caixa-abertura-form .btn {
   width: 100%;
   margin-top: 8px;
+}
+
+.caixa-fechamento-resumo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.caixa-fechamento-resumo > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--color-text-muted);
+}
+
+.caixa-fechamento-resumo > div.caixa-fechamento-resumo-total {
+  border-top: 1px dashed var(--color-border);
+  padding-top: 8px;
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--color-text);
 }
 
 .caixa-produtos-grid {

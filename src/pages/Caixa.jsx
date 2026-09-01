@@ -176,6 +176,7 @@ export function Caixa() {
     setObservacaoFechamento('');
     setErroFecharCaixaFisico('');
     setModalFecharCaixa(true);
+    carregarSessao();
   }
 
   async function fecharCaixaFisico(e) {
@@ -444,6 +445,7 @@ export function Caixa() {
           setPagamentoAndamento(null);
           setVendaConcluida(venda);
           carregarProdutos();
+          carregarSessao();
         } catch (err) {
           setErroPagamento(err.message);
         }
@@ -530,6 +532,7 @@ export function Caixa() {
       } else {
         setVendaConcluida(venda);
         carregarProdutos();
+        carregarSessao();
       }
     } catch (err) {
       setErroVenda(err.message);
@@ -608,6 +611,11 @@ export function Caixa() {
                   <button type="button" onClick={() => selecionarCaixa(c.id)}>
                     <strong>{c.nome}</strong>
                     <span>{c.unidade}</span>
+                    {caixaId === c.id && sessaoInfo?.sessaoAberta && (
+                      <span className="caixa-unidade-total">
+                        {formatBRL(Number(sessaoInfo.sessaoAberta.valorAbertura) + Number(sessaoInfo.vendasDinheiroSessao || 0))} em caixa
+                      </span>
+                    )}
                   </button>
                   {ehAdmin && (
                     <span className="caixa-unidade-acoes">
@@ -641,26 +649,29 @@ export function Caixa() {
         <div className="caixa-abertura-gate card">
           <div className="caixa-abertura-icone">🔒</div>
           <h2>Caixa fechado</h2>
-          <p className="text-muted">Conte o dinheiro físico no caixa e informe o valor abaixo para abrir e começar a vender.</p>
+          <p className="text-muted">
+            Conte o fundo de caixa (o dinheiro inicial para troco, antes de qualquer venda) e informe o valor abaixo
+            para abrir e começar a vender.
+          </p>
           {sessaoInfo?.ultimoFechamento && (
             <p className="text-muted">
               {sessaoInfo.ultimoFechamento.valorFechamento !== undefined ? (
                 <>
-                  Último fechamento: <strong>{formatBRL(sessaoInfo.ultimoFechamento.valorFechamento)}</strong> por{' '}
+                  Fundo deixado no último fechamento: <strong>{formatBRL(sessaoInfo.ultimoFechamento.valorFechamento)}</strong> por{' '}
                   {sessaoInfo.ultimoFechamento.usuarioFechamento?.nome || '—'} em{' '}
                   {new Date(sessaoInfo.ultimoFechamento.fechadaEm).toLocaleString('pt-BR')}
                 </>
               ) : (
                 <>
                   Fechado por {sessaoInfo.ultimoFechamento.usuarioFechamento?.nome || '—'} em{' '}
-                  {new Date(sessaoInfo.ultimoFechamento.fechadaEm).toLocaleString('pt-BR')}. Conte o dinheiro físico com atenção antes de informar o valor.
+                  {new Date(sessaoInfo.ultimoFechamento.fechadaEm).toLocaleString('pt-BR')}. Conte o fundo de caixa com atenção antes de informar o valor.
                 </>
               )}
             </p>
           )}
           <form onSubmit={abrirCaixaFisico} className="caixa-abertura-form">
             <div className="field">
-              <label>Valor contado no caixa agora (R$) *</label>
+              <label>Fundo de caixa (R$) *</label>
               <input
                 type="number"
                 min="0"
@@ -684,7 +695,7 @@ export function Caixa() {
             <div className="caixa-sessao-bar">
               <span>
                 Caixa aberto por <strong>{sessaoInfo.sessaoAberta.usuarioAbertura.nome}</strong> às{' '}
-                {new Date(sessaoInfo.sessaoAberta.abertaEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · Abertura: {formatBRL(sessaoInfo.sessaoAberta.valorAbertura)}
+                {new Date(sessaoInfo.sessaoAberta.abertaEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · Fundo de caixa: {formatBRL(sessaoInfo.sessaoAberta.valorAbertura)}
               </span>
               <button type="button" className="btn btn-secondary btn-sm" onClick={abrirModalFecharCaixa}>Fechar caixa</button>
             </div>
@@ -1116,11 +1127,28 @@ export function Caixa() {
       {modalFecharCaixa && (
         <Modal title="Fechar caixa" onClose={() => setModalFecharCaixa(false)}>
           <form onSubmit={fecharCaixaFisico}>
+            {sessaoInfo?.sessaoAberta && (
+              <div className="caixa-fechamento-resumo">
+                <div>
+                  <span>Fundo de caixa (abertura)</span>
+                  <strong>{formatBRL(sessaoInfo.sessaoAberta.valorAbertura)}</strong>
+                </div>
+                <div>
+                  <span>Vendido em dinheiro hoje</span>
+                  <strong>{formatBRL(sessaoInfo.vendasDinheiroSessao || 0)}</strong>
+                </div>
+                <div className="caixa-fechamento-resumo-total">
+                  <span>Deveria ter no caixa agora</span>
+                  <strong>{formatBRL(Number(sessaoInfo.sessaoAberta.valorAbertura) + Number(sessaoInfo.vendasDinheiroSessao || 0))}</strong>
+                </div>
+              </div>
+            )}
             <p className="text-muted" style={{ marginBottom: 16 }}>
-              Conte o dinheiro físico que está no caixa agora e informe o valor abaixo para encerrar o turno.
+              Conte o dinheiro físico, recolha o que exceder o fundo de caixa e informe abaixo quanto vai deixar
+              guardado para abrir amanhã.
             </p>
             <div className="field">
-              <label>Valor contado no caixa (R$) *</label>
+              <label>Fundo de caixa a deixar (R$) *</label>
               <input
                 type="number"
                 min="0"
@@ -1137,7 +1165,7 @@ export function Caixa() {
               <input
                 value={observacaoFechamento}
                 onChange={(e) => setObservacaoFechamento(e.target.value)}
-                placeholder="Ex: troco reforçado, sangria feita, etc."
+                placeholder="Ex: recolhido R$200 para o cofre"
               />
             </div>
             {erroFecharCaixaFisico && <div className="alert-box">{erroFecharCaixaFisico}</div>}
@@ -1152,19 +1180,19 @@ export function Caixa() {
       )}
 
       {avisoDivergencia && (
-        <Modal title="Divergência na contagem do caixa" onClose={() => setAvisoDivergencia(null)}>
+        <Modal title="Divergência no fundo de caixa" onClose={() => setAvisoDivergencia(null)}>
           {avisoDivergencia.valorEsperado !== undefined ? (
             <>
               <p>
-                O fechamento anterior deste caixa registrou <strong>{formatBRL(avisoDivergencia.valorEsperado)}</strong>, mas a
-                contagem de agora encontrou <strong>{formatBRL(avisoDivergencia.valorAbertura)}</strong>.
+                O fechamento anterior deste caixa deixou <strong>{formatBRL(avisoDivergencia.valorEsperado)}</strong> de fundo, mas
+                o fundo informado agora foi <strong>{formatBRL(avisoDivergencia.valorAbertura)}</strong>.
               </p>
               <p className={avisoDivergencia.divergencia > 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: 700 }}>
                 Diferença: {avisoDivergencia.divergencia > 0 ? '+' : ''}{formatBRL(avisoDivergencia.divergencia)}
               </p>
             </>
           ) : (
-            <p>A contagem de abertura não bateu com o valor esperado a partir do último fechamento.</p>
+            <p>O fundo de caixa informado na abertura não bateu com o valor deixado no último fechamento.</p>
           )}
           <p className="text-muted">O administrador foi notificado dessa divergência no Dashboard e no Financeiro.</p>
           <div className="modal-actions">

@@ -74,7 +74,7 @@ export function CaixasTab({ focarDivergencias = false }) {
     },
     {
       key: 'abertura',
-      header: 'Abertura',
+      header: 'Fundo (abertura)',
       render: (s) => (
         <span>
           {formatBRL(s.valorAbertura)}
@@ -86,7 +86,7 @@ export function CaixasTab({ focarDivergencias = false }) {
     },
     {
       key: 'fechamento',
-      header: 'Fechamento',
+      header: 'Fundo (fechamento)',
       render: (s) =>
         s.status === 'FECHADA' ? (
           <span>
