@@ -699,9 +699,18 @@ a {
 
 .caixa-layout {
   display: grid;
-  grid-template-columns: 1fr 380px;
+  grid-template-columns: minmax(0, 1fr) 380px;
   gap: 22px;
   align-items: start;
+}
+
+/* Sem isso, um grid item mantém min-width: auto por padrão — se qualquer coisa lá dentro
+   (busca, pills de categoria) tiver um mínimo de conteúdo maior que o espaço disponível, a
+   coluna toda empurra a página pra largura maior em vez de deixar os cards de produto
+   quebrarem linha, e sobra só rolagem lateral. min-width: 0 deixa a coluna encolher de
+   verdade e a grade de produtos (que já quebra linha sozinha) assume o controle. */
+.caixa-produtos-col {
+  min-width: 0;
 }
 
 .caixa-filtros {
@@ -2002,6 +2011,10 @@ tbody tr:hover {
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: var(--shadow-md);
+}
+
+.modal-box.is-largo {
+  max-width: 760px;
 }
 
 @media (max-width: 480px) {

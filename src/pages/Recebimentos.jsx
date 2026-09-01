@@ -218,7 +218,7 @@ export function Recebimentos() {
       )}
 
       {modalNovo && (
-        <Modal title="Novo recebimento" onClose={() => setModalNovo(false)}>
+        <Modal title="Novo recebimento" onClose={() => setModalNovo(false)} className="is-largo">
           <form onSubmit={salvarNovo}>
             <p className="text-muted" style={{ marginBottom: 10 }}>
               Informe quanto chegou de cada produto. Deixe em branco o que não veio nessa entrega. O preço de custo já
