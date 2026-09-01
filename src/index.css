@@ -1588,9 +1588,13 @@ a {
    a impressora ainda pode ter sua própria config de papel no driver do SO, isso aqui
    é o que dá pro navegador mandar certo. */
 @media print {
+  /* Margem na @page (não no elemento) — position: absolute com top/left:0 usa a caixa de
+     conteúdo da página como origem, então isso é o que garante a folga real da borda do
+     papel. Compensar só com padding no elemento cortava o começo das palavras: a margem
+     "de verdade" (área não-imprimível da impressora) ficava maior que o padding. */
   @page {
     size: 58mm auto;
-    margin: 0;
+    margin: 3mm 2mm;
   }
 
   body * {
@@ -1606,8 +1610,8 @@ a {
     position: absolute;
     top: 0;
     left: 0;
-    width: 54mm;
-    padding: 2mm;
+    width: 100%;
+    padding: 0;
     margin: 0;
     font-family: 'Courier New', Courier, monospace;
     font-size: 11px;
