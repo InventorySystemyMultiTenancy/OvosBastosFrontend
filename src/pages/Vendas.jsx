@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
 
@@ -18,6 +19,8 @@ function formatBRL(valor) {
 
 export function Vendas() {
   const navigate = useNavigate();
+  const { usuario } = useAuth();
+  const ehAdmin = usuario?.perfil === 'ADMIN';
   const [vendas, setVendas] = useState([]);
   const [filtroStatus, setFiltroStatus] = useState('');
   const [filtroCaixa, setFiltroCaixa] = useState('');
@@ -157,6 +160,21 @@ export function Vendas() {
     carregar();
   }
 
+  async function reabrirVenda(venda) {
+    if (
+      !confirm(
+        `Reabrir a venda #${venda.id}? O estoque vendido volta pro estoque e ela sai do faturamento até ser confirmada de novo — daí você escolhe a forma de pagamento (ou cancela o orçamento pra apagar a venda de vez).`
+      )
+    )
+      return;
+    try {
+      await api.put(`/vendas/${venda.id}/reabrir`, {});
+      carregar();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
   async function verComprovante(venda) {
     const data = await api.get(`/vendas/${venda.id}/comprovante`);
     setComprovante(data);
@@ -202,7 +220,12 @@ export function Vendas() {
             </>
           )}
           {v.status === 'CONFIRMADA' && (
-            <button className="btn btn-secondary btn-sm" onClick={() => verComprovante(v)}>Comprovante</button>
+            <>
+              <button className="btn btn-secondary btn-sm" onClick={() => verComprovante(v)}>Comprovante</button>
+              {ehAdmin && (
+                <button className="btn btn-danger btn-sm" onClick={() => reabrirVenda(v)}>Reabrir</button>
+              )}
+            </>
           )}
           {v.status !== 'ORCAMENTO' && v.pagamentoPointMP && STATUS_MP_ATIVOS.includes(v.pagamentoPointMP.status) && (
             <button className="btn btn-secondary btn-sm" onClick={() => abrirMaquininha(v)}>Maquininha</button>
