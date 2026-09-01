@@ -1588,13 +1588,15 @@ a {
    a impressora ainda pode ter sua própria config de papel no driver do SO, isso aqui
    é o que dá pro navegador mandar certo. */
 @media print {
-  /* width fixo em mm (não 100%) — em algumas engines de impressão o % de um elemento
-     position:absolute é calculado contra o papel inteiro, não contra a área já descontada
-     da margem de @page, e isso cortava o canto direito. 52mm dentro de uma bobina de 58mm
-     sobra ~3mm de folga de cada lado, sem depender de como o navegador resolve o cálculo. */
+  /* Não dá pra confiar que left:0 comece depois da margem de @page — em algumas engines de
+     impressão isso é calculado contra o papel inteiro (não a área já descontada da margem),
+     e foi isso que cortou primeiro a esquerda, depois a direita. Centralizar com
+     left:0; right:0; margin:auto resolve os dois casos de uma vez: com uma largura bem mais
+     estreita que a bobina, sobra folga solta dos dois lados não importa qual das duas
+     interpretações o navegador usar. */
   @page {
     size: 58mm auto;
-    margin: 3mm 3mm;
+    margin: 2mm;
   }
 
   body * {
@@ -1610,10 +1612,11 @@ a {
     position: absolute;
     top: 0;
     left: 0;
-    width: 52mm;
+    right: 0;
+    width: 46mm;
+    margin: 0 auto;
     box-sizing: border-box;
     padding: 0;
-    margin: 0;
     font-family: 'Courier New', Courier, monospace;
     font-size: 11px;
     font-weight: 600;

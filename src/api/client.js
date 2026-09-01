@@ -15,15 +15,23 @@ async function request(path, { method = 'GET', body, headers } = {}) {
   const token = getToken();
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers: {
-      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers,
-    },
-    body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers: {
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...headers,
+      },
+      body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    // fetch rejeita (em vez de responder com um status) quando a requisição nem chega a
+    // alcançar o backend — servidor fora do ar, sem internet, CORS bloqueado, etc. Sem isso
+    // quem usa via o erro cru do navegador ("Failed to fetch"), sem nenhuma pista do que fazer.
+    throw new Error('Não foi possível conectar ao servidor. Verifique sua internet ou se o servidor está no ar, e tente de novo.');
+  }
 
   if (res.status === 401) {
     localStorage.removeItem('eggcontrol_token');

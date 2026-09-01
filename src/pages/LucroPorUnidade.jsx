@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { IconChevronDown } from '../components/icons';
 
 const PERIODOS = [
+  { dias: 1, label: 'Hoje' },
   { dias: 7, label: '7 dias' },
   { dias: 30, label: '30 dias' },
   { dias: 90, label: '90 dias' },
@@ -73,7 +74,7 @@ function UnidadeBloco({ dados, aberto, onToggle }) {
 
 export function LucroPorUnidade() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const dias = [7, 30, 90].includes(Number(searchParams.get('dias'))) ? Number(searchParams.get('dias')) : 30;
+  const dias = [1, 7, 30, 90].includes(Number(searchParams.get('dias'))) ? Number(searchParams.get('dias')) : 30;
 
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(true);

@@ -17,6 +17,7 @@ import { CaixaDivergenciaAlerta } from '../components/dashboard/CaixaDivergencia
 import { IconLucro, IconFaturamento, IconGastos, IconVendas, IconArrowUp, IconArrowDown, IconCalendar } from '../components/icons';
 
 const PERIODOS = [
+  { dias: 1, label: 'Hoje' },
   { dias: 7, label: '7 dias' },
   { dias: 30, label: '30 dias' },
   { dias: 90, label: '90 dias' },
@@ -28,6 +29,14 @@ function formatBRL(valor) {
 
 function formatData(data) {
   return data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+function labelPeriodoAtual(dias) {
+  return dias === 1 ? 'Hoje' : `Últimos ${dias} dias`;
+}
+
+function labelPeriodoAnterior(dias) {
+  return dias === 1 ? 'ontem' : `${dias} dias anteriores`;
 }
 
 function KpiCard({ label, sublabel, value, isNegative, iconClass, Icon, variacaoPct, dias, trendInverso, onClick }) {
@@ -64,7 +73,7 @@ function KpiCard({ label, sublabel, value, isNegative, iconClass, Icon, variacao
         ) : (
           'novo'
         )}
-        <span className="dash-kpi-trend-note">vs {dias} dias anteriores</span>
+        <span className="dash-kpi-trend-note">vs {labelPeriodoAnterior(dias)}</span>
       </span>
     </div>
   );
@@ -129,7 +138,7 @@ export function Dashboard() {
             {ehAdmin && resumo.lucroLiquidoPeriodo !== null && (
               <KpiCard
                 label="Lucro Líquido"
-                sublabel={`Últimos ${resumo.periodoDias} dias`}
+                sublabel={labelPeriodoAtual(resumo.periodoDias)}
                 value={formatBRL(resumo.lucroLiquidoPeriodo)}
                 isNegative={Number(resumo.lucroLiquidoPeriodo) < 0}
                 iconClass="is-green"
@@ -141,7 +150,7 @@ export function Dashboard() {
             )}
             <KpiCard
               label="Faturamento"
-              sublabel={`Últimos ${resumo.periodoDias} dias`}
+              sublabel={labelPeriodoAtual(resumo.periodoDias)}
               value={formatBRL(resumo.faturamentoPeriodo)}
               iconClass="is-blue"
               Icon={IconFaturamento}
@@ -151,7 +160,7 @@ export function Dashboard() {
             {ehAdmin && resumo.despesasPeriodo !== null && (
               <KpiCard
                 label="Gastos"
-                sublabel={`Últimos ${resumo.periodoDias} dias`}
+                sublabel={labelPeriodoAtual(resumo.periodoDias)}
                 value={formatBRL(resumo.despesasPeriodo)}
                 iconClass="is-orange"
                 Icon={IconGastos}
@@ -162,7 +171,7 @@ export function Dashboard() {
             )}
             <KpiCard
               label="Vendas"
-              sublabel={`Últimos ${resumo.periodoDias} dias`}
+              sublabel={labelPeriodoAtual(resumo.periodoDias)}
               value={resumo.pedidosPeriodo.toLocaleString('pt-BR')}
               iconClass="is-purple"
               Icon={IconVendas}
@@ -230,7 +239,7 @@ export function Dashboard() {
               </div>
               <div className="stat-tile">
                 <div className="stat-value">{formatBRL(resumo.faturamentoPeriodo)}</div>
-                <div className="stat-label">Faturamento nos últimos {resumo.periodoDias} dias</div>
+                <div className="stat-label">Faturamento {resumo.periodoDias === 1 ? 'de hoje' : `nos últimos ${resumo.periodoDias} dias`}</div>
               </div>
               <div className="stat-tile">
                 <div className="stat-value">{formatBRL(resumo.ticketMedio)}</div>
