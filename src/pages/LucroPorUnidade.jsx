@@ -27,6 +27,7 @@ function UnidadeBloco({ dados, aberto, onToggle }) {
         <span className="lucro-unidade-nome">{dados.unidade}</span>
         <span className="lucro-unidade-resumo">
           <span>Faturamento <strong>{formatBRL(dados.faturamento)}</strong></span>
+          <span>Custo produtos <strong>{formatBRL(dados.custoProdutos)}</strong></span>
           <span>Gastos <strong>{formatBRL(dados.despesas)}</strong></span>
           <span className={dados.lucro >= 0 ? 'text-success' : 'text-danger'}>
             Lucro <strong>{formatBRL(dados.lucro)}</strong>
@@ -48,6 +49,7 @@ function UnidadeBloco({ dados, aberto, onToggle }) {
                     <th>Dia</th>
                     <th>Vendas</th>
                     <th>Faturamento</th>
+                    <th>Custo produtos</th>
                     <th>Gastos</th>
                     <th>Lucro</th>
                   </tr>
@@ -58,6 +60,7 @@ function UnidadeBloco({ dados, aberto, onToggle }) {
                       <td style={{ textTransform: 'capitalize' }}>{formatDiaSemana(d.data)}</td>
                       <td>{d.pedidos}</td>
                       <td>{formatBRL(d.faturamento)}</td>
+                      <td>{formatBRL(d.custoProdutos)}</td>
                       <td>{formatBRL(d.despesas)}</td>
                       <td className={d.lucro >= 0 ? 'text-success' : 'text-danger'}>{formatBRL(d.lucro)}</td>
                     </tr>
@@ -74,6 +77,9 @@ function UnidadeBloco({ dados, aberto, onToggle }) {
 
 export function LucroPorUnidade() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const de = searchParams.get('de');
+  const ate = searchParams.get('ate');
+  const periodoCustom = de && ate ? { de, ate } : null;
   const dias = [1, 7, 30, 90].includes(Number(searchParams.get('dias'))) ? Number(searchParams.get('dias')) : 30;
 
   const [dados, setDados] = useState(null);
@@ -86,12 +92,13 @@ export function LucroPorUnidade() {
   useEffect(() => {
     setCarregando(true);
     setErro('');
+    const query = periodoCustom ? `de=${periodoCustom.de}&ate=${periodoCustom.ate}` : `dias=${dias}`;
     api
-      .get(`/dashboard/lucro-por-unidade?dias=${dias}`)
+      .get(`/dashboard/lucro-por-unidade?${query}`)
       .then(setDados)
       .catch((e) => setErro(e.message))
       .finally(() => setCarregando(false));
-  }, [dias]);
+  }, [dias, de, ate]);
 
   function alternar(indice) {
     setAbertas((atual) => {
@@ -115,12 +122,17 @@ export function LucroPorUnidade() {
             <button
               key={p.dias}
               type="button"
-              className={`dash-periodo-btn${dias === p.dias ? ' is-active' : ''}`}
+              className={`dash-periodo-btn${!periodoCustom && dias === p.dias ? ' is-active' : ''}`}
               onClick={() => setSearchParams({ dias: String(p.dias) })}
             >
               {p.label}
             </button>
           ))}
+          {periodoCustom && (
+            <span className="dash-periodo-btn is-active">
+              📅 {periodoCustom.de.slice(8, 10)}/{periodoCustom.de.slice(5, 7)} – {periodoCustom.ate.slice(8, 10)}/{periodoCustom.ate.slice(5, 7)}
+            </span>
+          )}
         </div>
       </div>
 

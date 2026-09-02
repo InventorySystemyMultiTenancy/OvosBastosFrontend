@@ -3228,6 +3228,15 @@ tbody tr:hover {
   margin-left: 2px;
 }
 
+.dash-kpi-detalhe {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
 .dash-periodo-toggle {
   display: flex;
   gap: 4px;
@@ -3250,6 +3259,15 @@ tbody tr:hover {
 .dash-periodo-btn.is-active {
   background: var(--color-primary);
   color: #fff;
+}
+
+.dash-periodo-limpar {
+  padding: 7px 10px;
+  color: var(--color-text-muted);
+}
+
+.dash-periodo-limpar:hover {
+  color: var(--color-danger);
 }
 
 .dash-grid-2 {

@@ -62,6 +62,15 @@ export function VisaoGeralTab() {
   const [periodoRelatorioLucro, setPeriodoRelatorioLucro] = useState({ de: '', ate: '' });
   const [gerando, setGerando] = useState(null);
 
+  // Card "Lucro líquido" no topo — período independente do "mês" usado nas contas a
+  // receber/pagar abaixo, com botão pra escolher qualquer data.
+  const [periodoLucroTopo, setPeriodoLucroTopo] = useState({ de: inicioDoMesISO(), ate: hojeISO() });
+  const [resumoLucroTopo, setResumoLucroTopo] = useState(null);
+  const [carregandoLucroTopo, setCarregandoLucroTopo] = useState(true);
+  const [modalDataLucroTopo, setModalDataLucroTopo] = useState(false);
+  const [dataDeInputTopo, setDataDeInputTopo] = useState('');
+  const [dataAteInputTopo, setDataAteInputTopo] = useState('');
+
   function carregar() {
     api.get(`/financeiro/contas-receber?mes=${mesSelecionado}`).then(setContasReceber).catch((e) => setErro(e.message));
     api.get(`/financeiro/contas-pagar?mes=${mesSelecionado}`).then(setContasPagar).catch((e) => setErro(e.message));
@@ -73,6 +82,28 @@ export function VisaoGeralTab() {
   useEffect(carregar, [mesSelecionado]);
   useEffect(() => { api.get('/clientes').then(setClientes).catch(() => {}); }, []);
   useEffect(() => { api.get('/caixas').then(setCaixas).catch(() => {}); }, []);
+
+  useEffect(() => {
+    setCarregandoLucroTopo(true);
+    api
+      .get(`/financeiro/relatorio-periodo?de=${periodoLucroTopo.de}&ate=${periodoLucroTopo.ate}`)
+      .then(setResumoLucroTopo)
+      .catch((e) => setErro(e.message))
+      .finally(() => setCarregandoLucroTopo(false));
+  }, [periodoLucroTopo]);
+
+  function abrirModalDataLucroTopo() {
+    setDataDeInputTopo(periodoLucroTopo.de);
+    setDataAteInputTopo(periodoLucroTopo.ate);
+    setModalDataLucroTopo(true);
+  }
+
+  function aplicarPeriodoLucroTopo(e) {
+    e.preventDefault();
+    if (!dataDeInputTopo || !dataAteInputTopo) return;
+    setPeriodoLucroTopo({ de: dataDeInputTopo, ate: dataAteInputTopo });
+    setModalDataLucroTopo(false);
+  }
 
   async function criarContaReceber(e) {
     e.preventDefault();
@@ -342,7 +373,57 @@ export function VisaoGeralTab() {
     <div>
       {erro && <div className="alert-box">{erro}</div>}
 
-      <div className="section-title" style={{ marginTop: 0 }}>Vendas de hoje por forma de pagamento</div>
+      <div className="page-header" style={{ marginBottom: 14 }}>
+        <div className="section-title" style={{ marginTop: 0, marginBottom: 0 }}>Lucro líquido do período</div>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={abrirModalDataLucroTopo}>
+          📅 {periodoLucroTopo.de.slice(8, 10)}/{periodoLucroTopo.de.slice(5, 7)} – {periodoLucroTopo.ate.slice(8, 10)}/{periodoLucroTopo.ate.slice(5, 7)}
+        </button>
+      </div>
+      {carregandoLucroTopo || !resumoLucroTopo ? (
+        <p className="text-muted">Carregando...</p>
+      ) : (
+        <div className="stat-grid is-compacto" style={{ marginBottom: 28 }}>
+          <div className="stat-tile">
+            <div className="stat-value">{formatBRL(resumoLucroTopo.faturamento)}</div>
+            <div className="stat-label">Faturamento</div>
+          </div>
+          <div className="stat-tile">
+            <div className="stat-value">{formatBRL(resumoLucroTopo.custoProdutosTotal)}</div>
+            <div className="stat-label">Custo dos produtos vendidos</div>
+          </div>
+          <div className="stat-tile">
+            <div className="stat-value">{formatBRL(resumoLucroTopo.despesasTotal)}</div>
+            <div className="stat-label">Despesas pagas</div>
+          </div>
+          <div className="stat-tile">
+            <div className={`stat-value ${resumoLucroTopo.lucro >= 0 ? 'text-success' : 'text-danger'}`}>{formatBRL(resumoLucroTopo.lucro)}</div>
+            <div className="stat-label">Lucro líquido</div>
+          </div>
+        </div>
+      )}
+
+      {modalDataLucroTopo && (
+        <Modal title="Escolher período" onClose={() => setModalDataLucroTopo(false)}>
+          <form onSubmit={aplicarPeriodoLucroTopo}>
+            <div className="form-grid">
+              <div className="field">
+                <label>De</label>
+                <input type="date" value={dataDeInputTopo} onChange={(e) => setDataDeInputTopo(e.target.value)} required />
+              </div>
+              <div className="field">
+                <label>Até</label>
+                <input type="date" value={dataAteInputTopo} onChange={(e) => setDataAteInputTopo(e.target.value)} required />
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModalDataLucroTopo(false)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary">Aplicar</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      <div className="section-title">Vendas de hoje por forma de pagamento</div>
       {vendasHojePorForma && (
         <div className="stat-grid is-compacto" style={{ marginBottom: 28 }}>
           <div className="stat-tile">

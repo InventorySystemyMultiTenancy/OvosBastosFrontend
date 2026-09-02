@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { Modal } from '../components/Modal';
 import { SparkLineArea } from '../components/dashboard/SparkLineArea';
 import { ProdutoBarChart } from '../components/dashboard/ProdutoBarChart';
 import { LucroPorProduto } from '../components/dashboard/LucroPorProduto';
@@ -31,15 +32,22 @@ function formatData(data) {
   return data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-function labelPeriodoAtual(dias) {
+function formatDataCurta(isoDate) {
+  const [, mes, dia] = isoDate.split('-');
+  return `${dia}/${mes}`;
+}
+
+function labelPeriodoAtual(dias, custom) {
+  if (custom) return `${formatDataCurta(custom.de)} a ${formatDataCurta(custom.ate)}`;
   return dias === 1 ? 'Hoje' : `Últimos ${dias} dias`;
 }
 
-function labelPeriodoAnterior(dias) {
+function labelPeriodoAnterior(dias, custom) {
+  if (custom) return 'período anterior de mesmo tamanho';
   return dias === 1 ? 'ontem' : `${dias} dias anteriores`;
 }
 
-function KpiCard({ label, sublabel, value, isNegative, iconClass, Icon, variacaoPct, dias, trendInverso, onClick }) {
+function KpiCard({ label, sublabel, value, isNegative, iconClass, Icon, variacaoPct, dias, periodoCustom, trendInverso, onClick, detalhe }) {
   const temVariacao = variacaoPct !== null && variacaoPct !== undefined;
   const subiu = temVariacao && variacaoPct > 0;
   const desceu = temVariacao && variacaoPct < 0;
@@ -73,8 +81,9 @@ function KpiCard({ label, sublabel, value, isNegative, iconClass, Icon, variacao
         ) : (
           'novo'
         )}
-        <span className="dash-kpi-trend-note">vs {labelPeriodoAnterior(dias)}</span>
+        <span className="dash-kpi-trend-note">vs {labelPeriodoAnterior(dias, periodoCustom)}</span>
       </span>
+      {detalhe && <div className="dash-kpi-detalhe">{detalhe}</div>}
     </div>
   );
 }
@@ -85,18 +94,48 @@ export function Dashboard() {
   const ehAdmin = usuario?.perfil === 'ADMIN';
 
   const [dias, setDias] = useState(30);
+  const [periodoCustom, setPeriodoCustom] = useState(null); // { de, ate } | null
   const [resumo, setResumo] = useState(null);
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(true);
 
+  const [modalData, setModalData] = useState(false);
+  const [dataDeInput, setDataDeInput] = useState('');
+  const [dataAteInput, setDataAteInput] = useState('');
+  const [erroData, setErroData] = useState('');
+
   useEffect(() => {
     setCarregando(true);
+    const query = periodoCustom ? `de=${periodoCustom.de}&ate=${periodoCustom.ate}` : `dias=${dias}`;
     api
-      .get(`/dashboard?dias=${dias}`)
+      .get(`/dashboard?${query}`)
       .then(setResumo)
       .catch((e) => setErro(e.message))
       .finally(() => setCarregando(false));
-  }, [dias]);
+  }, [dias, periodoCustom]);
+
+  function selecionarPeriodoRelativo(d) {
+    setPeriodoCustom(null);
+    setDias(d);
+  }
+
+  function abrirModalData() {
+    setDataDeInput(periodoCustom?.de || '');
+    setDataAteInput(periodoCustom?.ate || '');
+    setErroData('');
+    setModalData(true);
+  }
+
+  function aplicarPeriodoCustom(e) {
+    e.preventDefault();
+    if (!dataDeInput || !dataAteInput) return;
+    if (dataDeInput > dataAteInput) {
+      setErroData('A data "de" não pode ser depois da data "até".');
+      return;
+    }
+    setPeriodoCustom({ de: dataDeInput, ate: dataAteInput });
+    setModalData(false);
+  }
 
   const primeiroNome = usuario?.nome?.split(' ')[0];
 
@@ -118,15 +157,55 @@ export function Dashboard() {
               <button
                 key={p.dias}
                 type="button"
-                className={`dash-periodo-btn${dias === p.dias ? ' is-active' : ''}`}
-                onClick={() => setDias(p.dias)}
+                className={`dash-periodo-btn${!periodoCustom && dias === p.dias ? ' is-active' : ''}`}
+                onClick={() => selecionarPeriodoRelativo(p.dias)}
               >
                 {p.label}
               </button>
             ))}
+            <button
+              type="button"
+              className={`dash-periodo-btn${periodoCustom ? ' is-active' : ''}`}
+              onClick={abrirModalData}
+            >
+              📅 {periodoCustom ? `${formatDataCurta(periodoCustom.de)} – ${formatDataCurta(periodoCustom.ate)}` : 'Escolher data'}
+            </button>
+            {periodoCustom && (
+              <button
+                type="button"
+                className="dash-periodo-btn dash-periodo-limpar"
+                onClick={() => setPeriodoCustom(null)}
+                aria-label="Limpar período personalizado"
+                title="Voltar pro período relativo"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      {modalData && (
+        <Modal title="Escolher período" onClose={() => setModalData(false)}>
+          <form onSubmit={aplicarPeriodoCustom}>
+            <div className="form-grid">
+              <div className="field">
+                <label>De</label>
+                <input type="date" value={dataDeInput} onChange={(e) => setDataDeInput(e.target.value)} required />
+              </div>
+              <div className="field">
+                <label>Até</label>
+                <input type="date" value={dataAteInput} onChange={(e) => setDataAteInput(e.target.value)} required />
+              </div>
+            </div>
+            {erroData && <div className="alert-box" style={{ marginTop: 12 }}>{erroData}</div>}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModalData(false)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary">Aplicar</button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {erro && <div className="alert-box">{erro}</div>}
 
@@ -138,45 +217,60 @@ export function Dashboard() {
             {ehAdmin && resumo.lucroLiquidoPeriodo !== null && (
               <KpiCard
                 label="Lucro Líquido"
-                sublabel={labelPeriodoAtual(resumo.periodoDias)}
+                sublabel={labelPeriodoAtual(resumo.periodoDias, periodoCustom)}
                 value={formatBRL(resumo.lucroLiquidoPeriodo)}
                 isNegative={Number(resumo.lucroLiquidoPeriodo) < 0}
                 iconClass="is-green"
                 Icon={IconLucro}
                 variacaoPct={resumo.variacaoLucroPct}
                 dias={resumo.periodoDias}
-                onClick={() => navigate(`/admin/lucro-por-unidade?dias=${dias}`)}
+                periodoCustom={periodoCustom}
+                detalhe={
+                  resumo.custoProdutosPeriodo !== null
+                    ? `Faturamento ${formatBRL(resumo.faturamentoPeriodo)} − custo dos produtos ${formatBRL(resumo.custoProdutosPeriodo)} − gastos ${formatBRL(resumo.despesasPeriodo)}`
+                    : undefined
+                }
+                onClick={() =>
+                  navigate(
+                    periodoCustom
+                      ? `/admin/lucro-por-unidade?de=${periodoCustom.de}&ate=${periodoCustom.ate}`
+                      : `/admin/lucro-por-unidade?dias=${dias}`
+                  )
+                }
               />
             )}
             <KpiCard
               label="Faturamento"
-              sublabel={labelPeriodoAtual(resumo.periodoDias)}
+              sublabel={labelPeriodoAtual(resumo.periodoDias, periodoCustom)}
               value={formatBRL(resumo.faturamentoPeriodo)}
               iconClass="is-blue"
               Icon={IconFaturamento}
               variacaoPct={resumo.variacaoFaturamentoPct}
               dias={resumo.periodoDias}
+              periodoCustom={periodoCustom}
             />
             {ehAdmin && resumo.despesasPeriodo !== null && (
               <KpiCard
                 label="Gastos"
-                sublabel={labelPeriodoAtual(resumo.periodoDias)}
+                sublabel={labelPeriodoAtual(resumo.periodoDias, periodoCustom)}
                 value={formatBRL(resumo.despesasPeriodo)}
                 iconClass="is-orange"
                 Icon={IconGastos}
                 variacaoPct={resumo.variacaoDespesasPct}
                 dias={resumo.periodoDias}
+                periodoCustom={periodoCustom}
                 trendInverso
               />
             )}
             <KpiCard
               label="Vendas"
-              sublabel={labelPeriodoAtual(resumo.periodoDias)}
+              sublabel={labelPeriodoAtual(resumo.periodoDias, periodoCustom)}
               value={resumo.pedidosPeriodo.toLocaleString('pt-BR')}
               iconClass="is-purple"
               Icon={IconVendas}
               variacaoPct={resumo.variacaoVendasPct}
               dias={resumo.periodoDias}
+              periodoCustom={periodoCustom}
             />
           </div>
 
@@ -239,7 +333,9 @@ export function Dashboard() {
               </div>
               <div className="stat-tile">
                 <div className="stat-value">{formatBRL(resumo.faturamentoPeriodo)}</div>
-                <div className="stat-label">Faturamento {resumo.periodoDias === 1 ? 'de hoje' : `nos últimos ${resumo.periodoDias} dias`}</div>
+                <div className="stat-label">
+                  Faturamento {periodoCustom ? `de ${labelPeriodoAtual(resumo.periodoDias, periodoCustom)}` : resumo.periodoDias === 1 ? 'de hoje' : `nos últimos ${resumo.periodoDias} dias`}
+                </div>
               </div>
               <div className="stat-tile">
                 <div className="stat-value">{formatBRL(resumo.ticketMedio)}</div>

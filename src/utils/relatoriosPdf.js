@@ -107,10 +107,11 @@ export async function gerarRelatorioLucro(dados, { de, ate }) {
   doc.setFont(undefined, 'normal');
   doc.setFontSize(10);
   doc.text(`Faturamento: ${formatBRL(dados.faturamento)}`, 14, y + 8);
-  doc.text(`Despesas pagas: ${formatBRL(dados.despesasTotal)}`, 14, y + 15);
+  doc.text(`Custo dos produtos vendidos: ${formatBRL(dados.custoProdutosTotal)}`, 14, y + 15);
+  doc.text(`Despesas pagas: ${formatBRL(dados.despesasTotal)}`, 14, y + 22);
   doc.setFont(undefined, 'bold');
   doc.setTextColor(dados.lucro >= 0 ? 30 : 200, dados.lucro >= 0 ? 120 : 40, 30);
-  doc.text(`Lucro: ${formatBRL(dados.lucro)}`, 14, y + 24);
+  doc.text(`Lucro: ${formatBRL(dados.lucro)}`, 14, y + 31);
   doc.setTextColor(20, 20, 20);
 
   doc.save(`relatorio-lucro-${Date.now()}.pdf`);
