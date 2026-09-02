@@ -1359,6 +1359,18 @@ a {
   font-size: 11px;
 }
 
+.caixa-item-alternar-unidade {
+  align-self: flex-start;
+  margin-top: 2px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
 .caixa-item-stepper {
   display: flex;
   align-items: center;
@@ -2100,7 +2112,7 @@ tbody tr:hover {
 
 .produto-embalagens-lista li {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 36px 1fr auto auto auto;
   align-items: center;
   gap: 10px;
   font-size: 13px;
@@ -2108,6 +2120,39 @@ tbody tr:hover {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
+}
+
+.produto-embalagem-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-soft);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.produto-embalagem-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.produto-embalagem-foto-btn {
+  position: relative;
+  cursor: pointer;
+  text-align: center;
+  overflow: hidden;
+}
+
+.produto-embalagem-foto-btn input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .field {

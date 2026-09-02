@@ -8,6 +8,10 @@ const MOVIMENTO_VAZIO = { produtoId: '', caixaId: '', quantidade: '', validade: 
 const NOVA_CATEGORIA = '__nova__';
 const EMBALAGEM_VAZIA = { nome: '', quantidadeBandejas: '', preco: '' };
 
+function formatBRL(valor) {
+  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
 export function ProdutosTab() {
   const [produtos, setProdutos] = useState([]);
   const [alertas, setAlertas] = useState({ estoqueBaixo: [], validadeProxima: [] });
@@ -26,6 +30,10 @@ export function ProdutosTab() {
   const [embalagens, setEmbalagens] = useState([]);
   const [formEmbalagem, setFormEmbalagem] = useState(EMBALAGEM_VAZIA);
   const [salvandoEmbalagem, setSalvandoEmbalagem] = useState(false);
+
+  const [unidadesPorPacote, setUnidadesPorPacote] = useState(1);
+  const [novoFatorUnidade, setNovoFatorUnidade] = useState('');
+  const [ativandoUnidade, setAtivandoUnidade] = useState(false);
 
   const categoriasExistentes = useMemo(
     () => Array.from(new Set(produtos.map((p) => p.tipo).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
@@ -62,6 +70,8 @@ export function ProdutosTab() {
     setImagemPreview(null);
     setEmbalagens([]);
     setFormEmbalagem(EMBALAGEM_VAZIA);
+    setUnidadesPorPacote(1);
+    setNovoFatorUnidade('');
     setModalProduto(true);
   }
 
@@ -82,8 +92,39 @@ export function ProdutosTab() {
     setImagemArquivo(null);
     setImagemPreview(resolveUploadUrl(produto.imagemUrl));
     setFormEmbalagem(EMBALAGEM_VAZIA);
+    setUnidadesPorPacote(produto.unidadesPorPacote || 1);
+    setNovoFatorUnidade('');
     carregarEmbalagens(produto.id);
     setModalProduto(true);
+  }
+
+  async function ativarVendaPorUnidade(e) {
+    e.preventDefault();
+    const fator = Number(novoFatorUnidade);
+    if (!fator || fator < 1) return;
+    setAtivandoUnidade(true);
+    try {
+      const atualizado = await api.post(`/produtos/${editandoId}/ativar-venda-unitaria`, { unidadesPorPacote: fator });
+      setUnidadesPorPacote(atualizado.unidadesPorPacote);
+      setNovoFatorUnidade('');
+      carregarEmbalagens(editandoId);
+      carregar();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setAtivandoUnidade(false);
+    }
+  }
+
+  async function enviarImagemEmbalagem(embalagem, arquivo) {
+    const dados = new FormData();
+    dados.append('imagem', arquivo);
+    try {
+      await api.upload(`/produtos/${editandoId}/embalagens/${embalagem.id}/imagem`, dados);
+      carregarEmbalagens(editandoId);
+    } catch (err) {
+      alert(err.message);
+    }
   }
 
   async function adicionarEmbalagem(e) {
@@ -163,6 +204,7 @@ export function ProdutosTab() {
         setEditandoId(produtoSalvo.id);
         setImagemArquivo(null);
         setImagemPreview(resolveUploadUrl(produtoSalvo.imagemUrl));
+        setUnidadesPorPacote(produtoSalvo.unidadesPorPacote || 1);
         carregarEmbalagens(produtoSalvo.id);
       }
       carregar();
@@ -364,11 +406,30 @@ export function ProdutosTab() {
                 <ul className="produto-embalagens-lista">
                   {embalagens.map((emb) => (
                     <li key={emb.id}>
+                      <span className="produto-embalagem-thumb">
+                        {emb.imagemUrl || imagemPreview ? (
+                          <img src={emb.imagemUrl ? resolveUploadUrl(emb.imagemUrl) : imagemPreview} alt={emb.nome} />
+                        ) : (
+                          <span aria-hidden="true">📦</span>
+                        )}
+                      </span>
                       <span>
                         <strong>{emb.nome}</strong>
                         <span className="text-muted"> · {emb.quantidadeBandejas} {formProduto.unidade}</span>
                       </span>
-                      <span>{Number(emb.preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                      <span>{formatBRL(emb.preco)}</span>
+                      <label className="btn btn-secondary btn-sm produto-embalagem-foto-btn">
+                        Foto
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const arquivo = e.target.files?.[0];
+                            if (arquivo) enviarImagemEmbalagem(emb, arquivo);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
                       <button type="button" className="btn btn-danger btn-sm" onClick={() => removerEmbalagem(emb)}>Remover</button>
                     </li>
                   ))}
@@ -408,6 +469,38 @@ export function ProdutosTab() {
                 </div>
                 <button type="submit" className="btn btn-secondary" disabled={salvandoEmbalagem}>
                   {salvandoEmbalagem ? 'Adicionando...' : '+ Adicionar caixa'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {editandoId && (
+            <div style={{ marginTop: 24, borderTop: '1px solid var(--color-border)', paddingTop: 18 }}>
+              <div className="section-title" style={{ marginTop: 0 }}>Venda por unidade avulsa</div>
+              {unidadesPorPacote > 1 ? (
+                <p className="text-muted" style={{ marginBottom: 12, fontSize: 13 }}>
+                  Ativada: 1 {formProduto.unidade || 'unidade'} tem <strong>{unidadesPorPacote}</strong> unidades
+                  individuais. O estoque deste produto passou a ser contado nessa unidade menor.
+                </p>
+              ) : (
+                <p className="text-muted" style={{ marginBottom: 12, fontSize: 13 }}>
+                  Permite vender abaixo de "1 {formProduto.unidade || 'unidade'}" — ex: 2 ovos soltos de uma dúzia.
+                  Ative informando quantas unidades individuais cabem em 1 {formProduto.unidade || 'unidade'}.
+                </p>
+              )}
+              <form onSubmit={ativarVendaPorUnidade} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                <div className="field" style={{ flex: 1 }}>
+                  <label>Unidades individuais por {formProduto.unidade || 'unidade'}</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={novoFatorUnidade}
+                    onChange={(e) => setNovoFatorUnidade(e.target.value)}
+                    placeholder={String(unidadesPorPacote)}
+                  />
+                </div>
+                <button type="submit" className="btn btn-secondary" disabled={ativandoUnidade || !novoFatorUnidade}>
+                  {ativandoUnidade ? 'Salvando...' : unidadesPorPacote > 1 ? 'Atualizar' : 'Ativar'}
                 </button>
               </form>
             </div>

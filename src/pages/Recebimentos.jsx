@@ -39,6 +39,7 @@ export function Recebimentos() {
 
   const [modalNovo, setModalNovo] = useState(false);
   const [quantidadesRecebidas, setQuantidadesRecebidas] = useState({});
+  const [modosRecebimento, setModosRecebimento] = useState({}); // produtoId -> '' (bandejas) | embalagemId (caixas)
   const [precosCusto, setPrecosCusto] = useState({});
   const [observacao, setObservacao] = useState('');
   const [salvandoNovo, setSalvandoNovo] = useState(false);
@@ -69,6 +70,7 @@ export function Recebimentos() {
 
   function abrirNovo() {
     setQuantidadesRecebidas({});
+    setModosRecebimento({});
     // Pré-preenchido com o preço de custo atual de cada produto — editável aqui mesmo; o
     // valor confirmado vira o novo Produto.precoCusto definitivo (ver salvarNovo).
     setPrecosCusto(Object.fromEntries(produtos.map((p) => [p.id, p.precoCusto || ''])));
@@ -130,6 +132,7 @@ export function Recebimentos() {
         .map(([produtoId, quantidade]) => ({
           produtoId: Number(produtoId),
           quantidade: Number(quantidade),
+          embalagemId: modosRecebimento[produtoId] ? Number(modosRecebimento[produtoId]) : undefined,
           precoCusto: precosCusto[produtoId] !== '' && precosCusto[produtoId] !== undefined ? Number(precosCusto[produtoId]) : undefined,
         }))
         .filter((i) => i.quantidade > 0);
@@ -221,9 +224,10 @@ export function Recebimentos() {
         <Modal title="Novo recebimento" onClose={() => setModalNovo(false)} className="is-largo">
           <form onSubmit={salvarNovo}>
             <p className="text-muted" style={{ marginBottom: 10 }}>
-              Informe quanto chegou de cada produto. Deixe em branco o que não veio nessa entrega. O preço de custo já
-              vem preenchido com o valor atual — mude se o fornecedor cobrou diferente dessa vez, e o novo valor fica
-              valendo pra sempre.
+              Informe quanto chegou de cada produto. Deixe em branco o que não veio nessa entrega. Se o produto tiver
+              caixas cadastradas, dá pra escolher receber em caixas fechadas (digitando quantas caixas chegaram) em
+              vez de bandejas — a conversão pro estoque é automática. O preço de custo já vem preenchido com o valor
+              atual — mude se o fornecedor cobrou diferente dessa vez, e o novo valor fica valendo pra sempre.
             </p>
             <div className="table-wrap" style={{ marginBottom: 14 }}>
               <table>
@@ -235,30 +239,47 @@ export function Recebimentos() {
                   </tr>
                 </thead>
                 <tbody>
-                  {produtos.map((p) => (
-                    <tr key={p.id}>
-                      <td>{p.nome}</td>
-                      <td>
-                        <input
-                          type="number"
-                          min="0"
-                          style={{ width: 100 }}
-                          value={quantidadesRecebidas[p.id] || ''}
-                          onChange={(e) => setQuantidadesRecebidas({ ...quantidadesRecebidas, [p.id]: e.target.value })}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          style={{ width: 100 }}
-                          value={precosCusto[p.id] ?? ''}
-                          onChange={(e) => setPrecosCusto({ ...precosCusto, [p.id]: e.target.value })}
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                  {produtos.map((p) => {
+                    const modo = modosRecebimento[p.id] || '';
+                    const emCaixas = Boolean(modo);
+                    return (
+                      <tr key={p.id}>
+                        <td>{p.nome}</td>
+                        <td>
+                          {p.embalagens?.length > 0 && (
+                            <select
+                              style={{ marginBottom: 4, display: 'block', width: 160 }}
+                              value={modo}
+                              onChange={(e) => setModosRecebimento({ ...modosRecebimento, [p.id]: e.target.value })}
+                            >
+                              <option value="">Em {p.unidade}</option>
+                              {p.embalagens.map((emb) => (
+                                <option key={emb.id} value={emb.id}>Em caixas — {emb.nome}</option>
+                              ))}
+                            </select>
+                          )}
+                          <input
+                            type="number"
+                            min="0"
+                            style={{ width: 100 }}
+                            placeholder={emCaixas ? 'nº de caixas' : undefined}
+                            value={quantidadesRecebidas[p.id] || ''}
+                            onChange={(e) => setQuantidadesRecebidas({ ...quantidadesRecebidas, [p.id]: e.target.value })}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            style={{ width: 100 }}
+                            value={precosCusto[p.id] ?? ''}
+                            onChange={(e) => setPrecosCusto({ ...precosCusto, [p.id]: e.target.value })}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

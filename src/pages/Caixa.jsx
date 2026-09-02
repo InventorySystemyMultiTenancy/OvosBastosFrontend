@@ -384,8 +384,9 @@ export function Caixa() {
 
   function adicionar(produto) {
     if (produto.quantidade <= 0) return;
+    const unidadesPorPacote = produto.unidadesPorPacote || 1;
     setCarrinho((atual) => {
-      if (totalBandejasComprometidas(produto.id, atual) + 1 > produto.quantidade) return atual;
+      if (totalBandejasComprometidas(produto.id, atual) + unidadesPorPacote > produto.quantidade) return atual;
       const existente = atual.find((i) => i.produtoId === produto.id && i.embalagemId === null);
       if (existente) {
         return atual.map((i) => (i === existente ? { ...i, quantidade: i.quantidade + 1 } : i));
@@ -399,11 +400,38 @@ export function Caixa() {
           precoVenda: produto.precoVenda,
           unidade: produto.unidade,
           quantidade: 1,
-          bandejasPorUnidade: 1,
+          bandejasPorUnidade: unidadesPorPacote,
           estoqueTotalProduto: produto.quantidade,
+          // Guardados pra dar pra alternar essa linha pra "unidade avulsa" e voltar sem
+          // perder a referência do preço/tamanho do pacote inteiro (ver alternarModoUnidade).
+          unidadesPorPacote,
+          precoVendaPacote: produto.precoVenda,
+          vendidoPorUnidade: false,
         },
       ];
     });
+  }
+
+  // Alterna a linha do carrinho entre "1 pacote inteiro" (dúzia/bandeja) e "unidade avulsa"
+  // (ex: 2 ovos soltos) — só disponível pra produto com venda por unidade ativada
+  // (unidadesPorPacote > 1). Sempre reinicia a quantidade em 1 ao trocar de modo, já que o
+  // que "1" significa muda completamente entre os dois.
+  function alternarModoUnidade(produtoId) {
+    setCarrinho((atual) =>
+      atual.map((i) => {
+        if (i.produtoId !== produtoId || i.embalagemId !== null || i.unidadesPorPacote <= 1) return i;
+        if (i.vendidoPorUnidade) {
+          return { ...i, vendidoPorUnidade: false, quantidade: 1, precoVenda: i.precoVendaPacote, bandejasPorUnidade: i.unidadesPorPacote };
+        }
+        return {
+          ...i,
+          vendidoPorUnidade: true,
+          quantidade: 1,
+          precoVenda: Math.round((Number(i.precoVendaPacote) / i.unidadesPorPacote) * 100) / 100,
+          bandejasPorUnidade: 1,
+        };
+      })
+    );
   }
 
   // Caixa/embalagem fechada (ex: caixa com 30 bandejas) — vendida com preço próprio, mas
@@ -556,7 +584,12 @@ export function Caixa() {
     setErroVenda('');
     try {
       const viaMaquininha = formaPagamento === 'MAQUININHA' || formaPagamento === 'DIVIDIDO';
-      const itens = carrinho.map((i) => ({ produtoId: i.produtoId, quantidade: i.quantidade, embalagemId: i.embalagemId || undefined }));
+      const itens = carrinho.map((i) => ({
+        produtoId: i.produtoId,
+        quantidade: i.quantidade,
+        embalagemId: i.embalagemId || undefined,
+        vendidoPorUnidade: i.vendidoPorUnidade || undefined,
+      }));
       const body = {
         nomeCliente: nomeCliente.trim() || 'Cliente Balcão',
         itens,
@@ -864,7 +897,11 @@ export function Caixa() {
                             {qtdEmb > 0 && <span className="caixa-produto-badge">{qtdEmb}</span>}
                             <span className="caixa-produto-tag-embalagem">Caixa</span>
                             <div className="caixa-produto-img">
-                              {p.imagemUrl ? <img src={resolveUploadUrl(p.imagemUrl)} alt={emb.nome} /> : <span aria-hidden="true">📦</span>}
+                              {emb.imagemUrl || p.imagemUrl ? (
+                                <img src={resolveUploadUrl(emb.imagemUrl || p.imagemUrl)} alt={emb.nome} />
+                              ) : (
+                                <span aria-hidden="true">📦</span>
+                              )}
                             </div>
                             <div className="caixa-produto-corpo">
                               <strong className="caixa-produto-nome">{p.nome} — {emb.nome}</strong>
@@ -942,8 +979,13 @@ export function Caixa() {
                   return (
                     <li key={`${i.produtoId}-${i.embalagemId ?? 'un'}`}>
                       <div className="caixa-item-info">
-                        <strong>{i.nome}</strong>
+                        <strong>{i.nome}{i.vendidoPorUnidade ? ' (unidade avulsa)' : ''}</strong>
                         <span className="text-muted">{formatBRL(i.precoVenda)} cada</span>
+                        {!i.embalagemId && i.unidadesPorPacote > 1 && (
+                          <button type="button" className="caixa-item-alternar-unidade" onClick={() => alternarModoUnidade(i.produtoId)}>
+                            {i.vendidoPorUnidade ? `Voltar pro pacote (${i.unidade})` : 'Vender por unidade avulsa'}
+                          </button>
+                        )}
                       </div>
                       <div className="caixa-item-stepper">
                         <button type="button" onClick={() => diminuir(i.produtoId, i.embalagemId)} aria-label="Diminuir">−</button>
