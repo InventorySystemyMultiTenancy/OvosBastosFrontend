@@ -382,24 +382,26 @@ export function VisaoGeralTab() {
       {carregandoLucroTopo || !resumoLucroTopo ? (
         <p className="text-muted">Carregando...</p>
       ) : (
-        <div className="stat-grid is-compacto" style={{ marginBottom: 28 }}>
-          <div className="stat-tile">
-            <div className="stat-value">{formatBRL(resumoLucroTopo.faturamento)}</div>
-            <div className="stat-label">Faturamento</div>
+        <>
+          <div className="stat-grid is-compacto" style={{ marginBottom: 8 }}>
+            <div className="stat-tile">
+              <div className="stat-value">{formatBRL(resumoLucroTopo.faturamento)}</div>
+              <div className="stat-label">Faturamento</div>
+            </div>
+            <div className="stat-tile">
+              <div className="stat-value">{formatBRL(resumoLucroTopo.custoProdutosTotal)}</div>
+              <div className="stat-label">Custo dos produtos vendidos</div>
+            </div>
+            <div className="stat-tile">
+              <div className={`stat-value ${resumoLucroTopo.lucro >= 0 ? 'text-success' : 'text-danger'}`}>{formatBRL(resumoLucroTopo.lucro)}</div>
+              <div className="stat-label">Lucro líquido (faturamento − custo dos produtos)</div>
+            </div>
           </div>
-          <div className="stat-tile">
-            <div className="stat-value">{formatBRL(resumoLucroTopo.custoProdutosTotal)}</div>
-            <div className="stat-label">Custo dos produtos vendidos</div>
-          </div>
-          <div className="stat-tile">
-            <div className="stat-value">{formatBRL(resumoLucroTopo.despesasTotal)}</div>
-            <div className="stat-label">Despesas pagas</div>
-          </div>
-          <div className="stat-tile">
-            <div className={`stat-value ${resumoLucroTopo.lucro >= 0 ? 'text-success' : 'text-danger'}`}>{formatBRL(resumoLucroTopo.lucro)}</div>
-            <div className="stat-label">Lucro líquido</div>
-          </div>
-        </div>
+          <p className="text-muted" style={{ marginBottom: 28, fontSize: 12 }}>
+            Despesas operacionais pagas no período: <strong>{formatBRL(resumoLucroTopo.despesasTotal)}</strong> (não entram
+            no lucro líquido acima, que é só a margem dos produtos vendidos).
+          </p>
+        </>
       )}
 
       {modalDataLucroTopo && (

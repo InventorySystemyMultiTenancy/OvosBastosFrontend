@@ -227,7 +227,7 @@ export function Dashboard() {
                 periodoCustom={periodoCustom}
                 detalhe={
                   resumo.custoProdutosPeriodo !== null
-                    ? `Faturamento ${formatBRL(resumo.faturamentoPeriodo)} − custo dos produtos ${formatBRL(resumo.custoProdutosPeriodo)} − gastos ${formatBRL(resumo.despesasPeriodo)}`
+                    ? `Faturamento ${formatBRL(resumo.faturamentoPeriodo)} − custo dos produtos vendidos ${formatBRL(resumo.custoProdutosPeriodo)} (gastos operacionais não entram aqui, veja o card "Gastos")`
                     : undefined
                 }
                 onClick={() =>
