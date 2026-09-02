@@ -23,15 +23,23 @@ function formatBRL(valor) {
 }
 
 function ProdutoCard({ produto, quantidadeNoCarrinho, onAdicionar, onRemover }) {
-  const disponivelRestante = produto.quantidade - quantidadeNoCarrinho;
-  const esgotado = produto.quantidade <= 0;
+  const niveis = produto.niveisVenda || [];
+  const [nivelId, setNivelId] = useState(() => (niveis.find((n) => n.ehBase) || niveis[0])?.id);
+  const nivel = niveis.find((n) => n.id === nivelId) || niveis[0];
+
+  if (!nivel) return null;
+
+  const qtdCarrinho = quantidadeNoCarrinho(nivel.id);
+  const disponivelRestante = produto.quantidade - qtdCarrinho * nivel.quantidadeGrao;
+  const esgotado = produto.quantidade < nivel.quantidadeGrao;
   const estoqueBaixo = !esgotado && produto.quantidade <= produto.estoqueMinimo;
+  const imagem = nivel.imagemUrl || produto.imagemUrl;
 
   return (
     <div className={`ecommerce-card${esgotado ? ' is-esgotado' : ''}`}>
-      {produto.imagemUrl ? (
+      {imagem ? (
         <div className="ecommerce-card-media ecommerce-card-media-foto">
-          <img src={resolveUploadUrl(produto.imagemUrl)} alt={produto.nome} loading="lazy" />
+          <img src={resolveUploadUrl(imagem)} alt={produto.nome} loading="lazy" />
         </div>
       ) : (
         <div className="ecommerce-card-media" aria-hidden="true">🥚</div>
@@ -43,17 +51,32 @@ function ProdutoCard({ produto, quantidadeNoCarrinho, onAdicionar, onRemover }) 
           {estoqueBaixo && <span className="badge badge-amber">últimas unidades</span>}
         </div>
         <h3>{produto.nome}</h3>
-        <p className="ecommerce-card-unidade">{produto.unidade}</p>
-        <div className="ecommerce-card-footer">
-          <span className="ecommerce-card-price">{formatBRL(produto.precoVenda)}</span>
-          {quantidadeNoCarrinho > 0 ? (
-            <div className="ecommerce-stepper">
-              <button type="button" onClick={() => onRemover(produto)} aria-label="Diminuir">−</button>
-              <span>{quantidadeNoCarrinho}</span>
+        {niveis.length > 1 ? (
+          <div className="ecommerce-card-niveis">
+            {niveis.map((n) => (
               <button
                 type="button"
-                onClick={() => onAdicionar(produto)}
-                disabled={disponivelRestante <= 0}
+                key={n.id}
+                className={`ecommerce-card-nivel-pill${n.id === nivel.id ? ' is-active' : ''}`}
+                onClick={() => setNivelId(n.id)}
+              >
+                {n.nome}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="ecommerce-card-unidade">{nivel.nome}</p>
+        )}
+        <div className="ecommerce-card-footer">
+          <span className="ecommerce-card-price">{formatBRL(nivel.preco)}</span>
+          {qtdCarrinho > 0 ? (
+            <div className="ecommerce-stepper">
+              <button type="button" onClick={() => onRemover(produto, nivel)} aria-label="Diminuir">−</button>
+              <span>{qtdCarrinho}</span>
+              <button
+                type="button"
+                onClick={() => onAdicionar(produto, nivel)}
+                disabled={disponivelRestante < nivel.quantidadeGrao}
                 aria-label="Aumentar"
               >
                 +
@@ -64,7 +87,7 @@ function ProdutoCard({ produto, quantidadeNoCarrinho, onAdicionar, onRemover }) 
               type="button"
               className="btn btn-primary btn-sm"
               disabled={esgotado}
-              onClick={() => onAdicionar(produto)}
+              onClick={() => onAdicionar(produto, nivel)}
             >
               {esgotado ? 'Esgotado' : '+ Adicionar'}
             </button>
@@ -179,29 +202,42 @@ export function EcommerceCatalog() {
     };
   }, [carregando, produtosPorCategoria]);
 
-  function quantidadeNoCarrinho(produtoId) {
-    return carrinho.find((i) => i.produtoId === produtoId)?.quantidade || 0;
+  function quantidadeNoCarrinho(produtoId, nivelId) {
+    return carrinho.find((i) => i.produtoId === produtoId && i.nivelVendaId === nivelId)?.quantidade || 0;
   }
 
-  function adicionar(produto) {
+  function totalGraoComprometido(produtoId) {
+    return carrinho
+      .filter((i) => i.produtoId === produtoId)
+      .reduce((soma, i) => soma + i.quantidade * i.quantidadeGrao, 0);
+  }
+
+  function adicionar(produto, nivel) {
+    if (produto.quantidade < nivel.quantidadeGrao) return;
     setCarrinho((atual) => {
-      const existente = atual.find((i) => i.produtoId === produto.id);
+      if (totalGraoComprometido(produto.id) + nivel.quantidadeGrao > produto.quantidade) return atual;
+      const existente = atual.find((i) => i.produtoId === produto.id && i.nivelVendaId === nivel.id);
       if (existente) {
-        if (existente.quantidade >= produto.quantidade) return atual;
-        return atual.map((i) => (i.produtoId === produto.id ? { ...i, quantidade: i.quantidade + 1 } : i));
+        return atual.map((i) => (i === existente ? { ...i, quantidade: i.quantidade + 1 } : i));
       }
-      if (produto.quantidade <= 0) return atual;
       return [
         ...atual,
-        { produtoId: produto.id, nome: produto.nome, precoVenda: produto.precoVenda, unidade: produto.unidade, quantidade: 1 },
+        {
+          produtoId: produto.id,
+          nivelVendaId: nivel.id,
+          nome: nivel.ehBase ? produto.nome : `${produto.nome} — ${nivel.nome}`,
+          precoVenda: nivel.preco,
+          quantidadeGrao: nivel.quantidadeGrao,
+          quantidade: 1,
+        },
       ];
     });
   }
 
-  function remover(produto) {
+  function remover(produto, nivel) {
     setCarrinho((atual) =>
       atual
-        .map((i) => (i.produtoId === produto.id ? { ...i, quantidade: i.quantidade - 1 } : i))
+        .map((i) => (i.produtoId === produto.id && i.nivelVendaId === nivel.id ? { ...i, quantidade: i.quantidade - 1 } : i))
         .filter((i) => i.quantidade > 0)
     );
   }
@@ -230,7 +266,7 @@ export function EcommerceCatalog() {
     setEnviando(true);
     setErroCheckout('');
     try {
-      const itens = carrinho.map((i) => ({ produtoId: i.produtoId, quantidade: i.quantidade }));
+      const itens = carrinho.map((i) => ({ produtoId: i.produtoId, nivelVendaId: i.nivelVendaId, quantidade: i.quantidade }));
       const body = { nomeCliente, itens, formaPagamento };
       if (isStaff && formaPagamento === 'FIADO') body.vencimento = vencimento || undefined;
 
@@ -290,7 +326,7 @@ export function EcommerceCatalog() {
                     <ProdutoCard
                       key={p.id}
                       produto={p}
-                      quantidadeNoCarrinho={quantidadeNoCarrinho(p.id)}
+                      quantidadeNoCarrinho={(nivelId) => quantidadeNoCarrinho(p.id, nivelId)}
                       onAdicionar={adicionar}
                       onRemover={remover}
                     />
@@ -325,7 +361,7 @@ export function EcommerceCatalog() {
                 <div className="section-title">Itens</div>
                 <ul className="ecommerce-success-itens">
                   {pedidoConcluido.itens.map((i) => (
-                    <li key={i.id}>{i.quantidade}x {i.produto.nome} — {formatBRL(Number(i.precoUnit) * i.quantidade)}</li>
+                    <li key={i.id}>{i.quantidade}x {i.produto.nome}{i.nivelVenda && !i.nivelVenda.ehBase ? ` — ${i.nivelVenda.nome}` : ''} — {formatBRL(Number(i.precoUnit) * i.quantidade)}</li>
                   ))}
                 </ul>
                 <p className="ecommerce-success-total">Total: {formatBRL(pedidoConcluido.total)}</p>

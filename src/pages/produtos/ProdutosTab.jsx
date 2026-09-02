@@ -3,13 +3,17 @@ import { api, resolveUploadUrl } from '../../api/client';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 
-const PRODUTO_VAZIO = { nome: '', tipo: '', unidade: 'dúzia', precoVenda: '', precoCusto: '', estoqueMinimo: 0, quantidade: 0 };
+const PRODUTO_VAZIO = { nome: '', tipo: '', estoqueMinimo: 0, quantidade: 0 };
 const MOVIMENTO_VAZIO = { produtoId: '', caixaId: '', quantidade: '', validade: '', motivo: '' };
 const NOVA_CATEGORIA = '__nova__';
-const EMBALAGEM_VAZIA = { nome: '', quantidadeBandejas: '', preco: '' };
+const NIVEL_VAZIO = { nome: '', quantidadeGrao: '', preco: '' };
 
 function formatBRL(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function round2(valor) {
+  return Math.round(Number(valor) * 100) / 100;
 }
 
 export function ProdutosTab() {
@@ -22,18 +26,20 @@ export function ProdutosTab() {
   const [modalProduto, setModalProduto] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [formProduto, setFormProduto] = useState(PRODUTO_VAZIO);
+  // precoCusto é sempre guardado por grão-base (mesmo formato do banco) — o campo exibido no
+  // formulário é convertido na hora pro nível de referência atual (ver precoCustoExibido).
+  const [precoCustoGrao, setPrecoCustoGrao] = useState(null);
   const [modoNovaCategoria, setModoNovaCategoria] = useState(false);
   const [imagemArquivo, setImagemArquivo] = useState(null);
   const [imagemPreview, setImagemPreview] = useState(null);
   const [salvandoProduto, setSalvandoProduto] = useState(false);
 
-  const [embalagens, setEmbalagens] = useState([]);
-  const [formEmbalagem, setFormEmbalagem] = useState(EMBALAGEM_VAZIA);
-  const [salvandoEmbalagem, setSalvandoEmbalagem] = useState(false);
+  const [niveis, setNiveis] = useState([]);
+  const [formNivel, setFormNivel] = useState(NIVEL_VAZIO);
+  const [salvandoNivel, setSalvandoNivel] = useState(false);
 
-  const [unidadesPorPacote, setUnidadesPorPacote] = useState(1);
-  const [novoFatorUnidade, setNovoFatorUnidade] = useState('');
-  const [ativandoUnidade, setAtivandoUnidade] = useState(false);
+  const nivelBase = niveis.find((n) => n.ehBase) || null;
+  const precoCustoExibido = precoCustoGrao !== null && nivelBase ? round2(precoCustoGrao * nivelBase.quantidadeGrao) : '';
 
   const categoriasExistentes = useMemo(
     () => Array.from(new Set(produtos.map((p) => p.tipo).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
@@ -58,20 +64,19 @@ export function ProdutosTab() {
 
   useEffect(carregar, []);
 
-  function carregarEmbalagens(produtoId) {
-    api.get(`/produtos/${produtoId}/embalagens`).then(setEmbalagens).catch(() => setEmbalagens([]));
+  function carregarNiveis(produtoId) {
+    api.get(`/produtos/${produtoId}/niveis`).then(setNiveis).catch(() => setNiveis([]));
   }
 
   function abrirNovoProduto() {
     setEditandoId(null);
     setFormProduto(PRODUTO_VAZIO);
+    setPrecoCustoGrao(null);
     setModoNovaCategoria(false);
     setImagemArquivo(null);
     setImagemPreview(null);
-    setEmbalagens([]);
-    setFormEmbalagem(EMBALAGEM_VAZIA);
-    setUnidadesPorPacote(1);
-    setNovoFatorUnidade('');
+    setNiveis([]);
+    setFormNivel(NIVEL_VAZIO);
     setModalProduto(true);
   }
 
@@ -80,76 +85,82 @@ export function ProdutosTab() {
     setFormProduto({
       nome: produto.nome,
       tipo: produto.tipo || '',
-      unidade: produto.unidade,
-      precoVenda: produto.precoVenda,
-      precoCusto: produto.precoCusto || '',
       estoqueMinimo: produto.estoqueMinimo,
       quantidade: produto.quantidade,
     });
+    setPrecoCustoGrao(produto.precoCusto !== null && produto.precoCusto !== undefined ? Number(produto.precoCusto) : null);
     // Se o produto já tem um tipo fora da lista atual (não deveria acontecer, mas por
     // segurança), abre direto no campo de texto em vez de um <select> sem essa opção.
     setModoNovaCategoria(Boolean(produto.tipo) && !categoriasExistentes.includes(produto.tipo));
     setImagemArquivo(null);
     setImagemPreview(resolveUploadUrl(produto.imagemUrl));
-    setFormEmbalagem(EMBALAGEM_VAZIA);
-    setUnidadesPorPacote(produto.unidadesPorPacote || 1);
-    setNovoFatorUnidade('');
-    carregarEmbalagens(produto.id);
+    setFormNivel(NIVEL_VAZIO);
+    carregarNiveis(produto.id);
     setModalProduto(true);
   }
 
-  async function ativarVendaPorUnidade(e) {
-    e.preventDefault();
-    const fator = Number(novoFatorUnidade);
-    if (!fator || fator < 1) return;
-    setAtivandoUnidade(true);
-    try {
-      const atualizado = await api.post(`/produtos/${editandoId}/ativar-venda-unitaria`, { unidadesPorPacote: fator });
-      setUnidadesPorPacote(atualizado.unidadesPorPacote);
-      setNovoFatorUnidade('');
-      carregarEmbalagens(editandoId);
-      carregar();
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setAtivandoUnidade(false);
-    }
-  }
-
-  async function enviarImagemEmbalagem(embalagem, arquivo) {
+  async function enviarImagemNivel(nivel, arquivo) {
     const dados = new FormData();
     dados.append('imagem', arquivo);
     try {
-      await api.upload(`/produtos/${editandoId}/embalagens/${embalagem.id}/imagem`, dados);
-      carregarEmbalagens(editandoId);
+      await api.upload(`/produtos/${editandoId}/niveis/${nivel.id}/imagem`, dados);
+      carregarNiveis(editandoId);
     } catch (err) {
       alert(err.message);
     }
   }
 
-  async function adicionarEmbalagem(e) {
+  async function adicionarNivel(e) {
     e.preventDefault();
-    setSalvandoEmbalagem(true);
+    setSalvandoNivel(true);
     try {
-      await api.post(`/produtos/${editandoId}/embalagens`, {
-        nome: formEmbalagem.nome.trim(),
-        quantidadeBandejas: Number(formEmbalagem.quantidadeBandejas),
-        preco: Number(formEmbalagem.preco),
+      await api.post(`/produtos/${editandoId}/niveis`, {
+        nome: formNivel.nome.trim(),
+        quantidadeGrao: Number(formNivel.quantidadeGrao),
+        preco: formNivel.preco === '' ? undefined : Number(formNivel.preco),
       });
-      setFormEmbalagem(EMBALAGEM_VAZIA);
-      carregarEmbalagens(editandoId);
+      setFormNivel(NIVEL_VAZIO);
+      carregarNiveis(editandoId);
     } catch (err) {
       alert(err.message);
     } finally {
-      setSalvandoEmbalagem(false);
+      setSalvandoNivel(false);
     }
   }
 
-  async function removerEmbalagem(embalagem) {
-    if (!confirm(`Remover a caixa "${embalagem.nome}"?`)) return;
+  async function salvarPrecoNivel(nivel, novoPreco) {
+    if (novoPreco === '' || Number.isNaN(Number(novoPreco))) return;
     try {
-      await api.delete(`/produtos/${editandoId}/embalagens/${embalagem.id}`);
-      carregarEmbalagens(editandoId);
+      await api.put(`/produtos/${editandoId}/niveis/${nivel.id}`, { preco: Number(novoPreco) });
+      carregarNiveis(editandoId);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function definirComoBase(nivel) {
+    try {
+      await api.post(`/produtos/${editandoId}/niveis/${nivel.id}/definir-base`, {});
+      carregarNiveis(editandoId);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function recalcularNivel(nivel) {
+    try {
+      await api.post(`/produtos/${editandoId}/niveis/${nivel.id}/recalcular`, {});
+      carregarNiveis(editandoId);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function removerNivel(nivel) {
+    if (!confirm(`Remover o nível "${nivel.nome}"?`)) return;
+    try {
+      await api.delete(`/produtos/${editandoId}/niveis/${nivel.id}`);
+      carregarNiveis(editandoId);
     } catch (err) {
       alert(err.message);
     }
@@ -171,17 +182,25 @@ export function ProdutosTab() {
     setImagemPreview(URL.createObjectURL(arquivo));
   }
 
+  function alterarPrecoCustoExibido(valor) {
+    setPrecoCustoGrao(valor === '' ? null : Number(valor) / nivelBase.quantidadeGrao);
+  }
+
   async function salvarProduto(e) {
     e.preventDefault();
     setSalvandoProduto(true);
     try {
-      const payload = {
-        ...formProduto,
-        precoVenda: Number(formProduto.precoVenda),
-        precoCusto: formProduto.precoCusto ? Number(formProduto.precoCusto) : undefined,
-        estoqueMinimo: Number(formProduto.estoqueMinimo),
-        quantidade: Number(formProduto.quantidade),
-      };
+      const payload = editandoId
+        ? {
+            ...formProduto,
+            estoqueMinimo: Number(formProduto.estoqueMinimo),
+            precoCusto: precoCustoGrao,
+          }
+        : {
+            ...formProduto,
+            estoqueMinimo: Number(formProduto.estoqueMinimo),
+            quantidade: Number(formProduto.quantidade),
+          };
 
       const produtoSalvo = editandoId
         ? await api.put(`/produtos/${editandoId}`, payload)
@@ -200,12 +219,11 @@ export function ProdutosTab() {
         setImagemPreview(null);
       } else {
         // Produto recém-criado: mantém o modal aberto, agora em modo edição, pra dar pra
-        // cadastrar as caixas dele na hora sem precisar reabrir.
+        // cadastrar os níveis de venda dele na hora sem precisar reabrir.
         setEditandoId(produtoSalvo.id);
         setImagemArquivo(null);
         setImagemPreview(resolveUploadUrl(produtoSalvo.imagemUrl));
-        setUnidadesPorPacote(produtoSalvo.unidadesPorPacote || 1);
-        carregarEmbalagens(produtoSalvo.id);
+        carregarNiveis(produtoSalvo.id);
       }
       carregar();
     } catch (err) {
@@ -261,8 +279,14 @@ export function ProdutosTab() {
         ),
     },
     { key: 'nome', header: 'Produto' },
-    { key: 'unidade', header: 'Unidade' },
-    { key: 'precoVenda', header: 'Preço venda', render: (p) => Number(p.precoVenda).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) },
+    {
+      key: 'niveisVenda',
+      header: 'Nível de referência',
+      render: (p) => {
+        const base = (p.niveisVenda || []).find((n) => n.ehBase);
+        return base ? `${base.nome} — ${formatBRL(base.preco)}` : <span className="text-muted">Sem nível cadastrado</span>;
+      },
+    },
     {
       key: 'quantidade',
       header: 'Não distribuído',
@@ -327,6 +351,9 @@ export function ProdutosTab() {
                 )}
                 <input type="file" accept="image/*" onChange={selecionarImagem} />
               </div>
+              <p className="text-muted" style={{ marginTop: 6, fontSize: 12 }}>
+                Imagem padrão do produto — cada nível de venda abaixo pode ter a sua própria foto; sem uma, usa esta.
+              </p>
             </div>
 
             <div className="form-grid">
@@ -360,26 +387,26 @@ export function ProdutosTab() {
                   </select>
                 )}
               </div>
-              <div className="field">
-                <label>Unidade</label>
-                <input value={formProduto.unidade} onChange={(e) => setFormProduto({ ...formProduto, unidade: e.target.value })} />
-              </div>
-              <div className="field">
-                <label>Preço de venda (R$) *</label>
-                <input type="number" step="0.01" min="0" value={formProduto.precoVenda} onChange={(e) => setFormProduto({ ...formProduto, precoVenda: e.target.value })} required />
-              </div>
-              <div className="field">
-                <label>Preço de custo (R$)</label>
-                <input type="number" step="0.01" min="0" value={formProduto.precoCusto} onChange={(e) => setFormProduto({ ...formProduto, precoCusto: e.target.value })} />
-              </div>
+              {editandoId && nivelBase && (
+                <div className="field">
+                  <label>Preço de custo (por {nivelBase.nome})</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={precoCustoExibido}
+                    onChange={(e) => alterarPrecoCustoExibido(e.target.value)}
+                  />
+                </div>
+              )}
               {!editandoId && (
                 <div className="field">
-                  <label>Estoque inicial</label>
+                  <label>Estoque inicial (grão-base)</label>
                   <input type="number" min="0" value={formProduto.quantidade} onChange={(e) => setFormProduto({ ...formProduto, quantidade: e.target.value })} />
                 </div>
               )}
               <div className="field">
-                <label>Estoque mínimo (alerta)</label>
+                <label>Estoque mínimo (alerta, grão-base)</label>
                 <input type="number" min="0" value={formProduto.estoqueMinimo} onChange={(e) => setFormProduto({ ...formProduto, estoqueMinimo: e.target.value })} />
               </div>
             </div>
@@ -396,28 +423,50 @@ export function ProdutosTab() {
 
           {editandoId && (
             <div style={{ marginTop: 24, borderTop: '1px solid var(--color-border)', paddingTop: 18 }}>
-              <div className="section-title" style={{ marginTop: 0 }}>Caixas deste produto</div>
+              <div className="section-title" style={{ marginTop: 0 }}>Níveis de venda</div>
               <p className="text-muted" style={{ marginBottom: 12, fontSize: 13 }}>
-                Uma caixa é um jeito de vender várias bandejas de uma vez, com preço fechado — não tem estoque
-                próprio, na venda ela desconta as bandejas direto do estoque deste produto.
+                Cada nível (ex: Unidade, Dúzia, Bandeja, Caixa) é um jeito de vender este mesmo produto, com preço e
+                foto próprios — todos descontam do mesmo estoque. O nível marcado <strong>Referência</strong> tem o
+                preço digitado à mão; os demais são calculados automaticamente a partir dele (você pode ajustar
+                qualquer um manualmente depois).
               </p>
 
-              {embalagens.length > 0 && (
+              {niveis.length > 0 && (
                 <ul className="produto-embalagens-lista">
-                  {embalagens.map((emb) => (
-                    <li key={emb.id}>
+                  {niveis.map((n) => (
+                    <li key={n.id}>
                       <span className="produto-embalagem-thumb">
-                        {emb.imagemUrl || imagemPreview ? (
-                          <img src={emb.imagemUrl ? resolveUploadUrl(emb.imagemUrl) : imagemPreview} alt={emb.nome} />
+                        {n.imagemUrl || imagemPreview ? (
+                          <img src={n.imagemUrl ? resolveUploadUrl(n.imagemUrl) : imagemPreview} alt={n.nome} />
                         ) : (
                           <span aria-hidden="true">📦</span>
                         )}
                       </span>
                       <span>
-                        <strong>{emb.nome}</strong>
-                        <span className="text-muted"> · {emb.quantidadeBandejas} {formProduto.unidade}</span>
+                        <strong>{n.nome}</strong>
+                        <span className="text-muted"> · {n.quantidadeGrao} grão-base{n.ehBase ? ' · referência' : n.precoManual ? ' · preço manual' : ''}</span>
                       </span>
-                      <span>{formatBRL(emb.preco)}</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        defaultValue={n.preco}
+                        key={`${n.id}-${n.preco}`}
+                        className="produto-embalagem-preco-input"
+                        onBlur={(e) => {
+                          if (Number(e.target.value) !== Number(n.preco)) salvarPrecoNivel(n, e.target.value);
+                        }}
+                      />
+                      {!n.ehBase && (
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => definirComoBase(n)}>
+                          Usar como referência
+                        </button>
+                      )}
+                      {!n.ehBase && n.precoManual && (
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => recalcularNivel(n)}>
+                          Recalcular
+                        </button>
+                      )}
                       <label className="btn btn-secondary btn-sm produto-embalagem-foto-btn">
                         Foto
                         <input
@@ -425,82 +474,53 @@ export function ProdutosTab() {
                           accept="image/*"
                           onChange={(e) => {
                             const arquivo = e.target.files?.[0];
-                            if (arquivo) enviarImagemEmbalagem(emb, arquivo);
+                            if (arquivo) enviarImagemNivel(n, arquivo);
                             e.target.value = '';
                           }}
                         />
                       </label>
-                      <button type="button" className="btn btn-danger btn-sm" onClick={() => removerEmbalagem(emb)}>Remover</button>
+                      {!n.ehBase && (
+                        <button type="button" className="btn btn-danger btn-sm" onClick={() => removerNivel(n)}>Remover</button>
+                      )}
                     </li>
                   ))}
                 </ul>
               )}
 
-              <form onSubmit={adicionarEmbalagem} className="form-grid produto-embalagem-form">
+              <form onSubmit={adicionarNivel} className="form-grid produto-embalagem-form">
                 <div className="field">
                   <label>Nome</label>
                   <input
-                    value={formEmbalagem.nome}
-                    onChange={(e) => setFormEmbalagem({ ...formEmbalagem, nome: e.target.value })}
-                    placeholder="Ex: Caixa com 30 bandejas"
+                    value={formNivel.nome}
+                    onChange={(e) => setFormNivel({ ...formNivel, nome: e.target.value })}
+                    placeholder={niveis.length === 0 ? 'Ex: Dúzia' : 'Ex: Caixa com 30 bandejas'}
                     required
                   />
                 </div>
                 <div className="field">
-                  <label>Bandejas por caixa</label>
+                  <label>Quantidade em grão-base</label>
                   <input
                     type="number"
                     min="1"
-                    value={formEmbalagem.quantidadeBandejas}
-                    onChange={(e) => setFormEmbalagem({ ...formEmbalagem, quantidadeBandejas: e.target.value })}
+                    value={formNivel.quantidadeGrao}
+                    onChange={(e) => setFormNivel({ ...formNivel, quantidadeGrao: e.target.value })}
+                    placeholder={niveis.length === 0 ? 'Ex: 1 ovo' : 'Ex: 360 ovos'}
                     required
                   />
                 </div>
                 <div className="field">
-                  <label>Preço da caixa (R$)</label>
+                  <label>Preço (R$){niveis.length > 0 ? ' — em branco calcula automático' : ''}</label>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
-                    value={formEmbalagem.preco}
-                    onChange={(e) => setFormEmbalagem({ ...formEmbalagem, preco: e.target.value })}
-                    required
+                    value={formNivel.preco}
+                    onChange={(e) => setFormNivel({ ...formNivel, preco: e.target.value })}
+                    required={niveis.length === 0}
                   />
                 </div>
-                <button type="submit" className="btn btn-secondary" disabled={salvandoEmbalagem}>
-                  {salvandoEmbalagem ? 'Adicionando...' : '+ Adicionar caixa'}
-                </button>
-              </form>
-            </div>
-          )}
-
-          {editandoId && (
-            <div style={{ marginTop: 24, borderTop: '1px solid var(--color-border)', paddingTop: 18 }}>
-              <div className="section-title" style={{ marginTop: 0 }}>Venda por unidade avulsa</div>
-              {unidadesPorPacote > 1 ? (
-                <p className="text-muted" style={{ marginBottom: 12, fontSize: 13 }}>
-                  Ativada: 1 {formProduto.unidade || 'unidade'} tem <strong>{unidadesPorPacote}</strong> unidades
-                  individuais. O estoque deste produto passou a ser contado nessa unidade menor.
-                </p>
-              ) : (
-                <p className="text-muted" style={{ marginBottom: 12, fontSize: 13 }}>
-                  Permite vender abaixo de "1 {formProduto.unidade || 'unidade'}" — ex: 2 ovos soltos de uma dúzia.
-                  Ative informando quantas unidades individuais cabem em 1 {formProduto.unidade || 'unidade'}.
-                </p>
-              )}
-              <form onSubmit={ativarVendaPorUnidade} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                <div className="field" style={{ flex: 1 }}>
-                  <label>Unidades individuais por {formProduto.unidade || 'unidade'}</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={novoFatorUnidade}
-                    onChange={(e) => setNovoFatorUnidade(e.target.value)}
-                    placeholder={String(unidadesPorPacote)}
-                  />
-                </div>
-                <button type="submit" className="btn btn-secondary" disabled={ativandoUnidade || !novoFatorUnidade}>
-                  {ativandoUnidade ? 'Salvando...' : unidadesPorPacote > 1 ? 'Atualizar' : 'Ativar'}
+                <button type="submit" className="btn btn-secondary" disabled={salvandoNivel}>
+                  {salvandoNivel ? 'Adicionando...' : '+ Adicionar nível'}
                 </button>
               </form>
             </div>

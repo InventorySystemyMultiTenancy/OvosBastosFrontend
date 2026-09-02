@@ -39,7 +39,7 @@ export function Recebimentos() {
 
   const [modalNovo, setModalNovo] = useState(false);
   const [quantidadesRecebidas, setQuantidadesRecebidas] = useState({});
-  const [modosRecebimento, setModosRecebimento] = useState({}); // produtoId -> '' (bandejas) | embalagemId (caixas)
+  const [modosRecebimento, setModosRecebimento] = useState({}); // produtoId -> '' (grão-base) | nivelVendaId (ex: caixas)
   const [precosCusto, setPrecosCusto] = useState({});
   const [observacao, setObservacao] = useState('');
   const [salvandoNovo, setSalvandoNovo] = useState(false);
@@ -70,7 +70,11 @@ export function Recebimentos() {
 
   function abrirNovo() {
     setQuantidadesRecebidas({});
-    setModosRecebimento({});
+    // Pré-seleciona o nível de referência de cada produto (ex: Dúzia) como modo de
+    // recebimento padrão — quem recebe pensa em "chegaram 500 dúzias", não em grão-base.
+    setModosRecebimento(
+      Object.fromEntries(produtos.map((p) => [p.id, (p.niveisVenda || []).find((n) => n.ehBase)?.id || '']))
+    );
     // Pré-preenchido com o preço de custo atual de cada produto — editável aqui mesmo; o
     // valor confirmado vira o novo Produto.precoCusto definitivo (ver salvarNovo).
     setPrecosCusto(Object.fromEntries(produtos.map((p) => [p.id, p.precoCusto || ''])));
@@ -132,7 +136,7 @@ export function Recebimentos() {
         .map(([produtoId, quantidade]) => ({
           produtoId: Number(produtoId),
           quantidade: Number(quantidade),
-          embalagemId: modosRecebimento[produtoId] ? Number(modosRecebimento[produtoId]) : undefined,
+          nivelVendaId: modosRecebimento[produtoId] ? Number(modosRecebimento[produtoId]) : undefined,
           precoCusto: precosCusto[produtoId] !== '' && precosCusto[produtoId] !== undefined ? Number(precosCusto[produtoId]) : undefined,
         }))
         .filter((i) => i.quantidade > 0);
@@ -240,21 +244,22 @@ export function Recebimentos() {
                 </thead>
                 <tbody>
                   {produtos.map((p) => {
-                    const modo = modosRecebimento[p.id] || '';
-                    const emCaixas = Boolean(modo);
+                    const niveis = p.niveisVenda || [];
+                    const nivelBase = niveis.find((n) => n.ehBase);
+                    const modo = modosRecebimento[p.id] || nivelBase?.id || '';
+                    const nivelSelecionado = niveis.find((n) => n.id === Number(modo));
                     return (
                       <tr key={p.id}>
                         <td>{p.nome}</td>
                         <td>
-                          {p.embalagens?.length > 0 && (
+                          {niveis.length > 1 && (
                             <select
                               style={{ marginBottom: 4, display: 'block', width: 160 }}
                               value={modo}
                               onChange={(e) => setModosRecebimento({ ...modosRecebimento, [p.id]: e.target.value })}
                             >
-                              <option value="">Em {p.unidade}</option>
-                              {p.embalagens.map((emb) => (
-                                <option key={emb.id} value={emb.id}>Em caixas — {emb.nome}</option>
+                              {niveis.map((n) => (
+                                <option key={n.id} value={n.id}>Em {n.nome}</option>
                               ))}
                             </select>
                           )}
@@ -262,7 +267,7 @@ export function Recebimentos() {
                             type="number"
                             min="0"
                             style={{ width: 100 }}
-                            placeholder={emCaixas ? 'nº de caixas' : undefined}
+                            placeholder={nivelSelecionado && !nivelSelecionado.ehBase ? `nº de ${nivelSelecionado.nome.toLowerCase()}` : undefined}
                             value={quantidadesRecebidas[p.id] || ''}
                             onChange={(e) => setQuantidadesRecebidas({ ...quantidadesRecebidas, [p.id]: e.target.value })}
                           />

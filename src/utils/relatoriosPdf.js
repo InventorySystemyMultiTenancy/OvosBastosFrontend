@@ -126,15 +126,18 @@ export async function gerarRelatorioEstoqueAtual(produtos) {
   autoTable(doc, {
     startY: 46,
     head: [['Produto', 'Tipo', 'Unidade', 'Preço venda', 'Estoque', 'Mínimo', 'Situação']],
-    body: produtos.map((p) => [
-      p.nome,
-      p.tipo || '—',
-      p.unidade,
-      formatBRL(p.precoVenda),
-      p.quantidade,
-      p.estoqueMinimo,
-      p.quantidade <= p.estoqueMinimo ? 'Estoque baixo' : 'OK',
-    ]),
+    body: produtos.map((p) => {
+      const base = (p.niveisVenda || []).find((n) => n.ehBase);
+      return [
+        p.nome,
+        p.tipo || '—',
+        base ? base.nome : '—',
+        base ? formatBRL(base.preco) : '—',
+        p.quantidade,
+        p.estoqueMinimo,
+        p.quantidade <= p.estoqueMinimo ? 'Estoque baixo' : 'OK',
+      ];
+    }),
     headStyles: { fillColor: [240, 100, 92] },
     styles: { fontSize: 9 },
     foot: [['', '', '', '', totalUnidades, '', 'Total de unidades']],

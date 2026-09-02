@@ -367,27 +367,29 @@ export function Caixa() {
   const produtosParaExibir = produtosFiltrados.slice(0, produtosVisiveis);
   const temMaisProdutos = produtosVisiveis < produtosFiltrados.length;
 
-  // Um produto pode estar no carrinho em mais de uma "linha" ao mesmo tempo — avulso e como
-  // uma ou mais caixas (embalagens) — todas puxando do mesmo estoque em bandejas do produto,
-  // já que caixa não tem estoque próprio. Por isso a chave de uma linha é (produtoId,
-  // embalagemId), e o limite de quanto dá pra adicionar soma bandejas de todas as linhas
-  // daquele produto, não só a linha que está sendo alterada.
-  function totalBandejasComprometidas(produtoId, carrinhoAtual = carrinho) {
+  // Um produto pode estar no carrinho em mais de uma "linha" ao mesmo tempo — um nível de
+  // venda (Unidade/Dúzia/Bandeja/Caixa) por linha — todas puxando do mesmo estoque em
+  // grão-base do produto, já que nível não tem estoque próprio. Por isso a chave de uma linha
+  // é (produtoId, nivelVendaId), e o limite de quanto dá pra adicionar soma o grão de todas as
+  // linhas daquele produto, não só a linha que está sendo alterada.
+  function totalGraoComprometido(produtoId, carrinhoAtual = carrinho) {
     return carrinhoAtual
       .filter((i) => i.produtoId === produtoId)
-      .reduce((soma, i) => soma + i.quantidade * i.bandejasPorUnidade, 0);
+      .reduce((soma, i) => soma + i.quantidade * i.quantidadeGrao, 0);
   }
 
-  function quantidadeNoCarrinho(produtoId, embalagemId = null) {
-    return carrinho.find((i) => i.produtoId === produtoId && i.embalagemId === embalagemId)?.quantidade || 0;
+  function quantidadeNoCarrinho(produtoId, nivelVendaId) {
+    return carrinho.find((i) => i.produtoId === produtoId && i.nivelVendaId === nivelVendaId)?.quantidade || 0;
   }
 
-  function adicionar(produto) {
-    if (produto.quantidade <= 0) return;
-    const unidadesPorPacote = produto.unidadesPorPacote || 1;
+  // Adiciona 1 unidade do nível de venda escolhido (ex: 1 Dúzia, 1 Caixa) — todo nível
+  // desconta do mesmo estoque em grão-base do produto (nivel.quantidadeGrao), sem distinção
+  // entre "produto normal" e "embalagem fechada" (ver NivelVendaProduto no backend).
+  function adicionar(produto, nivel) {
+    if (produto.quantidade < nivel.quantidadeGrao) return;
     setCarrinho((atual) => {
-      if (totalBandejasComprometidas(produto.id, atual) + unidadesPorPacote > produto.quantidade) return atual;
-      const existente = atual.find((i) => i.produtoId === produto.id && i.embalagemId === null);
+      if (totalGraoComprometido(produto.id, atual) + nivel.quantidadeGrao > produto.quantidade) return atual;
+      const existente = atual.find((i) => i.produtoId === produto.id && i.nivelVendaId === nivel.id);
       if (existente) {
         return atual.map((i) => (i === existente ? { ...i, quantidade: i.quantidade + 1 } : i));
       }
@@ -395,90 +397,36 @@ export function Caixa() {
         ...atual,
         {
           produtoId: produto.id,
-          embalagemId: null,
-          nome: produto.nome,
-          precoVenda: produto.precoVenda,
-          unidade: produto.unidade,
+          nivelVendaId: nivel.id,
+          nome: nivel.ehBase ? produto.nome : `${produto.nome} — ${nivel.nome}`,
+          precoVenda: nivel.preco,
           quantidade: 1,
-          bandejasPorUnidade: unidadesPorPacote,
-          estoqueTotalProduto: produto.quantidade,
-          // Guardados pra dar pra alternar essa linha pra "unidade avulsa" e voltar sem
-          // perder a referência do preço/tamanho do pacote inteiro (ver alternarModoUnidade).
-          unidadesPorPacote,
-          precoVendaPacote: produto.precoVenda,
-          vendidoPorUnidade: false,
-        },
-      ];
-    });
-  }
-
-  // Alterna a linha do carrinho entre "1 pacote inteiro" (dúzia/bandeja) e "unidade avulsa"
-  // (ex: 2 ovos soltos) — só disponível pra produto com venda por unidade ativada
-  // (unidadesPorPacote > 1). Sempre reinicia a quantidade em 1 ao trocar de modo, já que o
-  // que "1" significa muda completamente entre os dois.
-  function alternarModoUnidade(produtoId) {
-    setCarrinho((atual) =>
-      atual.map((i) => {
-        if (i.produtoId !== produtoId || i.embalagemId !== null || i.unidadesPorPacote <= 1) return i;
-        if (i.vendidoPorUnidade) {
-          return { ...i, vendidoPorUnidade: false, quantidade: 1, precoVenda: i.precoVendaPacote, bandejasPorUnidade: i.unidadesPorPacote };
-        }
-        return {
-          ...i,
-          vendidoPorUnidade: true,
-          quantidade: 1,
-          precoVenda: Math.round((Number(i.precoVendaPacote) / i.unidadesPorPacote) * 100) / 100,
-          bandejasPorUnidade: 1,
-        };
-      })
-    );
-  }
-
-  // Caixa/embalagem fechada (ex: caixa com 30 bandejas) — vendida com preço próprio, mas
-  // desconta quantidadeBandejas do mesmo estoque do produto avulso, sem estoque separado.
-  function adicionarEmbalagem(produto, embalagem) {
-    if (produto.quantidade < embalagem.quantidadeBandejas) return;
-    setCarrinho((atual) => {
-      if (totalBandejasComprometidas(produto.id, atual) + embalagem.quantidadeBandejas > produto.quantidade) return atual;
-      const existente = atual.find((i) => i.produtoId === produto.id && i.embalagemId === embalagem.id);
-      if (existente) {
-        return atual.map((i) => (i === existente ? { ...i, quantidade: i.quantidade + 1 } : i));
-      }
-      return [
-        ...atual,
-        {
-          produtoId: produto.id,
-          embalagemId: embalagem.id,
-          nome: `${produto.nome} — ${embalagem.nome}`,
-          precoVenda: embalagem.preco,
-          unidade: `${embalagem.quantidadeBandejas} ${produto.unidade}`,
-          quantidade: 1,
-          bandejasPorUnidade: embalagem.quantidadeBandejas,
+          quantidadeGrao: nivel.quantidadeGrao,
           estoqueTotalProduto: produto.quantidade,
         },
       ];
     });
   }
 
-  function aumentar(produtoId, embalagemId = null) {
+  function aumentar(produtoId, nivelVendaId) {
     setCarrinho((atual) => {
-      const item = atual.find((i) => i.produtoId === produtoId && i.embalagemId === embalagemId);
+      const item = atual.find((i) => i.produtoId === produtoId && i.nivelVendaId === nivelVendaId);
       if (!item) return atual;
-      if (totalBandejasComprometidas(produtoId, atual) + item.bandejasPorUnidade > item.estoqueTotalProduto) return atual;
+      if (totalGraoComprometido(produtoId, atual) + item.quantidadeGrao > item.estoqueTotalProduto) return atual;
       return atual.map((i) => (i === item ? { ...i, quantidade: i.quantidade + 1 } : i));
     });
   }
 
-  function diminuir(produtoId, embalagemId = null) {
+  function diminuir(produtoId, nivelVendaId) {
     setCarrinho((atual) =>
       atual
-        .map((i) => (i.produtoId === produtoId && i.embalagemId === embalagemId ? { ...i, quantidade: i.quantidade - 1 } : i))
+        .map((i) => (i.produtoId === produtoId && i.nivelVendaId === nivelVendaId ? { ...i, quantidade: i.quantidade - 1 } : i))
         .filter((i) => i.quantidade > 0)
     );
   }
 
-  function removerItem(produtoId, embalagemId = null) {
-    setCarrinho((atual) => atual.filter((i) => !(i.produtoId === produtoId && i.embalagemId === embalagemId)));
+  function removerItem(produtoId, nivelVendaId) {
+    setCarrinho((atual) => atual.filter((i) => !(i.produtoId === produtoId && i.nivelVendaId === nivelVendaId)));
   }
 
   const subtotal = useMemo(() => carrinho.reduce((s, i) => s + Number(i.precoVenda) * i.quantidade, 0), [carrinho]);
@@ -586,9 +534,8 @@ export function Caixa() {
       const viaMaquininha = formaPagamento === 'MAQUININHA' || formaPagamento === 'DIVIDIDO';
       const itens = carrinho.map((i) => ({
         produtoId: i.produtoId,
+        nivelVendaId: i.nivelVendaId,
         quantidade: i.quantidade,
-        embalagemId: i.embalagemId || undefined,
-        vendidoPorUnidade: i.vendidoPorUnidade || undefined,
       }));
       const body = {
         nomeCliente: nomeCliente.trim() || 'Cliente Balcão',
@@ -638,7 +585,7 @@ export function Caixa() {
             <ul className="caixa-recibo-itens">
               {vendaConcluida.itens.map((i) => (
                 <li key={i.id}>
-                  <span><strong>{i.quantidade}x</strong> {i.produto.nome}{i.embalagem ? ` — ${i.embalagem.nome}` : ''}</span>
+                  <span><strong>{i.quantidade}x</strong> {i.produto.nome}{i.nivelVenda && !i.nivelVenda.ehBase ? ` — ${i.nivelVenda.nome}` : ''}</span>
                   <strong>{formatBRL(Number(i.precoUnit) * i.quantidade)}</strong>
                 </li>
               ))}
@@ -847,76 +794,52 @@ export function Caixa() {
             <>
               <div className="caixa-produtos-grid">
                 {produtosParaExibir.map((p) => {
-                  const bandejasComprometidas = totalBandejasComprometidas(p.id);
-                  const qtdCarrinho = quantidadeNoCarrinho(p.id);
-                  const disponivelRestante = p.quantidade - bandejasComprometidas;
-                  const esgotado = p.quantidade <= 0;
-                  return (
-                    <Fragment key={p.id}>
-                      <div
-                        className={`caixa-produto-card${esgotado ? ' is-esgotado' : ''}`}
-                        onClick={esgotado ? undefined : () => adicionar(p)}
-                      >
-                        {qtdCarrinho > 0 && <span className="caixa-produto-badge">{qtdCarrinho}</span>}
+                  const niveis = p.niveisVenda || [];
+                  if (niveis.length === 0) {
+                    return (
+                      <div key={p.id} className="caixa-produto-card is-esgotado">
                         <div className="caixa-produto-img">
                           {p.imagemUrl ? <img src={resolveUploadUrl(p.imagemUrl)} alt={p.nome} /> : <span aria-hidden="true">🥚</span>}
                         </div>
                         <div className="caixa-produto-corpo">
                           <strong className="caixa-produto-nome">{p.nome}</strong>
-                          <span className="caixa-produto-unidade">{p.unidade}</span>
-                          <div className="caixa-produto-rodape">
-                            {esgotado ? (
-                              <span className="caixa-produto-esgotado-label">Esgotado</span>
-                            ) : (
-                              <>
-                                <span className="caixa-produto-preco">{formatBRL(p.precoVenda)}</span>
-                                <button
-                                  type="button"
-                                  className="caixa-produto-add"
-                                  disabled={disponivelRestante <= 0}
-                                  aria-label={`Adicionar ${p.nome}`}
-                                >
-                                  <IconPlus />
-                                </button>
-                              </>
-                            )}
-                          </div>
+                          <span className="caixa-produto-esgotado-label">Sem nível de venda cadastrado</span>
                         </div>
                       </div>
-
-                      {(p.embalagens || []).map((emb) => {
-                        const qtdEmb = quantidadeNoCarrinho(p.id, emb.id);
-                        const cabemMais = totalBandejasComprometidas(p.id) + emb.quantidadeBandejas <= p.quantidade;
-                        const esgotadaEmb = p.quantidade < emb.quantidadeBandejas;
+                    );
+                  }
+                  return (
+                    <Fragment key={p.id}>
+                      {niveis.map((nivel) => {
+                        const qtdCarrinho = quantidadeNoCarrinho(p.id, nivel.id);
+                        const cabemMais = totalGraoComprometido(p.id) + nivel.quantidadeGrao <= p.quantidade;
+                        const esgotado = p.quantidade < nivel.quantidadeGrao;
+                        const imagem = nivel.imagemUrl || p.imagemUrl;
                         return (
                           <div
-                            key={`emb-${emb.id}`}
-                            className={`caixa-produto-card caixa-produto-card-embalagem${esgotadaEmb ? ' is-esgotado' : ''}`}
-                            onClick={esgotadaEmb ? undefined : () => adicionarEmbalagem(p, emb)}
+                            key={nivel.id}
+                            className={`caixa-produto-card${nivel.ehBase ? '' : ' caixa-produto-card-embalagem'}${esgotado ? ' is-esgotado' : ''}`}
+                            onClick={esgotado ? undefined : () => adicionar(p, nivel)}
                           >
-                            {qtdEmb > 0 && <span className="caixa-produto-badge">{qtdEmb}</span>}
-                            <span className="caixa-produto-tag-embalagem">Caixa</span>
+                            {qtdCarrinho > 0 && <span className="caixa-produto-badge">{qtdCarrinho}</span>}
+                            {!nivel.ehBase && <span className="caixa-produto-tag-embalagem">{nivel.nome}</span>}
                             <div className="caixa-produto-img">
-                              {emb.imagemUrl || p.imagemUrl ? (
-                                <img src={resolveUploadUrl(emb.imagemUrl || p.imagemUrl)} alt={emb.nome} />
-                              ) : (
-                                <span aria-hidden="true">📦</span>
-                              )}
+                              {imagem ? <img src={resolveUploadUrl(imagem)} alt={p.nome} /> : <span aria-hidden="true">{nivel.ehBase ? '🥚' : '📦'}</span>}
                             </div>
                             <div className="caixa-produto-corpo">
-                              <strong className="caixa-produto-nome">{p.nome} — {emb.nome}</strong>
-                              <span className="caixa-produto-unidade">{emb.quantidadeBandejas} {p.unidade}</span>
+                              <strong className="caixa-produto-nome">{nivel.ehBase ? p.nome : `${p.nome} — ${nivel.nome}`}</strong>
+                              <span className="caixa-produto-unidade">{nivel.ehBase ? nivel.nome : `${nivel.quantidadeGrao} un.`}</span>
                               <div className="caixa-produto-rodape">
-                                {esgotadaEmb ? (
+                                {esgotado ? (
                                   <span className="caixa-produto-esgotado-label">Esgotado</span>
                                 ) : (
                                   <>
-                                    <span className="caixa-produto-preco">{formatBRL(emb.preco)}</span>
+                                    <span className="caixa-produto-preco">{formatBRL(nivel.preco)}</span>
                                     <button
                                       type="button"
                                       className="caixa-produto-add"
                                       disabled={!cabemMais}
-                                      aria-label={`Adicionar ${emb.nome}`}
+                                      aria-label={`Adicionar ${p.nome} — ${nivel.nome}`}
                                     >
                                       <IconPlus />
                                     </button>
@@ -975,24 +898,19 @@ export function Caixa() {
               <ul className="caixa-itens-lista">
                 {carrinho.map((i) => {
                   const podeAumentar =
-                    totalBandejasComprometidas(i.produtoId) + i.bandejasPorUnidade <= i.estoqueTotalProduto;
+                    totalGraoComprometido(i.produtoId) + i.quantidadeGrao <= i.estoqueTotalProduto;
                   return (
-                    <li key={`${i.produtoId}-${i.embalagemId ?? 'un'}`}>
+                    <li key={`${i.produtoId}-${i.nivelVendaId}`}>
                       <div className="caixa-item-info">
-                        <strong>{i.nome}{i.vendidoPorUnidade ? ' (unidade avulsa)' : ''}</strong>
+                        <strong>{i.nome}</strong>
                         <span className="text-muted">{formatBRL(i.precoVenda)} cada</span>
-                        {!i.embalagemId && i.unidadesPorPacote > 1 && (
-                          <button type="button" className="caixa-item-alternar-unidade" onClick={() => alternarModoUnidade(i.produtoId)}>
-                            {i.vendidoPorUnidade ? `Voltar pro pacote (${i.unidade})` : 'Vender por unidade avulsa'}
-                          </button>
-                        )}
                       </div>
                       <div className="caixa-item-stepper">
-                        <button type="button" onClick={() => diminuir(i.produtoId, i.embalagemId)} aria-label="Diminuir">−</button>
+                        <button type="button" onClick={() => diminuir(i.produtoId, i.nivelVendaId)} aria-label="Diminuir">−</button>
                         <span>{i.quantidade}</span>
                         <button
                           type="button"
-                          onClick={() => aumentar(i.produtoId, i.embalagemId)}
+                          onClick={() => aumentar(i.produtoId, i.nivelVendaId)}
                           disabled={!podeAumentar}
                           aria-label="Aumentar"
                         >
@@ -1003,7 +921,7 @@ export function Caixa() {
                       <button
                         type="button"
                         className="caixa-item-remover"
-                        onClick={() => removerItem(i.produtoId, i.embalagemId)}
+                        onClick={() => removerItem(i.produtoId, i.nivelVendaId)}
                         aria-label="Remover item"
                       >
                         ×

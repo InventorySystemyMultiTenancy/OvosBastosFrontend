@@ -2826,6 +2826,28 @@ tbody tr:hover {
   text-transform: capitalize;
 }
 
+.ecommerce-card-niveis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ecommerce-card-nivel-pill {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ecommerce-card-nivel-pill.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
 .ecommerce-card-footer {
   margin-top: auto;
   padding-top: 12px;
