@@ -83,15 +83,46 @@ export async function printReceiptEscPos(lines, { printerName } = {}) {
 
 const DEFAULT_LOGO_PATH = "/vrilllogo.png";
 
+// Largura alvo da logo impressa, em pixels/dots — o arquivo original é grande (pensado pra
+// tela/catálogo) e a QZ Tray imprime o bitmap no tamanho que ele vier, sem encolher sozinha, então
+// saía maior que os 80mm físicos do papel e cortava as bordas. Redesenhamos num canvas menor antes
+// de mandar, em vez de confiar em opção de escala da QZ Tray.
+const LOGO_PRINT_WIDTH = 260;
+
+// Baixa a imagem, redesenha num canvas na largura alvo (mantendo proporção) com fundo branco —
+// o PNG original tem fundo transparente, e transparência pode virar preto/ruído dependendo de
+// como o driver da impressora interpreta o canal alfa — e devolve como base64 puro (sem o prefixo
+// "data:image/png;base64,", que a QZ Tray não espera no flavor "base64").
+async function resizeLogoToBase64(url, targetWidth) {
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = () => reject(new Error("Falha ao carregar a logo."));
+    img.src = url;
+  });
+
+  const scale = Math.min(1, targetWidth / img.naturalWidth);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.naturalWidth * scale);
+  canvas.height = Math.round(img.naturalHeight * scale);
+
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  return canvas.toDataURL("image/png").split(",")[1];
+}
+
 // Mesmo cupom, mas com a logo da Ovos Bastos impressa em cima do texto — QZ Tray converte a
 // imagem pro formato raster do ESC/POS sozinho (`format: "image"`, `options.language: "ESCPOS"`),
-// então não precisamos gerar o bitmap na mão. `data` precisa ser uma URL absoluta porque quem
-// busca a imagem é o processo do QZ Tray (app Java separado rodando na máquina), não o navegador
-// — um caminho relativo tipo "/vrilllogo.png" não significa nada pra ele.
-// NÃO testado contra impressora física/QZ Tray real ainda — se a impressão da logo falhar (opção
-// de imagem não suportada por esse driver/printerType específico, por exemplo), esse trecho é o
-// primeiro a revisar. Por isso vai numa chamada separada e protegida por try/catch: se a logo
-// falhar, o cupom em texto ainda sai normalmente.
+// então não precisamos gerar o bitmap na mão, só redimensionar antes (ver
+// `resizeLogoToBase64`/`LOGO_PRINT_WIDTH`). `logoUrl` (de onde a imagem é baixada pelo navegador,
+// não pela QZ Tray) precisa ser uma URL absoluta só se vier de fora do domínio atual.
+// NÃO testado contra impressora física/QZ Tray real além de uma rodada — se o tamanho ainda sair
+// errado, ajustar `LOGO_PRINT_WIDTH`. Vai numa chamada separada e protegida por try/catch: se a
+// logo falhar, o cupom em texto ainda sai normalmente.
 export async function printReceiptEscPosWithLogo(lines, { printerName, logoUrl } = {}) {
   await ensureConnected();
 
@@ -99,12 +130,13 @@ export async function printReceiptEscPosWithLogo(lines, { printerName, logoUrl }
   const resolvedLogoUrl = logoUrl || `${window.location.origin}${DEFAULT_LOGO_PATH}`;
 
   try {
+    const base64 = await resizeLogoToBase64(resolvedLogoUrl, LOGO_PRINT_WIDTH);
     await qz.print(config, [
       {
         type: "raw",
         format: "image",
-        flavor: "file",
-        data: resolvedLogoUrl,
+        flavor: "base64",
+        data: base64,
         options: { language: "ESCPOS", dotDensity: "double" },
       },
     ]);
@@ -113,6 +145,8 @@ export async function printReceiptEscPosWithLogo(lines, { printerName, logoUrl }
   }
 
   const body = stripDiacritics(lines.join("\n"));
-  const data = `${INIT}${body}\n\n\n${CUT}`;
+  // 6 linhas em branco antes do corte — dá uma margem de sobra no fim do cupom pra não cortar em
+  // cima das últimas linhas de texto (aconteceu com só 3 linhas de avanço).
+  const data = `${INIT}${body}\n\n\n\n\n\n${CUT}`;
   await qz.print(config, [{ type: "raw", format: "plain", data }]);
 }
