@@ -4,6 +4,8 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
+import { buildComprovanteLines } from '../utils/receiptLines';
+import { printReceiptEscPosWithLogo } from '../utils/qzPrint';
 
 const STATUS_LABEL = { ORCAMENTO: 'Orçamento', CONFIRMADA: 'Confirmada', CANCELADA: 'Cancelada' };
 const STATUS_BADGE = { ORCAMENTO: 'badge-amber', CONFIRMADA: 'badge-green', CANCELADA: 'badge-gray' };
@@ -180,6 +182,15 @@ export function Vendas() {
     setComprovante(data);
   }
 
+  async function imprimirDireto(venda) {
+    try {
+      const data = await api.get(`/vendas/${venda.id}/comprovante`);
+      await printReceiptEscPosWithLogo(buildComprovanteLines(data));
+    } catch (err) {
+      alert(err.message || 'Erro ao imprimir. Verifique se o QZ Tray está instalado e rodando.');
+    }
+  }
+
   const columns = [
     { key: 'id', header: '#', render: (v) => <span className="vendas-col-id">{v.id}</span> },
     { key: 'cliente', header: 'Cliente', render: (v) => <span className="vendas-col-cliente">{v.cliente.nome}</span> },
@@ -222,6 +233,7 @@ export function Vendas() {
           {v.status === 'CONFIRMADA' && (
             <>
               <button className="btn btn-secondary btn-sm" onClick={() => verComprovante(v)}>Comprovante</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => imprimirDireto(v)}>Imprimir</button>
               {ehAdmin && (
                 <button className="btn btn-danger btn-sm" onClick={() => reabrirVenda(v)}>Reabrir</button>
               )}
