@@ -1932,6 +1932,27 @@ tbody tr:hover {
   padding: 32px;
 }
 
+/* ---------- Lucro por Produto: linhas de detalhe por nível de venda ---------- */
+
+.linha-lucro-produto.is-expansivel {
+  cursor: pointer;
+}
+
+.linha-lucro-seta {
+  width: 20px;
+  color: var(--color-text-muted);
+}
+
+.linha-lucro-nivel td {
+  background: var(--color-primary-soft);
+}
+
+.linha-lucro-nivel-nome {
+  padding-left: 32px !important;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
 /* ---------- Tabela de Vendas: cor diferente por coluna ---------- */
 /* Tons "600/700" bem saturados — mantêm contraste confortável em fundo branco (a maioria
    passa AA pra texto normal) e ficam bem distintos um do outro coluna a coluna. */
