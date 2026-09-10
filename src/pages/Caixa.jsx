@@ -86,6 +86,9 @@ export function Caixa() {
   const [formaPagamento, setFormaPagamento] = useState('DINHEIRO');
   const [valorRecebido, setValorRecebido] = useState('');
   const [valorDinheiroDividido, setValorDinheiroDividido] = useState('');
+  const [dividirCartao, setDividirCartao] = useState(false);
+  const [valorDebitoDividido, setValorDebitoDividido] = useState('');
+  const [valorCreditoDividido, setValorCreditoDividido] = useState('');
 
   const [enviando, setEnviando] = useState(false);
   const [erroVenda, setErroVenda] = useState('');
@@ -424,8 +427,19 @@ export function Caixa() {
   const troco = Math.max(Number(valorRecebido || 0) - total, 0);
   const faltaReceber = Math.max(total - Number(valorRecebido || 0), 0);
   const valorMaquininhaDividido = Math.max(total - (Number(valorDinheiroDividido) || 0), 0);
+  const centavos = (v) => Math.round(Number(v || 0) * 100);
+  const divisaoCartaoValida =
+    Number(valorDebitoDividido) > 0 &&
+    Number(valorCreditoDividido) > 0 &&
+    centavos(valorDebitoDividido) + centavos(valorCreditoDividido) === centavos(total);
   const divisaoValida =
-    formaPagamento !== 'DIVIDIDO' || (Number(valorDinheiroDividido) > 0 && Number(valorDinheiroDividido) < total);
+    (formaPagamento !== 'DIVIDIDO' || (Number(valorDinheiroDividido) > 0 && Number(valorDinheiroDividido) < total)) &&
+    (formaPagamento !== 'MAQUININHA' || !dividirCartao || divisaoCartaoValida);
+
+  function alternarDividirCartao() {
+    setDividirCartao((v) => !v);
+    setFormaPagamento('MAQUININHA');
+  }
 
   function limparVenda() {
     setCarrinho([]);
@@ -435,6 +449,9 @@ export function Caixa() {
     setFormaPagamento(maquininhaDisponivel ? 'MAQUININHA' : 'DINHEIRO');
     setValorRecebido('');
     setValorDinheiroDividido('');
+    setDividirCartao(false);
+    setValorDebitoDividido('');
+    setValorCreditoDividido('');
     setErroVenda('');
     setVendaConcluida(null);
     setCarrinhoMobileAberto(false);
@@ -513,12 +530,13 @@ export function Caixa() {
       const venda = await api.post('/vendas/checkout', body);
 
       if (viaMaquininha) {
-        // Manda a cobrança cheia (valor restante inteiro) direto, preservando o fluxo de um
-        // clique de sempre — dividir em débito+crédito é uma ação deliberada do operador
-        // depois, feita no próprio painel (cancela a atual e reenvia com um valor menor, ou
-        // aguarda essa ser rejeitada e reenvia o resto em duas partes).
+        // Sem "Dividir débito/crédito": manda a cobrança cheia (valor restante inteiro) direto,
+        // preservando o fluxo de um clique de sempre. Com o toggle ativo, a primeira cobrança já
+        // sai só com o valor do débito — a segunda (crédito) fica pronta pra enviar no painel,
+        // com o valor restante já pré-preenchido certinho já que débito + crédito = total.
+        const primeiraCobranca = formaPagamento === 'MAQUININHA' && dividirCartao ? Number(valorDebitoDividido) : undefined;
         try {
-          await api.post(`/vendas/${venda.id}/pagamento-maquininha`, {});
+          await api.post(`/vendas/${venda.id}/pagamento-maquininha`, primeiraCobranca !== undefined ? { valor: primeiraCobranca } : {});
         } catch (err) {
           await api.put(`/vendas/${venda.id}/cancelar`, {}).catch(() => {});
           throw err;
@@ -951,10 +969,9 @@ export function Caixa() {
                 <div className="caixa-formas-pagamento">
                   {FORMAS_PAGAMENTO.map((f) => {
                     const indisponivel = (f.id === 'MAQUININHA' || f.id === 'DIVIDIDO') && !maquininhaDisponivel;
-                    return (
+                    const botao = (
                       <button
                         type="button"
-                        key={f.id}
                         className={`caixa-forma-btn is-${f.id.toLowerCase()}${formaPagamento === f.id ? ' is-active' : ''}`}
                         onClick={() => setFormaPagamento(f.id)}
                         disabled={indisponivel}
@@ -963,6 +980,20 @@ export function Caixa() {
                         <span className="caixa-forma-icone"><f.Icon /></span>
                         {f.label}
                       </button>
+                    );
+                    if (f.id !== 'MAQUININHA') return <Fragment key={f.id}>{botao}</Fragment>;
+                    return (
+                      <div key={f.id} className="caixa-forma-maquininha-col">
+                        <button
+                          type="button"
+                          className={`caixa-dividir-cartao-btn${dividirCartao && formaPagamento === 'MAQUININHA' ? ' is-active' : ''}`}
+                          onClick={alternarDividirCartao}
+                          disabled={indisponivel}
+                        >
+                          Dividir débito/crédito
+                        </button>
+                        {botao}
+                      </div>
                     );
                   })}
                 </div>
@@ -1024,6 +1055,45 @@ export function Caixa() {
                 </div>
               )}
 
+              {formaPagamento === 'MAQUININHA' && dividirCartao && (
+                <div className="caixa-troco-box">
+                  <div className="form-grid">
+                    <div className="field">
+                      <label>1ª cobrança — Débito (R$)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={valorDebitoDividido}
+                        onChange={(e) => setValorDebitoDividido(e.target.value)}
+                        placeholder="0,00"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="field">
+                      <label>2ª cobrança — Crédito (R$)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={valorCreditoDividido}
+                        onChange={(e) => setValorCreditoDividido(e.target.value)}
+                        placeholder="0,00"
+                      />
+                    </div>
+                  </div>
+                  {(valorDebitoDividido !== '' || valorCreditoDividido !== '') && (
+                    divisaoCartaoValida ? (
+                      <p className="caixa-troco-valor">
+                        Débito: {formatBRL(valorDebitoDividido)} · Crédito: {formatBRL(valorCreditoDividido)}
+                      </p>
+                    ) : (
+                      <p className="caixa-troco-falta">A soma de débito + crédito precisa ser igual ao total ({formatBRL(total)}).</p>
+                    )
+                  )}
+                </div>
+              )}
+
               {!caixaId && caixasAtivos.length > 0 && (
                 <p className="caixa-troco-falta" style={{ marginBottom: 10 }}>Selecione um caixa/unidade acima para vender.</p>
               )}
@@ -1037,11 +1107,13 @@ export function Caixa() {
               >
                 {enviando
                   ? 'Enviando...'
-                  : formaPagamento === 'MAQUININHA'
-                    ? `Cobrar na Maquininha · ${formatBRL(total)}`
-                    : formaPagamento === 'DIVIDIDO'
-                      ? `Cobrar na Maquininha · ${formatBRL(valorMaquininhaDividido)}`
-                      : `Finalizar Venda · ${formatBRL(total)}`}
+                  : formaPagamento === 'MAQUININHA' && dividirCartao
+                    ? `Cobrar 1ª parcela (débito) · ${formatBRL(valorDebitoDividido || 0)}`
+                    : formaPagamento === 'MAQUININHA'
+                      ? `Cobrar na Maquininha · ${formatBRL(total)}`
+                      : formaPagamento === 'DIVIDIDO'
+                        ? `Cobrar na Maquininha · ${formatBRL(valorMaquininhaDividido)}`
+                        : `Finalizar Venda · ${formatBRL(total)}`}
               </button>
             </form>
           </div>
