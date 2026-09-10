@@ -2,6 +2,8 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { api, resolveUploadUrl } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/Modal';
+import { PainelCobrancaMaquininha } from '../components/PainelCobrancaMaquininha';
+import { useCobrancaMaquininha } from '../hooks/useCobrancaMaquininha';
 import {
   IconBasket,
   IconSearch,
@@ -30,12 +32,6 @@ const TEMPO_LIMITE_PAGAMENTO_SEGUNDOS = 5 * 60;
 
 function formatBRL(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function formatarTempo(segundos) {
-  const m = Math.floor(segundos / 60);
-  const s = segundos % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 export function Caixa() {
@@ -108,13 +104,8 @@ export function Caixa() {
   const [fechandoCaixaFisico, setFechandoCaixaFisico] = useState(false);
   const [erroFecharCaixaFisico, setErroFecharCaixaFisico] = useState('');
 
-  const [pagamentoAndamento, setPagamentoAndamento] = useState(null);
-  const [tempoRestante, setTempoRestante] = useState(0);
-  const [erroPagamento, setErroPagamento] = useState('');
-  const [cancelandoPagamento, setCancelandoPagamento] = useState(false);
-  const pollRef = useRef(null);
-  const tickRef = useRef(null);
-  const timeoutRef = useRef(null);
+  const [vendaAguardandoPagamento, setVendaAguardandoPagamento] = useState(null);
+  const [avisoMaquininha, setAvisoMaquininha] = useState('');
 
   function carregarProdutos() {
     setCarregando(true);
@@ -224,8 +215,6 @@ export function Caixa() {
   useEffect(() => {
     setFormaPagamento(maquininhaDisponivel ? 'MAQUININHA' : 'DINHEIRO');
   }, [caixaId, maquininhaDisponivel]);
-
-  useEffect(() => () => pararTimersPagamento(), []);
 
   function selecionarCaixa(id) {
     setCaixaId(id);
@@ -451,78 +440,52 @@ export function Caixa() {
     setCarrinhoMobileAberto(false);
   }
 
-  function pararTimersPagamento() {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-    if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
-    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-  }
-
-  async function verificarStatusMaquininha(vendaId) {
+  // Tenta cancelar a venda depois de uma cobrança na maquininha não dar certo (rejeitada,
+  // cancelada, ou timeout). Se alguma cobrança anterior desta mesma venda já tinha sido
+  // aprovada (pagamento dividido entre débito e crédito, um já pago), o backend recusa o
+  // cancelamento (409) pra não perder o rastro desse valor já capturado no cartão do cliente
+  // — nesse caso só avisa o operador, mantém a venda em aberto e o painel pronto pra reenviar
+  // o valor que falta.
+  async function tentarCancelarVenda(vendaId, mensagemSucesso) {
     try {
-      const pagamento = await api.get(`/vendas/${vendaId}/pagamento-maquininha`);
-      setPagamentoAndamento((atual) => (atual ? { ...atual, pagamento } : atual));
-      if (pagamento.status === 'APROVADO') {
-        pararTimersPagamento();
-        try {
-          const venda = await api.get(`/vendas/${vendaId}`);
-          setPagamentoAndamento(null);
-          setVendaConcluida(venda);
-          carregarProdutos();
-          carregarSessao();
-        } catch (err) {
-          setErroPagamento(err.message);
-        }
-      } else if (pagamento.status === 'REJEITADO' || pagamento.status === 'CANCELADO') {
-        pararTimersPagamento();
-        setErroPagamento(pagamento.status === 'REJEITADO' ? 'Pagamento recusado na maquininha.' : 'Cobrança cancelada.');
-      }
-    } catch {
-      // falha pontual de rede não deve interromper a espera; a próxima consulta tenta de novo
+      await api.put(`/vendas/${vendaId}/cancelar`, {});
+      setVendaAguardandoPagamento(null);
+      cobranca.reset();
+      if (mensagemSucesso) setErroVenda(mensagemSucesso);
+    } catch (err) {
+      setAvisoMaquininha(err.message);
     }
   }
 
-  function abrirEsperaMaquininha(venda, pagamento) {
-    setPagamentoAndamento({ venda, pagamento });
-    setTempoRestante(TEMPO_LIMITE_PAGAMENTO_SEGUNDOS);
-    setErroPagamento('');
-
-    pollRef.current = setInterval(() => verificarStatusMaquininha(venda.id), 3000);
-    tickRef.current = setInterval(() => setTempoRestante((t) => Math.max(t - 1, 0)), 1000);
-    timeoutRef.current = setTimeout(async () => {
-      pararTimersPagamento();
-      await api.delete(`/vendas/${venda.id}/pagamento-maquininha`).catch(() => {});
-      await api.put(`/vendas/${venda.id}/cancelar`, {}).catch(() => {});
-      setErroPagamento('Tempo esgotado sem confirmação do pagamento. Cobrança cancelada.');
-    }, TEMPO_LIMITE_PAGAMENTO_SEGUNDOS * 1000);
-  }
-
-  async function cancelarPagamentoMaquininha() {
-    if (!pagamentoAndamento) return;
-    setCancelandoPagamento(true);
-    pararTimersPagamento();
-    let falhaAoCancelarNaMaquininha = false;
-    try {
-      await api.delete(`/vendas/${pagamentoAndamento.venda.id}/pagamento-maquininha`).catch(() => {
-        falhaAoCancelarNaMaquininha = true;
-      });
-      await api.put(`/vendas/${pagamentoAndamento.venda.id}/cancelar`, {}).catch(() => {});
-    } finally {
-      setCancelandoPagamento(false);
-      setPagamentoAndamento(null);
-      // Alguns estados do Mercado Pago (ex: cobrança já entregue ao terminal) só podem ser
-      // cancelados direto no aparelho, não pela API — a venda é cancelada mesmo assim, mas a
-      // cobrança pode continuar ativa na maquininha até ser resolvida lá ou na aba Vendas.
-      if (falhaAoCancelarNaMaquininha) {
-        alert(
-          'A venda foi cancelada, mas não foi possível cancelar a cobrança na maquininha automaticamente. Cancele direto no aparelho, ou acompanhe/cancele pela aba Vendas.'
-        );
+  const cobranca = useCobrancaMaquininha({
+    vendaId: vendaAguardandoPagamento?.id || null,
+    timeoutSegundos: TEMPO_LIMITE_PAGAMENTO_SEGUNDOS,
+    onQuitado: async () => {
+      const vendaId = vendaAguardandoPagamento?.id;
+      if (!vendaId) return;
+      try {
+        const venda = await api.get(`/vendas/${vendaId}`);
+        setVendaConcluida(venda);
+        carregarProdutos();
+        carregarSessao();
+      } finally {
+        setVendaAguardandoPagamento(null);
       }
-    }
-  }
+    },
+    onTimeout: () => {
+      // O hook já cancelou a cobrança que estourou o tempo — só falta decidir o que fazer
+      // com a venda (ver tentarCancelarVenda acima).
+      if (vendaAguardandoPagamento) {
+        tentarCancelarVenda(vendaAguardandoPagamento.id, 'Tempo esgotado sem confirmação do pagamento. Venda cancelada.');
+      }
+    },
+  });
 
-  function fecharPagamentoComErro() {
-    setPagamentoAndamento(null);
-    setErroPagamento('');
+  async function cancelarPagamentoEVenda() {
+    if (!vendaAguardandoPagamento) return;
+    setAvisoMaquininha('');
+    await cobranca.cancelarAtiva().catch(() => {});
+    await tentarCancelarVenda(vendaAguardandoPagamento.id);
   }
 
   async function finalizarVenda(e) {
@@ -550,13 +513,18 @@ export function Caixa() {
       const venda = await api.post('/vendas/checkout', body);
 
       if (viaMaquininha) {
+        // Manda a cobrança cheia (valor restante inteiro) direto, preservando o fluxo de um
+        // clique de sempre — dividir em débito+crédito é uma ação deliberada do operador
+        // depois, feita no próprio painel (cancela a atual e reenvia com um valor menor, ou
+        // aguarda essa ser rejeitada e reenvia o resto em duas partes).
         try {
-          const pagamento = await api.post(`/vendas/${venda.id}/pagamento-maquininha`, {});
-          abrirEsperaMaquininha(venda, pagamento);
+          await api.post(`/vendas/${venda.id}/pagamento-maquininha`, {});
         } catch (err) {
           await api.put(`/vendas/${venda.id}/cancelar`, {}).catch(() => {});
           throw err;
         }
+        setAvisoMaquininha('');
+        setVendaAguardandoPagamento(venda);
       } else {
         setVendaConcluida(venda);
         carregarProdutos();
@@ -598,13 +566,29 @@ export function Caixa() {
               <p className="text-muted">Acréscimo aplicado: <strong>{formatBRL(vendaConcluida.acrescimo)}</strong></p>
             )}
             <p className="caixa-recibo-total">Total: <strong>{formatBRL(vendaConcluida.total)}</strong></p>
-            {Number(vendaConcluida.valorDinheiro || 0) > 0 ? (
-              <p className="text-muted">
-                Pagamento: Dinheiro (<strong>{formatBRL(vendaConcluida.valorDinheiro)}</strong>) + Maquininha (<strong>{formatBRL(Number(vendaConcluida.total) - Number(vendaConcluida.valorDinheiro))}</strong>)
-              </p>
-            ) : (
-              <p className="text-muted">Pagamento: {LABEL_FORMA[vendaConcluida.formaPagamento] || vendaConcluida.formaPagamento}</p>
-            )}
+            {(() => {
+              const cobrancasAprovadas = (vendaConcluida.pagamentosPointMP || []).filter((p) => p.status === 'APROVADO');
+              if (cobrancasAprovadas.length > 1) {
+                return (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0' }}>
+                    {Number(vendaConcluida.valorDinheiro || 0) > 0 && (
+                      <li className="text-muted">Dinheiro — <strong>{formatBRL(vendaConcluida.valorDinheiro)}</strong></li>
+                    )}
+                    {cobrancasAprovadas.map((p, idx) => (
+                      <li key={p.id} className="text-muted">Maquininha ({idx + 1}) — <strong>{formatBRL(p.valor)}</strong></li>
+                    ))}
+                  </ul>
+                );
+              }
+              if (Number(vendaConcluida.valorDinheiro || 0) > 0) {
+                return (
+                  <p className="text-muted">
+                    Pagamento: Dinheiro (<strong>{formatBRL(vendaConcluida.valorDinheiro)}</strong>) + Maquininha (<strong>{formatBRL(Number(vendaConcluida.total) - Number(vendaConcluida.valorDinheiro))}</strong>)
+                  </p>
+                );
+              }
+              return <p className="text-muted">Pagamento: {LABEL_FORMA[vendaConcluida.formaPagamento] || vendaConcluida.formaPagamento}</p>;
+            })()}
 
             {vendaConcluida.formaPagamento === 'DINHEIRO' && valorRecebido !== '' && (
               <p className="text-muted">Recebido: <strong>{formatBRL(valorRecebido)}</strong> · Troco: <strong>{formatBRL(troco)}</strong></p>
@@ -1273,43 +1257,24 @@ export function Caixa() {
         </Modal>
       )}
 
-      {pagamentoAndamento && (
-        <Modal title="Cobrança na maquininha" onClose={erroPagamento ? fecharPagamentoComErro : undefined}>
-          <p className="text-muted">
-            Valor cobrado agora:{' '}
-            <strong>
-              {formatBRL(Number(pagamentoAndamento.venda.total) - Number(pagamentoAndamento.venda.valorDinheiro || 0))}
-            </strong>
-            {Number(pagamentoAndamento.venda.valorDinheiro || 0) > 0 && (
-              <> · já recebido em dinheiro: <strong>{formatBRL(pagamentoAndamento.venda.valorDinheiro)}</strong></>
-            )}
-          </p>
-
-          {erroPagamento ? (
-            <>
-              <div className="alert-box">{erroPagamento}</div>
-              <p className="text-muted">O pedido não foi finalizado. Você pode tentar novamente ou escolher outra forma de pagamento.</p>
-              <div className="modal-actions">
-                <button type="button" className="btn btn-primary" onClick={fecharPagamentoComErro}>Entendi</button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p>
-                Status:{' '}
-                <span className="badge badge-amber">
-                  {pagamentoAndamento.pagamento?.status === 'EM_PROCESSO' ? 'Em processamento' : 'Aguardando pagamento'}
-                </span>
-              </p>
-              <p className="text-muted">Peça para o cliente inserir ou aproximar o cartão na maquininha.</p>
-              <p className="caixa-troco-falta" style={{ marginBottom: 0 }}>Cancela automaticamente em {formatarTempo(tempoRestante)}</p>
-
-              <div className="modal-actions">
-                <button type="button" className="btn btn-danger" onClick={cancelarPagamentoMaquininha} disabled={cancelandoPagamento}>
-                  {cancelandoPagamento ? 'Cancelando...' : 'Cancelar'}
-                </button>
-              </div>
-            </>
+      {vendaAguardandoPagamento && (
+        <Modal title={`Cobrança na maquininha — Venda #${vendaAguardandoPagamento.id}`} onClose={undefined}>
+          {avisoMaquininha && <div className="alert-box">{avisoMaquininha}</div>}
+          <PainelCobrancaMaquininha
+            pagamentos={cobranca.pagamentos}
+            resumo={cobranca.resumo}
+            carregando={cobranca.carregando}
+            enviando={cobranca.enviando}
+            cancelando={cobranca.cancelando}
+            erro={cobranca.erro}
+            tempoRestante={cobranca.tempoRestante}
+            onEnviar={cobranca.enviarCobranca}
+            onCancelar={cancelarPagamentoEVenda}
+          />
+          {cobranca.resumo && !cobranca.resumo.completo && !cobranca.resumo.cobrancaAtiva && (
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={cancelarPagamentoEVenda}>Cancelar venda</button>
+            </div>
           )}
         </Modal>
       )}

@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Table } from '../components/Table';
 import { Modal } from '../components/Modal';
+import { PainelCobrancaMaquininha } from '../components/PainelCobrancaMaquininha';
+import { useCobrancaMaquininha } from '../hooks/useCobrancaMaquininha';
 import { buildComprovanteLines } from '../utils/receiptLines';
 import { printReceiptEscPosWithLogo } from '../utils/qzPrint';
 
@@ -11,8 +13,6 @@ const STATUS_LABEL = { ORCAMENTO: 'Orçamento', CONFIRMADA: 'Confirmada', CANCEL
 const STATUS_BADGE = { ORCAMENTO: 'badge-amber', CONFIRMADA: 'badge-green', CANCELADA: 'badge-gray' };
 const FORMAS_PAGAMENTO = ['PIX', 'DINHEIRO', 'CARTAO', 'BOLETO', 'FIADO'];
 
-const STATUS_MP_LABEL = { PENDENTE: 'Pendente', EM_PROCESSO: 'Em processamento', APROVADO: 'Aprovado', REJEITADO: 'Rejeitado', CANCELADO: 'Cancelado' };
-const STATUS_MP_BADGE = { PENDENTE: 'badge-amber', EM_PROCESSO: 'badge-amber', APROVADO: 'badge-green', REJEITADO: 'badge-red', CANCELADO: 'badge-gray' };
 const STATUS_MP_ATIVOS = ['PENDENTE', 'EM_PROCESSO'];
 
 function formatBRL(valor) {
@@ -38,87 +38,23 @@ export function Vendas() {
   const [comprovante, setComprovante] = useState(null);
 
   const [modalMaquininha, setModalMaquininha] = useState(null);
-  const [pagamentoMp, setPagamentoMp] = useState(null);
-  const [enviandoMp, setEnviandoMp] = useState(false);
-  const [cancelandoMp, setCancelandoMp] = useState(false);
-  const [erroMp, setErroMp] = useState('');
-  const pollMpRef = useRef(null);
-
-  useEffect(() => () => {
-    if (pollMpRef.current) clearInterval(pollMpRef.current);
-  }, []);
+  const cobranca = useCobrancaMaquininha({
+    vendaId: modalMaquininha?.id || null,
+    onQuitado: () => carregar(),
+  });
 
   function caixaTemMaquininha(caixaId) {
     const c = caixas.find((c) => c.id === caixaId);
     return Boolean(c?.mpConfigurado);
   }
 
-  function pararPollingMp() {
-    if (pollMpRef.current) {
-      clearInterval(pollMpRef.current);
-      pollMpRef.current = null;
-    }
-  }
-
-  function iniciarPollingMp(vendaId) {
-    pararPollingMp();
-    pollMpRef.current = setInterval(async () => {
-      try {
-        const pagamento = await api.get(`/vendas/${vendaId}/pagamento-maquininha`);
-        setPagamentoMp(pagamento);
-        if (!STATUS_MP_ATIVOS.includes(pagamento.status)) {
-          pararPollingMp();
-          if (pagamento.status === 'APROVADO') carregar();
-        }
-      } catch {
-        pararPollingMp();
-      }
-    }, 3000);
-  }
-
   function abrirMaquininha(venda) {
     setModalMaquininha(venda);
-    setPagamentoMp(venda.pagamentoPointMP || null);
-    setErroMp('');
-    if (venda.pagamentoPointMP && STATUS_MP_ATIVOS.includes(venda.pagamentoPointMP.status)) {
-      iniciarPollingMp(venda.id);
-    }
   }
 
   function fecharMaquininha() {
-    pararPollingMp();
+    cobranca.reset();
     setModalMaquininha(null);
-    setPagamentoMp(null);
-  }
-
-  async function enviarCobrancaMaquininha() {
-    const vendaId = modalMaquininha.id;
-    setEnviandoMp(true);
-    setErroMp('');
-    try {
-      const pagamento = await api.post(`/vendas/${vendaId}/pagamento-maquininha`, {});
-      setPagamentoMp(pagamento);
-      iniciarPollingMp(vendaId);
-    } catch (err) {
-      setErroMp(err.message);
-    } finally {
-      setEnviandoMp(false);
-    }
-  }
-
-  async function cancelarCobrancaMaquininha() {
-    const vendaId = modalMaquininha.id;
-    setCancelandoMp(true);
-    setErroMp('');
-    try {
-      const pagamento = await api.delete(`/vendas/${vendaId}/pagamento-maquininha`);
-      setPagamentoMp(pagamento);
-    } catch (err) {
-      setErroMp(err.message);
-    } finally {
-      setCancelandoMp(false);
-      pararPollingMp();
-    }
   }
 
   function carregar() {
@@ -239,7 +175,7 @@ export function Vendas() {
               )}
             </>
           )}
-          {v.status !== 'ORCAMENTO' && v.pagamentoPointMP && STATUS_MP_ATIVOS.includes(v.pagamentoPointMP.status) && (
+          {v.status !== 'ORCAMENTO' && v.pagamentosPointMP?.some((p) => STATUS_MP_ATIVOS.includes(p.status)) && (
             <button className="btn btn-secondary btn-sm" onClick={() => abrirMaquininha(v)}>Maquininha</button>
           )}
         </div>
@@ -317,49 +253,20 @@ export function Vendas() {
 
       {modalMaquininha && (
         <Modal title={`Cobrar na maquininha — Venda #${modalMaquininha.id}`} onClose={fecharMaquininha}>
-          <p className="text-muted">Total: {formatBRL(modalMaquininha.total)}</p>
-          {Number(modalMaquininha.valorDinheiro || 0) > 0 && (
-            <p className="text-muted">
-              Já recebido em dinheiro: {formatBRL(modalMaquininha.valorDinheiro)} · Cobrado na maquininha: {formatBRL(Number(modalMaquininha.total) - Number(modalMaquininha.valorDinheiro))}
-            </p>
-          )}
-          {erroMp && <div className="alert-box">{erroMp}</div>}
-
-          {pagamentoMp ? (
-            <>
-              <p>
-                Status: <span className={`badge ${STATUS_MP_BADGE[pagamentoMp.status] || 'badge-gray'}`}>
-                  {STATUS_MP_LABEL[pagamentoMp.status] || pagamentoMp.status}
-                </span>
-              </p>
-              {STATUS_MP_ATIVOS.includes(pagamentoMp.status) && (
-                <p className="text-muted">Aguardando o cliente concluir o pagamento na maquininha...</p>
-              )}
-              {pagamentoMp.status === 'APROVADO' && <p className="text-muted">Pagamento aprovado — venda confirmada.</p>}
-              {pagamentoMp.status === 'REJEITADO' && <p className="text-muted">Pagamento rejeitado. Você pode tentar novamente.</p>}
-
-              <div className="modal-actions">
-                {STATUS_MP_ATIVOS.includes(pagamentoMp.status) && (
-                  <button type="button" className="btn btn-danger" onClick={cancelarCobrancaMaquininha} disabled={cancelandoMp}>
-                    {cancelandoMp ? 'Cancelando...' : 'Cancelar cobrança'}
-                  </button>
-                )}
-                {['REJEITADO', 'CANCELADO'].includes(pagamentoMp.status) && modalMaquininha.status === 'ORCAMENTO' && (
-                  <button type="button" className="btn btn-primary" onClick={enviarCobrancaMaquininha} disabled={enviandoMp}>
-                    {enviandoMp ? 'Enviando...' : 'Tentar novamente'}
-                  </button>
-                )}
-                <button type="button" className="btn btn-secondary" onClick={fecharMaquininha}>Fechar</button>
-              </div>
-            </>
-          ) : (
-            <div className="modal-actions">
-              <button type="button" className="btn btn-secondary" onClick={fecharMaquininha}>Cancelar</button>
-              <button type="button" className="btn btn-primary" onClick={enviarCobrancaMaquininha} disabled={enviandoMp}>
-                {enviandoMp ? 'Enviando...' : 'Enviar cobrança'}
-              </button>
-            </div>
-          )}
+          <PainelCobrancaMaquininha
+            pagamentos={cobranca.pagamentos}
+            resumo={cobranca.resumo}
+            carregando={cobranca.carregando}
+            enviando={cobranca.enviando}
+            cancelando={cobranca.cancelando}
+            erro={cobranca.erro}
+            tempoRestante={cobranca.tempoRestante}
+            onEnviar={cobranca.enviarCobranca}
+            onCancelar={cobranca.cancelarAtiva}
+          />
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={fecharMaquininha}>Fechar</button>
+          </div>
         </Modal>
       )}
 
@@ -372,7 +279,9 @@ export function Vendas() {
             <p><strong>Data:</strong> {new Date(comprovante.data).toLocaleString('pt-BR')}</p>
             <p>
               <strong>Forma de pagamento:</strong>{' '}
-              {Number(comprovante.valorDinheiro || 0) > 0 ? (
+              {comprovante.pagamentosMaquininha?.length > 1 ? (
+                'Dividido'
+              ) : Number(comprovante.valorDinheiro || 0) > 0 ? (
                 <>
                   Dinheiro (<strong>{formatBRL(comprovante.valorDinheiro)}</strong>) + Maquininha (
                   <strong>{formatBRL(Number(comprovante.total) - Number(comprovante.valorDinheiro))}</strong>)
@@ -381,6 +290,16 @@ export function Vendas() {
                 comprovante.formaPagamento
               )}
             </p>
+            {comprovante.pagamentosMaquininha?.length > 1 && (
+              <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0 12px' }}>
+                {Number(comprovante.valorDinheiro || 0) > 0 && (
+                  <li>Dinheiro — <strong>{formatBRL(comprovante.valorDinheiro)}</strong></li>
+                )}
+                {comprovante.pagamentosMaquininha.map((p, idx) => (
+                  <li key={idx}>Maquininha ({idx + 1}) — <strong>{formatBRL(p.valor)}</strong></li>
+                ))}
+              </ul>
+            )}
             <div className="section-title">Itens</div>
             <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0' }}>
               {comprovante.itens.map((i, idx) => (

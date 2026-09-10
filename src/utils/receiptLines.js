@@ -44,7 +44,12 @@ export function buildVendaConcluidaLines(venda, { valorRecebido } = {}) {
 
   const paymentLines = [];
   const valorDinheiro = Number(venda.valorDinheiro || 0);
-  if (valorDinheiro > 0) {
+  const cobrancasAprovadas = (venda.pagamentosPointMP || []).filter((p) => p.status === "APROVADO");
+  if (cobrancasAprovadas.length > 1) {
+    paymentLines.push("Pagamento: Dividido");
+    if (valorDinheiro > 0) paymentLines.push(padLine("  Dinheiro", money(valorDinheiro)));
+    cobrancasAprovadas.forEach((p, idx) => paymentLines.push(padLine(`  Maquininha (${idx + 1})`, money(p.valor))));
+  } else if (valorDinheiro > 0) {
     paymentLines.push("Pagamento: Dinheiro + Maquininha");
     paymentLines.push(padLine("  Dinheiro", money(valorDinheiro)));
     paymentLines.push(padLine("  Maquininha", money(Number(venda.total) - valorDinheiro)));
@@ -82,7 +87,12 @@ export function buildComprovanteLines(comprovante) {
 
   const paymentLines = [];
   const valorDinheiro = Number(comprovante.valorDinheiro || 0);
-  if (valorDinheiro > 0) {
+  const cobrancasAprovadas = comprovante.pagamentosMaquininha || [];
+  if (cobrancasAprovadas.length > 1) {
+    paymentLines.push("Pagamento: Dividido");
+    if (valorDinheiro > 0) paymentLines.push(padLine("  Dinheiro", money(valorDinheiro)));
+    cobrancasAprovadas.forEach((p, idx) => paymentLines.push(padLine(`  Maquininha (${idx + 1})`, money(p.valor))));
+  } else if (valorDinheiro > 0) {
     paymentLines.push("Pagamento: Dinheiro + Maquininha");
     paymentLines.push(padLine("  Dinheiro", money(valorDinheiro)));
     paymentLines.push(padLine("  Maquininha", money(Number(comprovante.total) - valorDinheiro)));
