@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, resolveUploadUrl } from '../../api/client';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
+import { HistoricoProdutoModal } from './HistoricoProdutoModal';
 
 const PRODUTO_VAZIO = { nome: '', tipo: '', estoqueMinimo: 0, quantidade: 0 };
 const MOVIMENTO_VAZIO = { produtoId: '', caixaId: '', quantidade: '', validade: '', motivo: '' };
@@ -49,6 +50,8 @@ export function ProdutosTab() {
   const [modalMovimento, setModalMovimento] = useState(null); // 'entrada' | 'saida' | null
   const [formMovimento, setFormMovimento] = useState(MOVIMENTO_VAZIO);
   const [salvandoMovimento, setSalvandoMovimento] = useState(false);
+
+  const [produtoHistorico, setProdutoHistorico] = useState(null);
 
   function carregar() {
     setCarregando(true);
@@ -306,6 +309,7 @@ export function ProdutosTab() {
           <button className="btn btn-secondary btn-sm" onClick={() => abrirMovimento('entrada', p)}>+ Entrada</button>
           <button className="btn btn-secondary btn-sm" onClick={() => abrirMovimento('saida', p)}>− Saída</button>
           <button className="btn btn-secondary btn-sm" onClick={() => abrirEditarProduto(p)}>Editar</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => setProdutoHistorico(p)}>Histórico</button>
           <button className="btn btn-danger btn-sm" onClick={() => excluirProduto(p)}>Excluir</button>
         </div>
       ),
@@ -569,6 +573,10 @@ export function ProdutosTab() {
             </div>
           </form>
         </Modal>
+      )}
+
+      {produtoHistorico && (
+        <HistoricoProdutoModal produto={produtoHistorico} onClose={() => setProdutoHistorico(null)} />
       )}
     </div>
   );
