@@ -13,6 +13,7 @@ import { VendasPorDiaSemana } from '../components/dashboard/VendasPorDiaSemana';
 import { VendasPorHora } from '../components/dashboard/VendasPorHora';
 import { AlertaReposicao } from '../components/dashboard/AlertaReposicao';
 import { EstoquePorUnidadeBotao } from '../components/dashboard/EstoquePorUnidadeBotao';
+import { FechamentoDiaBotao } from '../components/dashboard/FechamentoDiaBotao';
 import { MelhoresProdutosPorCaixa } from '../components/dashboard/MelhoresProdutosPorCaixa';
 import { CaixaDivergenciaAlerta } from '../components/dashboard/CaixaDivergenciaAlerta';
 import { IconLucro, IconFaturamento, IconGastos, IconVendas, IconArrowUp, IconArrowDown, IconCalendar } from '../components/icons';
@@ -152,6 +153,7 @@ export function Dashboard() {
             {formatData(new Date())}
           </span>
           <EstoquePorUnidadeBotao />
+          {ehAdmin && <FechamentoDiaBotao />}
           <div className="dash-periodo-toggle">
             {PERIODOS.map((p) => (
               <button

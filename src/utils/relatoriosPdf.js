@@ -118,6 +118,51 @@ export async function gerarRelatorioLucro(dados, { de, ate }) {
   doc.save(`relatorio-lucro-${Date.now()}.pdf`);
 }
 
+const LABEL_FORMA_FECHAMENTO = {
+  PIX: 'Pix',
+  DINHEIRO: 'Dinheiro',
+  CARTAO_CREDITO: 'Cartão de Crédito',
+  CARTAO_DEBITO: 'Cartão de Débito',
+  CARTAO_OUTRO: 'Cartão (não identificado)',
+  BOLETO: 'Boleto',
+  FIADO: 'Fiado',
+};
+
+export async function gerarRelatorioFechamentoDia(dados) {
+  const dia = `Data: ${formatData(dados.data)} · ${dados.quantidadeVendas} venda(s) confirmada(s)`;
+  const { doc, autoTable } = await criarDocumento('Fechamento do Dia', dia);
+
+  const linhas = Object.entries(dados.porFormaPagamento)
+    .filter(([, valor]) => valor > 0)
+    .map(([forma, valor]) => [LABEL_FORMA_FECHAMENTO[forma] || forma, formatBRL(valor)]);
+
+  autoTable(doc, {
+    startY: 46,
+    head: [['Forma de pagamento', 'Valor']],
+    body: linhas,
+    headStyles: { fillColor: [240, 100, 92] },
+    styles: { fontSize: 9 },
+    foot: [['Total vendido no dia', formatBRL(dados.faturamento)]],
+    footStyles: { fillColor: [253, 236, 236], textColor: [20, 20, 20], fontStyle: 'bold' },
+  });
+
+  const y = doc.lastAutoTable.finalY + 14;
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.text('Resumo do dia', 14, y);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(10);
+  doc.text(`Faturamento: ${formatBRL(dados.faturamento)}`, 14, y + 8);
+  doc.text(`Custo dos produtos vendidos: ${formatBRL(dados.custoProdutos)}`, 14, y + 15);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(dados.lucroLiquido >= 0 ? 30 : 200, dados.lucroLiquido >= 0 ? 120 : 40, 30);
+  doc.text(`Lucro líquido (venda total − custo dos produtos): ${formatBRL(dados.lucroLiquido)}`, 14, y + 24);
+  doc.setTextColor(20, 20, 20);
+  doc.setFont(undefined, 'normal');
+
+  doc.save(`fechamento-dia-${Date.now()}.pdf`);
+}
+
 export async function gerarRelatorioEstoqueAtual(produtos) {
   const { doc, autoTable } = await criarDocumento('Relatório de Estoque Atual', `${produtos.length} produto(s) ativo(s)`);
 
