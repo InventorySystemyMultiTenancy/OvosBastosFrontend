@@ -354,11 +354,11 @@ export function ProdutosTab() {
       )}
 
       {modalProduto && (
-        <Modal title={editandoId ? 'Editar produto' : 'Novo produto'} onClose={() => setModalProduto(false)}>
+        <Modal title={editandoId ? 'Editar produto' : 'Novo produto'} onClose={() => setModalProduto(false)} className="is-largo">
           <form onSubmit={salvarProduto}>
-            <div className="field" style={{ marginBottom: 14 }}>
+            <div className="field produto-imagem-campo">
               <label>Imagem</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+              <div className="produto-imagem-row">
                 {imagemPreview ? (
                   <img src={imagemPreview} alt="Prévia" className="produto-thumb produto-thumb-lg" />
                 ) : (
@@ -450,62 +450,67 @@ export function ProdutosTab() {
                 <ul className="produto-embalagens-lista">
                   {niveis.map((n) => (
                     <li key={n.id}>
-                      <span className="produto-embalagem-thumb">
-                        {n.imagemUrl || imagemPreview ? (
-                          <img src={n.imagemUrl ? resolveUploadUrl(n.imagemUrl) : imagemPreview} alt={n.nome} />
-                        ) : (
-                          <span aria-hidden="true">📦</span>
-                        )}
-                      </span>
-                      <span>
-                        <strong>{n.nome}</strong>
-                        <span className="text-muted"> · {n.quantidadeGrao} grão-base{n.ehBase ? ' · referência' : n.precoManual ? ' · preço manual' : ''}</span>
-                      </span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        defaultValue={n.preco}
-                        key={`${n.id}-${n.preco}`}
-                        className="produto-embalagem-preco-input"
-                        onBlur={(e) => {
-                          if (Number(e.target.value) !== Number(n.preco)) salvarPrecoNivel(n, e.target.value);
-                        }}
-                      />
-                      <input
-                        type="text"
-                        defaultValue={n.codigoBarras || ''}
-                        key={`${n.id}-${n.codigoBarras}-barras`}
-                        className="produto-embalagem-preco-input"
-                        placeholder="Código de barras"
-                        title="Código de barras deste nível — bipe o leitor aqui ou digite"
-                        onBlur={(e) => salvarCodigoBarrasNivel(n, e.target.value)}
-                      />
-                      {!n.ehBase && (
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => definirComoBase(n)}>
-                          Usar como referência
-                        </button>
-                      )}
-                      {!n.ehBase && n.precoManual && (
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => recalcularNivel(n)}>
-                          Recalcular
-                        </button>
-                      )}
-                      <label className="btn btn-secondary btn-sm produto-embalagem-foto-btn">
-                        Foto
+                      <div className="produto-embalagem-info">
+                        <span className="produto-embalagem-thumb">
+                          {n.imagemUrl || imagemPreview ? (
+                            <img src={n.imagemUrl ? resolveUploadUrl(n.imagemUrl) : imagemPreview} alt={n.nome} />
+                          ) : (
+                            <span aria-hidden="true">📦</span>
+                          )}
+                        </span>
+                        <span className="produto-embalagem-nome">
+                          <strong>{n.nome}</strong>
+                          <span className="text-muted"> · {n.quantidadeGrao} grão-base{n.ehBase ? ' · referência' : n.precoManual ? ' · preço manual' : ''}</span>
+                        </span>
+                      </div>
+                      <div className="produto-embalagem-acoes">
                         <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => {
-                            const arquivo = e.target.files?.[0];
-                            if (arquivo) enviarImagemNivel(n, arquivo);
-                            e.target.value = '';
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          defaultValue={n.preco}
+                          key={`${n.id}-${n.preco}`}
+                          className="produto-embalagem-preco-input"
+                          title="Preço"
+                          onBlur={(e) => {
+                            if (Number(e.target.value) !== Number(n.preco)) salvarPrecoNivel(n, e.target.value);
                           }}
                         />
-                      </label>
-                      {!n.ehBase && (
-                        <button type="button" className="btn btn-danger btn-sm" onClick={() => removerNivel(n)}>Remover</button>
-                      )}
+                        <input
+                          type="text"
+                          defaultValue={n.codigoBarras || ''}
+                          key={`${n.id}-${n.codigoBarras}-barras`}
+                          className="produto-embalagem-codigo-input"
+                          placeholder="Código de barras"
+                          title="Código de barras deste nível — bipe o leitor aqui ou digite"
+                          onBlur={(e) => salvarCodigoBarrasNivel(n, e.target.value)}
+                        />
+                        {!n.ehBase && (
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => definirComoBase(n)}>
+                            Usar como referência
+                          </button>
+                        )}
+                        {!n.ehBase && n.precoManual && (
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => recalcularNivel(n)}>
+                            Recalcular
+                          </button>
+                        )}
+                        <label className="btn btn-secondary btn-sm produto-embalagem-foto-btn">
+                          Foto
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const arquivo = e.target.files?.[0];
+                              if (arquivo) enviarImagemNivel(n, arquivo);
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+                        {!n.ehBase && (
+                          <button type="button" className="btn btn-danger btn-sm" onClick={() => removerNivel(n)}>Remover</button>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -551,9 +556,11 @@ export function ProdutosTab() {
                     placeholder="Bipe o leitor aqui ou digite"
                   />
                 </div>
-                <button type="submit" className="btn btn-secondary" disabled={salvandoNivel}>
-                  {salvandoNivel ? 'Adicionando...' : '+ Adicionar nível'}
-                </button>
+                <div className="produto-embalagem-form-acao">
+                  <button type="submit" className="btn btn-secondary" disabled={salvandoNivel}>
+                    {salvandoNivel ? 'Adicionando...' : '+ Adicionar nível'}
+                  </button>
+                </div>
               </form>
             </div>
           )}

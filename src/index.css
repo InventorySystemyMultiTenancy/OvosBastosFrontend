@@ -2149,10 +2149,30 @@ tbody tr:hover {
   gap: 14px;
 }
 
-.produto-embalagem-form .btn {
-  align-self: end;
+/* Formulário de "novo nível": mesma grade responsiva de .form-grid, só que o botão de submit
+   fica numa linha própria (não entra na grade de campos) pra nunca ficar espremido numa coluna
+   de ~200px ao lado de um <select>/<input> em telas médias. */
+.produto-embalagem-form-acao {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-start;
 }
 
+.produto-imagem-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.produto-imagem-campo {
+  margin-bottom: 14px;
+}
+
+/* Cada nível de venda é uma "linha" que pode ter até 8 elementos (foto, nome, preço, código de
+   barras, 3 botões condicionais, upload de foto) — em telas estreitas isso não cabe numa linha
+   só, então o layout é flex com wrap em vez de grid de colunas fixas: o que não couber desce
+   pra linha de baixo, nunca estoura a largura do card. */
 .produto-embalagens-lista {
   list-style: none;
   padding: 0;
@@ -2163,15 +2183,37 @@ tbody tr:hover {
 }
 
 .produto-embalagens-lista li {
-  display: grid;
-  grid-template-columns: 36px 1fr auto auto auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   font-size: 13px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
+}
+
+.produto-embalagem-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.produto-embalagem-nome {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.produto-embalagem-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 2 1 320px;
+  min-width: 0;
 }
 
 .produto-embalagem-thumb {
@@ -2193,6 +2235,33 @@ tbody tr:hover {
   object-fit: cover;
 }
 
+.produto-embalagem-preco-input,
+.produto-embalagem-codigo-input {
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  font-size: 13px;
+  min-width: 0;
+}
+
+.produto-embalagem-preco-input {
+  width: 90px;
+  flex: 0 1 90px;
+}
+
+.produto-embalagem-codigo-input {
+  width: 150px;
+  flex: 1 1 150px;
+  max-width: 220px;
+}
+
+.produto-embalagem-preco-input:focus,
+.produto-embalagem-codigo-input:focus {
+  outline: 2px solid var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
 .produto-embalagem-foto-btn {
   position: relative;
   cursor: pointer;
@@ -2207,10 +2276,25 @@ tbody tr:hover {
   cursor: pointer;
 }
 
+@media (max-width: 480px) {
+  /* Nos menores telas cada input de linha vira largura livre (some o "min-width" fixo) pra
+     não forçar a linha de ações a ficar mais larga que o card. */
+  .produto-embalagem-preco-input,
+  .produto-embalagem-codigo-input {
+    flex: 1 1 100px;
+    width: auto;
+  }
+
+  .produto-embalagem-acoes {
+    flex-basis: 100%;
+  }
+}
+
 .field {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .field label {
@@ -2220,6 +2304,7 @@ tbody tr:hover {
 }
 
 .field input, .field select {
+  width: 100%;
   padding: 9px 12px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -2256,7 +2341,7 @@ tbody tr:hover {
 }
 
 .modal-box.is-largo {
-  max-width: 760px;
+  max-width: 880px;
 }
 
 @media (max-width: 480px) {
