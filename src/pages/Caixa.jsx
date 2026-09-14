@@ -43,6 +43,8 @@ export function Caixa() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [busca, setBusca] = useState('');
+  const [avisoLeitor, setAvisoLeitor] = useState('');
+  const buscaInputRef = useRef(null);
   const [categoriaAtiva, setCategoriaAtiva] = useState('Todos');
   const [categoriasAbertas, setCategoriasAbertas] = useState(false);
   const categoriasRef = useRef(null);
@@ -351,6 +353,39 @@ export function Caixa() {
       return bateCategoria && bateBusca;
     });
   }, [produtos, categoriaAtiva, busca]);
+
+  // Leitor de código de barras (USB, emula teclado): bipar digita o código no campo de busca
+  // seguido de Enter. Mapa por código pra achar produto+nível em O(1) sem bater no backend.
+  const niveisPorCodigoBarras = useMemo(() => {
+    const mapa = new Map();
+    produtos.forEach((p) => {
+      (p.niveisVenda || []).forEach((n) => {
+        if (n.codigoBarras) mapa.set(n.codigoBarras, { produto: p, nivel: n });
+      });
+    });
+    return mapa;
+  }, [produtos]);
+
+  // Ao apertar Enter no campo de busca, tenta primeiro como código de barras bipado — se bater,
+  // adiciona direto ao carrinho (sempre com quantidade 1) e limpa o campo pra próxima leitura;
+  // senão, deixa o texto no campo normalmente pra filtrar a grade por nome.
+  function aoTeclarBusca(e) {
+    if (e.key !== 'Enter') return;
+    const codigo = busca.trim();
+    if (!codigo) return;
+    const achado = niveisPorCodigoBarras.get(codigo);
+    if (!achado) return;
+    e.preventDefault();
+    const { produto, nivel } = achado;
+    const cabeMais = totalGraoComprometido(produto.id) + nivel.quantidadeGrao <= produto.quantidade;
+    if (!cabeMais) {
+      setAvisoLeitor(`"${produto.nome}" sem estoque suficiente.`);
+    } else {
+      adicionar(produto, nivel);
+      setAvisoLeitor('');
+    }
+    setBusca('');
+  }
 
   // Volta pra primeira página de produtos sempre que o filtro muda — senão "carregar mais"
   // fica com uma contagem que não bate com a lista nova.
@@ -743,13 +778,16 @@ export function Caixa() {
               <div className="caixa-icone-campo">
                 <IconSearch className="caixa-icone-campo-icone" />
                 <input
+                  ref={buscaInputRef}
                   className="caixa-busca"
                   type="search"
-                  placeholder="Buscar produto..."
+                  placeholder="Buscar produto ou bipar código de barras..."
                   value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
+                  onChange={(e) => { setBusca(e.target.value); if (avisoLeitor) setAvisoLeitor(''); }}
+                  onKeyDown={aoTeclarBusca}
                 />
               </div>
+              {avisoLeitor && <p className="caixa-troco-falta" style={{ margin: '6px 0 0' }}>{avisoLeitor}</p>}
               <div className="caixa-categorias-menu" ref={categoriasRef}>
                 <button
                   type="button"

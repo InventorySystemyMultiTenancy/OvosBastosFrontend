@@ -7,7 +7,7 @@ import { HistoricoProdutoModal } from './HistoricoProdutoModal';
 const PRODUTO_VAZIO = { nome: '', tipo: '', estoqueMinimo: 0, quantidade: 0 };
 const MOVIMENTO_VAZIO = { produtoId: '', caixaId: '', quantidade: '', validade: '', motivo: '' };
 const NOVA_CATEGORIA = '__nova__';
-const NIVEL_VAZIO = { nome: '', quantidadeGrao: '', preco: '' };
+const NIVEL_VAZIO = { nome: '', quantidadeGrao: '', preco: '', codigoBarras: '' };
 
 function formatBRL(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -121,6 +121,7 @@ export function ProdutosTab() {
         nome: formNivel.nome.trim(),
         quantidadeGrao: Number(formNivel.quantidadeGrao),
         preco: formNivel.preco === '' ? undefined : Number(formNivel.preco),
+        codigoBarras: formNivel.codigoBarras.trim() || undefined,
       });
       setFormNivel(NIVEL_VAZIO);
       carregarNiveis(editandoId);
@@ -135,6 +136,16 @@ export function ProdutosTab() {
     if (novoPreco === '' || Number.isNaN(Number(novoPreco))) return;
     try {
       await api.put(`/produtos/${editandoId}/niveis/${nivel.id}`, { preco: Number(novoPreco) });
+      carregarNiveis(editandoId);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function salvarCodigoBarrasNivel(nivel, novoCodigo) {
+    if (novoCodigo === (nivel.codigoBarras || '')) return;
+    try {
+      await api.put(`/produtos/${editandoId}/niveis/${nivel.id}`, { codigoBarras: novoCodigo.trim() });
       carregarNiveis(editandoId);
     } catch (err) {
       alert(err.message);
@@ -461,6 +472,15 @@ export function ProdutosTab() {
                           if (Number(e.target.value) !== Number(n.preco)) salvarPrecoNivel(n, e.target.value);
                         }}
                       />
+                      <input
+                        type="text"
+                        defaultValue={n.codigoBarras || ''}
+                        key={`${n.id}-${n.codigoBarras}-barras`}
+                        className="produto-embalagem-preco-input"
+                        placeholder="Código de barras"
+                        title="Código de barras deste nível — bipe o leitor aqui ou digite"
+                        onBlur={(e) => salvarCodigoBarrasNivel(n, e.target.value)}
+                      />
                       {!n.ehBase && (
                         <button type="button" className="btn btn-secondary btn-sm" onClick={() => definirComoBase(n)}>
                           Usar como referência
@@ -521,6 +541,14 @@ export function ProdutosTab() {
                     value={formNivel.preco}
                     onChange={(e) => setFormNivel({ ...formNivel, preco: e.target.value })}
                     required={niveis.length === 0}
+                  />
+                </div>
+                <div className="field">
+                  <label>Código de barras (opcional)</label>
+                  <input
+                    value={formNivel.codigoBarras}
+                    onChange={(e) => setFormNivel({ ...formNivel, codigoBarras: e.target.value })}
+                    placeholder="Bipe o leitor aqui ou digite"
                   />
                 </div>
                 <button type="submit" className="btn btn-secondary" disabled={salvandoNivel}>

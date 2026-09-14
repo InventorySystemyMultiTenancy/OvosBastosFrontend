@@ -12,6 +12,7 @@ const LABEL_CAMPO = {
   ehBase: 'Nível de referência',
   ativo: 'Ativo',
   precoManual: 'Preço travado manualmente',
+  codigoBarras: 'Código de barras',
 };
 
 const CAMPO_MOEDA = new Set(['precoCusto', 'preco']);
