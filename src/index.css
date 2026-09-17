@@ -1228,6 +1228,19 @@ a {
   flex-direction: column;
 }
 
+@media (min-width: 901px) {
+  /* No desktop o card é sticky (.caixa-carrinho-col) — mas sticky não ajuda em nada se o
+     próprio card fica mais alto que a tela (ex: forma de pagamento "Pago por fora" some com
+     um texto explicativo + seletor débito/crédito a mais): o botão de finalizar, lá embaixo,
+     só aparece rolando a página inteira. Travando a altura no viewport e deixando o card em
+     si rolar resolve isso pra qualquer conteúdo extra que apareça aqui no futuro, não só
+     esse caso — sem quebrar o mobile, que já tem sua própria rolagem em tela cheia. */
+  .caixa-carrinho-card {
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+}
+
 .caixa-carrinho-topo {
   display: flex;
   align-items: center;
