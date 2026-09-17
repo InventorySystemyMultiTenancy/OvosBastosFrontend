@@ -30,6 +30,11 @@ export function ProdutosTab() {
   // precoCusto é sempre guardado por grão-base (mesmo formato do banco) — o campo exibido no
   // formulário é convertido na hora pro nível de referência atual (ver precoCustoExibido).
   const [precoCustoGrao, setPrecoCustoGrao] = useState(null);
+  // Texto bruto digitado no campo "Preço de custo" — mantido separado do valor numérico
+  // (precoCustoGrao) pra aceitar vírgula OU ponto como separador decimal sem o campo "comer"
+  // o que a pessoa está digitando (um <input> controlado que reformatasse o texto a cada
+  // tecla, a partir do número já convertido, perderia a vírgula/zero à direita ainda incompletos).
+  const [precoCustoInput, setPrecoCustoInput] = useState('');
   const [modoNovaCategoria, setModoNovaCategoria] = useState(false);
   const [imagemArquivo, setImagemArquivo] = useState(null);
   const [imagemPreview, setImagemPreview] = useState(null);
@@ -41,6 +46,14 @@ export function ProdutosTab() {
 
   const nivelBase = niveis.find((n) => n.ehBase) || null;
   const precoCustoExibido = precoCustoGrao !== null && nivelBase ? round2(precoCustoGrao * nivelBase.quantidadeGrao) : '';
+
+  // Resincroniza o texto do campo só quando o nível de referência muda de identidade (abrir o
+  // modal, trocar de nível via "Usar como referência") — de propósito NÃO depende de
+  // precoCustoExibido, senão reformataria o campo a cada tecla digitada (ver alterarPrecoCustoInput).
+  useEffect(() => {
+    setPrecoCustoInput(precoCustoExibido === '' ? '' : String(precoCustoExibido).replace('.', ','));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nivelBase?.id]);
 
   const categoriasExistentes = useMemo(
     () => Array.from(new Set(produtos.map((p) => p.tipo).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
@@ -98,6 +111,10 @@ export function ProdutosTab() {
     setImagemArquivo(null);
     setImagemPreview(resolveUploadUrl(produto.imagemUrl));
     setFormNivel(NIVEL_VAZIO);
+    // Zera antes de recarregar: sem isso, reabrir o modal do mesmo produto manteria o
+    // nível de referência antigo (mesmo id) e o campo de preço de custo abaixo não
+    // resincronizaria com o valor recém-carregado (ver efeito ligado a nivelBase?.id).
+    setNiveis([]);
     carregarNiveis(produto.id);
     setModalProduto(true);
   }
@@ -196,8 +213,19 @@ export function ProdutosTab() {
     setImagemPreview(URL.createObjectURL(arquivo));
   }
 
-  function alterarPrecoCustoExibido(valor) {
-    setPrecoCustoGrao(valor === '' ? null : Number(valor) / nivelBase.quantidadeGrao);
+  // Aceita vírgula OU ponto como separador decimal (ex: "0,15" ou "0.15"). Guarda o texto
+  // digitado tal como veio (pra não atrapalhar quem ainda está no meio de digitar "0,15") e só
+  // atualiza o valor numérico de verdade quando o texto já dá pra converter num número válido.
+  function alterarPrecoCustoInput(textoDigitado) {
+    setPrecoCustoInput(textoDigitado);
+    if (textoDigitado.trim() === '') {
+      setPrecoCustoGrao(null);
+      return;
+    }
+    const numero = Number(textoDigitado.replace(',', '.'));
+    if (!Number.isNaN(numero)) {
+      setPrecoCustoGrao(numero / nivelBase.quantidadeGrao);
+    }
   }
 
   async function salvarProduto(e) {
@@ -406,11 +434,11 @@ export function ProdutosTab() {
                 <div className="field">
                   <label>Preço de custo (por {nivelBase.nome})</label>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={precoCustoExibido}
-                    onChange={(e) => alterarPrecoCustoExibido(e.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={precoCustoInput}
+                    onChange={(e) => alterarPrecoCustoInput(e.target.value)}
                   />
                 </div>
               )}
