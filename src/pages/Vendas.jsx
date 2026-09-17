@@ -191,7 +191,7 @@ export function Vendas() {
       <div className="page-header">
         <div>
           <h1>Vendas</h1>
-          <p>Venda rápida, orçamentos e emissão de comprovante.</p>
+          <p>Venda rápida, orçamentos e emissão  de comprovante.</p>
         </div>
         <button className="btn btn-primary" onClick={() => navigate('/admin/caixa')}>+ Nova venda</button>
       </div>
