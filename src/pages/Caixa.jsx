@@ -91,6 +91,11 @@ export function Caixa() {
   const [dividirCartao, setDividirCartao] = useState(false);
   const [valorDebitoDividido, setValorDebitoDividido] = useState('');
   const [valorCreditoDividido, setValorCreditoDividido] = useState('');
+  // "Pago por fora": venda já cobrada na maquininha fisicamente, fora do sistema (ex: internet
+  // caiu e não dava pra usar o app) — vira uma 4ª forma de pagamento própria (formaPagamento
+  // 'CARTAO_MANUAL' aqui no front) que lança a venda direto como concluída, sem chamar a
+  // integração Mercado Pago nem esperar nenhuma confirmação (ver finalizarVenda).
+  const [tipoCartaoManual, setTipoCartaoManual] = useState('');
 
   const [enviando, setEnviando] = useState(false);
   const [erroVenda, setErroVenda] = useState('');
@@ -469,7 +474,8 @@ export function Caixa() {
     centavos(valorDebitoDividido) + centavos(valorCreditoDividido) === centavos(total);
   const divisaoValida =
     (formaPagamento !== 'DIVIDIDO' || (Number(valorDinheiroDividido) > 0 && Number(valorDinheiroDividido) < total)) &&
-    (formaPagamento !== 'MAQUININHA' || !dividirCartao || divisaoCartaoValida);
+    (formaPagamento !== 'MAQUININHA' || !dividirCartao || divisaoCartaoValida) &&
+    (formaPagamento !== 'CARTAO_MANUAL' || Boolean(tipoCartaoManual));
 
   function alternarDividirCartao() {
     setDividirCartao((v) => !v);
@@ -487,6 +493,7 @@ export function Caixa() {
     setDividirCartao(false);
     setValorDebitoDividido('');
     setValorCreditoDividido('');
+    setTipoCartaoManual('');
     setErroVenda('');
     setVendaConcluida(null);
     setCarrinhoMobileAberto(false);
@@ -546,6 +553,9 @@ export function Caixa() {
     setEnviando(true);
     setErroVenda('');
     try {
+      // "Pago por fora" (CARTAO_MANUAL): a cobrança já aconteceu fisicamente na maquininha,
+      // fora do app (ex: internet caiu) — vira uma venda CARTAO comum, confirmada na hora, sem
+      // passar pela integração Mercado Pago nem pelo fluxo de espera abaixo.
       const viaMaquininha = formaPagamento === 'MAQUININHA' || formaPagamento === 'DIVIDIDO';
       const itens = carrinho.map((i) => ({
         produtoId: i.produtoId,
@@ -555,7 +565,8 @@ export function Caixa() {
       const body = {
         nomeCliente: nomeCliente.trim() || 'Cliente Balcão',
         itens,
-        formaPagamento: viaMaquininha ? 'MAQUININHA' : formaPagamento,
+        formaPagamento: viaMaquininha ? 'MAQUININHA' : formaPagamento === 'CARTAO_MANUAL' ? 'CARTAO' : formaPagamento,
+        tipoCartaoManual: formaPagamento === 'CARTAO_MANUAL' ? tipoCartaoManual : undefined,
         desconto: Number(desconto) || 0,
         acrescimo: Number(acrescimo) || 0,
         caixaId,
@@ -640,7 +651,12 @@ export function Caixa() {
                   </p>
                 );
               }
-              return <p className="text-muted">Pagamento: {LABEL_FORMA[vendaConcluida.formaPagamento] || vendaConcluida.formaPagamento}</p>;
+              const labelPagamento = LABEL_FORMA[vendaConcluida.formaPagamento] || vendaConcluida.formaPagamento;
+              const sufixoTipoCartao =
+                vendaConcluida.tipoCartaoManual === 'DEBITO' ? ' (Débito, pago por fora)'
+                  : vendaConcluida.tipoCartaoManual === 'CREDITO' ? ' (Crédito, pago por fora)'
+                    : '';
+              return <p className="text-muted">Pagamento: {labelPagamento}{sufixoTipoCartao}</p>;
             })()}
 
             {vendaConcluida.formaPagamento === 'DINHEIRO' && valorRecebido !== '' && (
@@ -1040,7 +1056,43 @@ export function Caixa() {
                     ⚠️ Este caixa não tem maquininha configurada. {ehAdmin ? 'Configure em "Editar caixa".' : 'Peça para um administrador configurar.'}
                   </p>
                 )}
+                <button
+                  type="button"
+                  className={`caixa-cartao-manual-btn${formaPagamento === 'CARTAO_MANUAL' ? ' is-active' : ''}`}
+                  onClick={() => setFormaPagamento('CARTAO_MANUAL')}
+                  title="Para vendas já cobradas na maquininha por fora do sistema (ex: quando a internet caiu)"
+                >
+                  <IconCartao /> Venda paga por fora (lançar sem confirmar)
+                </button>
               </div>
+
+              {formaPagamento === 'CARTAO_MANUAL' && (
+                <div className="caixa-troco-box">
+                  <p className="text-muted" style={{ marginTop: 0, marginBottom: 10 }}>
+                    Para vendas já pagas na maquininha por fora do sistema (ex: caiu a internet e não dava pra
+                    usar o app). A venda é lançada direto como concluída — sem confirmar nenhum pagamento aqui.
+                  </p>
+                  <div className="field">
+                    <label>Foi no débito ou crédito? *</label>
+                    <div className="caixa-tipo-cartao-manual">
+                      <button
+                        type="button"
+                        className={`caixa-forma-btn${tipoCartaoManual === 'DEBITO' ? ' is-active' : ''}`}
+                        onClick={() => setTipoCartaoManual('DEBITO')}
+                      >
+                        Débito
+                      </button>
+                      <button
+                        type="button"
+                        className={`caixa-forma-btn${tipoCartaoManual === 'CREDITO' ? ' is-active' : ''}`}
+                        onClick={() => setTipoCartaoManual('CREDITO')}
+                      >
+                        Crédito
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {formaPagamento === 'DINHEIRO' && (
                 <div className="caixa-troco-box">
@@ -1151,7 +1203,9 @@ export function Caixa() {
                       ? `Cobrar na Maquininha · ${formatBRL(total)}`
                       : formaPagamento === 'DIVIDIDO'
                         ? `Cobrar na Maquininha · ${formatBRL(valorMaquininhaDividido)}`
-                        : `Finalizar Venda · ${formatBRL(total)}`}
+                        : formaPagamento === 'CARTAO_MANUAL'
+                          ? `Lançar venda paga por fora · ${formatBRL(total)}`
+                          : `Finalizar Venda · ${formatBRL(total)}`}
               </button>
             </form>
           </div>

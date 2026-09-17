@@ -1553,6 +1553,55 @@ a {
   padding: 8px 10px;
 }
 
+/* Fallback genérico de "selecionado" pro .caixa-forma-btn quando usado fora do trio
+   Maquininha/Dinheiro/Dividir (ex: o seletor Débito/Crédito de "pago por fora") — os `is-*`
+   específicos acima continuam vencendo por terem mais classes na seletor. */
+.caixa-forma-btn.is-active {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.caixa-tipo-cartao-manual {
+  display: flex;
+  gap: 8px;
+}
+
+.caixa-tipo-cartao-manual .caixa-forma-btn {
+  flex: 1;
+}
+
+/* Opção de pagamento "avulsa": venda paga na maquininha por fora do sistema, lançada aqui já
+   concluída. Fica visualmente separada do trio principal (Maquininha/Dinheiro/Dividir) — cor
+   âmbar de aviso pra sinalizar que é um caminho alternativo/menos comum, não mais um botão. */
+.caixa-cartao-manual-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.caixa-cartao-manual-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.caixa-cartao-manual-btn.is-active {
+  border-style: solid;
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
 .caixa-troco-box {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
@@ -1961,6 +2010,23 @@ tbody tr:hover {
   text-align: center;
   color: var(--color-text-muted);
   padding: 32px;
+}
+
+/* Matriz de estoque (Produtos > Estoque por Unidade): cada célula é editável in-place pra
+   corrigir a contagem física direto, sem precisar de um Recebimento. */
+.matriz-estoque-input {
+  width: 72px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  text-align: center;
+  font-size: 13px;
+}
+
+.matriz-estoque-input:focus {
+  outline: 2px solid var(--color-primary-light);
+  border-color: var(--color-primary);
 }
 
 /* ---------- Lucro por Produto: linhas de detalhe por nível de venda ---------- */

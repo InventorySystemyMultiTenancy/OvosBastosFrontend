@@ -33,6 +33,7 @@ export function Vendas() {
   const [modalConfirmar, setModalConfirmar] = useState(null);
   const [formaPagamento, setFormaPagamento] = useState('PIX');
   const [vencimento, setVencimento] = useState('');
+  const [tipoCartaoManual, setTipoCartaoManual] = useState('');
   const [confirmando, setConfirmando] = useState(false);
 
   const [comprovante, setComprovante] = useState(null);
@@ -73,6 +74,7 @@ export function Vendas() {
     setModalConfirmar(venda);
     setFormaPagamento('PIX');
     setVencimento('');
+    setTipoCartaoManual('');
   }
 
   async function confirmarVenda(e) {
@@ -82,6 +84,7 @@ export function Vendas() {
       await api.put(`/vendas/${modalConfirmar.id}/confirmar`, {
         formaPagamento,
         vencimento: formaPagamento === 'FIADO' ? vencimento || undefined : undefined,
+        tipoCartaoManual: formaPagamento === 'CARTAO' ? tipoCartaoManual || undefined : undefined,
       });
       setModalConfirmar(null);
       carregar();
@@ -240,6 +243,20 @@ export function Vendas() {
               <div className="field">
                 <label>Vencimento (opcional, padrão 30 dias)</label>
                 <input type="date" value={vencimento} onChange={(e) => setVencimento(e.target.value)} />
+              </div>
+            )}
+            {formaPagamento === 'CARTAO' && (
+              <div className="field">
+                <label>Débito ou crédito? (opcional)</label>
+                <select value={tipoCartaoManual} onChange={(e) => setTipoCartaoManual(e.target.value)}>
+                  <option value="">Não sei / não informar</option>
+                  <option value="DEBITO">Débito</option>
+                  <option value="CREDITO">Crédito</option>
+                </select>
+                <p className="text-muted" style={{ marginTop: 6, fontSize: 12 }}>
+                  Sem essa cobrança ter passado pela maquininha integrada, não dá pra saber automaticamente — informar
+                  ajuda o fechamento do dia a separar certinho entre débito e crédito.
+                </p>
               </div>
             )}
             <p className="text-muted" style={{ marginTop: 12 }}>Total: {formatBRL(modalConfirmar.total)}</p>
