@@ -26,7 +26,7 @@ const FORMAS_PAGAMENTO = [
   { id: 'DIVIDIDO', label: 'Dividir', Icon: IconDividir },
 ];
 
-const LABEL_FORMA = { DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' };
+const LABEL_FORMA = { DINHEIRO: 'Dinheiro', CARTAO: 'Cartão', PIX: 'Pix' };
 
 const TEMPO_LIMITE_PAGAMENTO_SEGUNDOS = 5 * 60;
 
@@ -91,11 +91,14 @@ export function Caixa() {
   const [dividirCartao, setDividirCartao] = useState(false);
   const [valorDebitoDividido, setValorDebitoDividido] = useState('');
   const [valorCreditoDividido, setValorCreditoDividido] = useState('');
-  // "Pago por fora": venda já cobrada na maquininha fisicamente, fora do sistema (ex: internet
-  // caiu e não dava pra usar o app) — vira uma 4ª forma de pagamento própria (formaPagamento
-  // 'CARTAO_MANUAL' aqui no front) que lança a venda direto como concluída, sem chamar a
-  // integração Mercado Pago nem esperar nenhuma confirmação (ver finalizarVenda).
-  const [tipoCartaoManual, setTipoCartaoManual] = useState('');
+  // "Pago por fora": venda já paga fisicamente fora do sistema (ex: internet caiu e não dava
+  // pra usar o app, ou um Pix recebido direto sem passar pelo checkout) — vira uma 4ª forma de
+  // pagamento própria (formaPagamento 'CARTAO_MANUAL' aqui no front) que lança a venda direto
+  // como concluída, sem chamar a integração Mercado Pago nem esperar nenhuma confirmação (ver
+  // finalizarVenda). 'DEBITO'/'CREDITO' viram uma venda CARTAO com Venda.tipoCartaoManual
+  // preenchido; 'PIX' vira uma venda PIX comum (já suportada pelo checkout, só não tinha botão
+  // pra ela no caixa).
+  const [metodoPagoPorFora, setMetodoPagoPorFora] = useState('');
 
   const [enviando, setEnviando] = useState(false);
   const [erroVenda, setErroVenda] = useState('');
@@ -475,7 +478,7 @@ export function Caixa() {
   const divisaoValida =
     (formaPagamento !== 'DIVIDIDO' || (Number(valorDinheiroDividido) > 0 && Number(valorDinheiroDividido) < total)) &&
     (formaPagamento !== 'MAQUININHA' || !dividirCartao || divisaoCartaoValida) &&
-    (formaPagamento !== 'CARTAO_MANUAL' || Boolean(tipoCartaoManual));
+    (formaPagamento !== 'CARTAO_MANUAL' || Boolean(metodoPagoPorFora));
 
   function alternarDividirCartao() {
     setDividirCartao((v) => !v);
@@ -493,7 +496,7 @@ export function Caixa() {
     setDividirCartao(false);
     setValorDebitoDividido('');
     setValorCreditoDividido('');
-    setTipoCartaoManual('');
+    setMetodoPagoPorFora('');
     setErroVenda('');
     setVendaConcluida(null);
     setCarrinhoMobileAberto(false);
@@ -553,9 +556,12 @@ export function Caixa() {
     setEnviando(true);
     setErroVenda('');
     try {
-      // "Pago por fora" (CARTAO_MANUAL): a cobrança já aconteceu fisicamente na maquininha,
-      // fora do app (ex: internet caiu) — vira uma venda CARTAO comum, confirmada na hora, sem
-      // passar pela integração Mercado Pago nem pelo fluxo de espera abaixo.
+      // "Pago por fora" (CARTAO_MANUAL): o pagamento já aconteceu fisicamente fora do app (ex:
+      // maquininha sem internet, ou Pix recebido direto) — vira uma venda comum já confirmada,
+      // sem passar pela integração Mercado Pago nem pelo fluxo de espera abaixo. Débito/crédito
+      // vira CARTAO com tipoCartaoManual; Pix vira PIX (que já confirma na hora, sem "tipo").
+      const pagoPorFora = formaPagamento === 'CARTAO_MANUAL';
+      const formaPagamentoPorFora = metodoPagoPorFora === 'PIX' ? 'PIX' : 'CARTAO';
       const viaMaquininha = formaPagamento === 'MAQUININHA' || formaPagamento === 'DIVIDIDO';
       const itens = carrinho.map((i) => ({
         produtoId: i.produtoId,
@@ -565,8 +571,8 @@ export function Caixa() {
       const body = {
         nomeCliente: nomeCliente.trim() || 'Cliente Balcão',
         itens,
-        formaPagamento: viaMaquininha ? 'MAQUININHA' : formaPagamento === 'CARTAO_MANUAL' ? 'CARTAO' : formaPagamento,
-        tipoCartaoManual: formaPagamento === 'CARTAO_MANUAL' ? tipoCartaoManual : undefined,
+        formaPagamento: viaMaquininha ? 'MAQUININHA' : pagoPorFora ? formaPagamentoPorFora : formaPagamento,
+        tipoCartaoManual: pagoPorFora && metodoPagoPorFora !== 'PIX' ? metodoPagoPorFora : undefined,
         desconto: Number(desconto) || 0,
         acrescimo: Number(acrescimo) || 0,
         caixaId,
@@ -652,11 +658,16 @@ export function Caixa() {
                 );
               }
               const labelPagamento = LABEL_FORMA[vendaConcluida.formaPagamento] || vendaConcluida.formaPagamento;
-              const sufixoTipoCartao =
+              // Pix só chega aqui vindo do "Pago por fora" (não existe outro jeito de vender
+              // por Pix no caixa hoje), então já dá pra assumir o sufixo sem precisar de um
+              // campo específico pra isso, ao contrário do cartão (que também acontece via
+              // maquininha integrada, sem ser "por fora").
+              const sufixoPagoPorFora =
                 vendaConcluida.tipoCartaoManual === 'DEBITO' ? ' (Débito, pago por fora)'
                   : vendaConcluida.tipoCartaoManual === 'CREDITO' ? ' (Crédito, pago por fora)'
-                    : '';
-              return <p className="text-muted">Pagamento: {labelPagamento}{sufixoTipoCartao}</p>;
+                    : vendaConcluida.formaPagamento === 'PIX' ? ' (pago por fora)'
+                      : '';
+              return <p className="text-muted">Pagamento: {labelPagamento}{sufixoPagoPorFora}</p>;
             })()}
 
             {vendaConcluida.formaPagamento === 'DINHEIRO' && valorRecebido !== '' && (
@@ -1060,7 +1071,7 @@ export function Caixa() {
                   type="button"
                   className={`caixa-cartao-manual-btn${formaPagamento === 'CARTAO_MANUAL' ? ' is-active' : ''}`}
                   onClick={() => setFormaPagamento('CARTAO_MANUAL')}
-                  title="Para vendas já cobradas na maquininha por fora do sistema (ex: quando a internet caiu)"
+                  title="Para vendas já pagas por fora do sistema (ex: maquininha sem internet, ou um Pix recebido direto)"
                 >
                   <IconCartao /> Venda paga por fora (lançar sem confirmar)
                 </button>
@@ -1069,25 +1080,32 @@ export function Caixa() {
               {formaPagamento === 'CARTAO_MANUAL' && (
                 <div className="caixa-troco-box">
                   <p className="text-muted" style={{ marginTop: 0, marginBottom: 10 }}>
-                    Para vendas já pagas na maquininha por fora do sistema (ex: caiu a internet e não dava pra
-                    usar o app). A venda é lançada direto como concluída — sem confirmar nenhum pagamento aqui.
+                    Para vendas já pagas por fora do sistema (ex: maquininha sem internet, ou um Pix recebido
+                    direto). A venda é lançada direto como concluída — sem confirmar nenhum pagamento aqui.
                   </p>
                   <div className="field">
-                    <label>Foi no débito ou crédito? *</label>
+                    <label>Qual foi a forma de pagamento? *</label>
                     <div className="caixa-tipo-cartao-manual">
                       <button
                         type="button"
-                        className={`caixa-forma-btn${tipoCartaoManual === 'DEBITO' ? ' is-active' : ''}`}
-                        onClick={() => setTipoCartaoManual('DEBITO')}
+                        className={`caixa-forma-btn${metodoPagoPorFora === 'DEBITO' ? ' is-active' : ''}`}
+                        onClick={() => setMetodoPagoPorFora('DEBITO')}
                       >
                         Débito
                       </button>
                       <button
                         type="button"
-                        className={`caixa-forma-btn${tipoCartaoManual === 'CREDITO' ? ' is-active' : ''}`}
-                        onClick={() => setTipoCartaoManual('CREDITO')}
+                        className={`caixa-forma-btn${metodoPagoPorFora === 'CREDITO' ? ' is-active' : ''}`}
+                        onClick={() => setMetodoPagoPorFora('CREDITO')}
                       >
                         Crédito
+                      </button>
+                      <button
+                        type="button"
+                        className={`caixa-forma-btn${metodoPagoPorFora === 'PIX' ? ' is-active' : ''}`}
+                        onClick={() => setMetodoPagoPorFora('PIX')}
+                      >
+                        Pix
                       </button>
                     </div>
                   </div>
