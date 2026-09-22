@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/Modal';
 import { PainelCobrancaMaquininha } from '../components/PainelCobrancaMaquininha';
 import { useCobrancaMaquininha } from '../hooks/useCobrancaMaquininha';
+import { gerarRelatorioFechamentoCaixa } from '../utils/relatoriosPdf';
 import {
   IconBasket,
   IconSearch,
@@ -27,6 +28,16 @@ const FORMAS_PAGAMENTO = [
 ];
 
 const LABEL_FORMA = { DINHEIRO: 'Dinheiro', CARTAO: 'Cartão', PIX: 'Pix' };
+
+const LABEL_FORMA_FECHAMENTO = {
+  PIX: 'Pix',
+  DINHEIRO: 'Dinheiro',
+  CARTAO_CREDITO: 'Cartão de Crédito',
+  CARTAO_DEBITO: 'Cartão de Débito',
+  CARTAO_OUTRO: 'Cartão (não identificado)',
+  BOLETO: 'Boleto',
+  FIADO: 'Fiado',
+};
 
 const TEMPO_LIMITE_PAGAMENTO_SEGUNDOS = 5 * 60;
 
@@ -116,6 +127,8 @@ export function Caixa() {
   const [observacaoFechamento, setObservacaoFechamento] = useState('');
   const [fechandoCaixaFisico, setFechandoCaixaFisico] = useState(false);
   const [erroFecharCaixaFisico, setErroFecharCaixaFisico] = useState('');
+  const [relatorioFechamento, setRelatorioFechamento] = useState(null);
+  const [gerandoPdfFechamento, setGerandoPdfFechamento] = useState(false);
 
   const [vendaAguardandoPagamento, setVendaAguardandoPagamento] = useState(null);
   const [avisoMaquininha, setAvisoMaquininha] = useState('');
@@ -189,16 +202,38 @@ export function Caixa() {
     setFechandoCaixaFisico(true);
     setErroFecharCaixaFisico('');
     try {
-      await api.put(`/caixas/${caixaId}/sessoes/fechar`, {
+      const resultado = await api.put(`/caixas/${caixaId}/sessoes/fechar`, {
         valorFechamento: Number(valorFechamentoInput),
         observacao: observacaoFechamento.trim() || undefined,
       });
       setModalFecharCaixa(false);
       carregarSessao();
+      // Relatório de vendas da sessão que acabou de fechar já vem pronto na resposta —
+      // mostra na hora, sem precisar ir até o Financeiro depois, pra bater com a maquininha
+      // enquanto o dinheiro ainda está contado na mão.
+      setRelatorioFechamento({
+        caixaNome: caixasAtivos.find((c) => c.id === caixaId)?.nome || 'Caixa',
+        abertaEm: resultado.abertaEm,
+        fechadaEm: resultado.fechadaEm,
+        valorAbertura: resultado.valorAbertura,
+        valorFechamento: resultado.valorFechamento,
+        resumoVendas: resultado.resumoVendas,
+        relatorioMaquininha: resultado.relatorioMaquininha,
+      });
     } catch (err) {
       setErroFecharCaixaFisico(err.message);
     } finally {
       setFechandoCaixaFisico(false);
+    }
+  }
+
+  async function exportarPdfFechamento() {
+    if (!relatorioFechamento) return;
+    setGerandoPdfFechamento(true);
+    try {
+      await gerarRelatorioFechamentoCaixa(relatorioFechamento);
+    } finally {
+      setGerandoPdfFechamento(false);
     }
   }
 
@@ -1414,6 +1449,84 @@ export function Caixa() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {relatorioFechamento && (
+        <Modal title={`Relatório de fechamento — ${relatorioFechamento.caixaNome}`} onClose={() => setRelatorioFechamento(null)}>
+          <p className="text-muted" style={{ marginTop: 0 }}>
+            {new Date(relatorioFechamento.abertaEm).toLocaleString('pt-BR')} até{' '}
+            {new Date(relatorioFechamento.fechadaEm).toLocaleString('pt-BR')}
+          </p>
+
+          <div className="section-title" style={{ marginTop: 0 }}>Por forma de pagamento</div>
+          {Object.values(relatorioFechamento.resumoVendas.porFormaPagamento).every((v) => v <= 0) ? (
+            <p className="text-muted">Nenhuma venda confirmada nesta sessão.</p>
+          ) : (
+            <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0 16px' }}>
+              {Object.entries(relatorioFechamento.resumoVendas.porFormaPagamento)
+                .filter(([, valor]) => valor > 0)
+                .map(([forma, valor]) => (
+                  <li key={forma} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
+                    <span>{LABEL_FORMA_FECHAMENTO[forma] || forma}</span>
+                    <strong style={{ marginLeft: 'auto' }}>{formatBRL(valor)}</strong>
+                  </li>
+                ))}
+              <li
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '8px 0 0',
+                  marginTop: 4,
+                  borderTop: '1px solid var(--color-border)',
+                }}
+              >
+                <span>Total vendido</span>
+                <strong style={{ marginLeft: 'auto' }}>{formatBRL(relatorioFechamento.resumoVendas.faturamento)}</strong>
+              </li>
+            </ul>
+          )}
+
+          <div className="section-title">Comparação com a maquininha</div>
+          {!relatorioFechamento.relatorioMaquininha?.disponivel ? (
+            <p className="text-muted">
+              {relatorioFechamento.relatorioMaquininha?.motivo || 'Relatório da maquininha indisponível.'}
+            </p>
+          ) : (
+            <table style={{ width: '100%', fontSize: 13, marginBottom: 8, borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '4px 0' }}></th>
+                  <th style={{ padding: '4px 0' }}>Sistema</th>
+                  <th style={{ padding: '4px 0' }}>Maquininha</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ padding: '4px 0' }}>Crédito</td>
+                  <td style={{ textAlign: 'center' }}>
+                    {formatBRL(relatorioFechamento.resumoVendas.porFormaPagamento.CARTAO_CREDITO || 0)}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>{formatBRL(relatorioFechamento.relatorioMaquininha.totais.credit_card)}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 0' }}>Débito</td>
+                  <td style={{ textAlign: 'center' }}>
+                    {formatBRL(relatorioFechamento.resumoVendas.porFormaPagamento.CARTAO_DEBITO || 0)}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>{formatBRL(relatorioFechamento.relatorioMaquininha.totais.debit_card)}</td>
+                </tr>
+              </tbody>
+            </table>
+          )}
+
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setRelatorioFechamento(null)}>Fechar</button>
+            <button type="button" className="btn btn-primary" onClick={exportarPdfFechamento} disabled={gerandoPdfFechamento}>
+              📄 {gerandoPdfFechamento ? 'Gerando...' : 'Exportar PDF'}
+            </button>
+          </div>
         </Modal>
       )}
 

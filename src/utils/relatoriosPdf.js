@@ -163,6 +163,67 @@ export async function gerarRelatorioFechamentoDia(dados) {
   doc.save(`fechamento-dia-${Date.now()}.pdf`);
 }
 
+// Relatório gerado na hora que uma sessão de caixa fecha: quanto vendeu em cada forma de
+// pagamento (dinheiro incluso) e, quando a maquininha Mercado Pago está configurada nesse
+// caixa, uma comparação lado a lado com o que a própria conta Mercado Pago registrou no mesmo
+// intervalo — pra bater com o relatório que a maquininha também consegue imprimir.
+export async function gerarRelatorioFechamentoCaixa({ caixaNome, abertaEm, fechadaEm, valorAbertura, valorFechamento, resumoVendas, relatorioMaquininha }) {
+  const periodo = `${caixaNome} · ${new Date(abertaEm).toLocaleString('pt-BR')} a ${new Date(fechadaEm).toLocaleString('pt-BR')}`;
+  const { doc, autoTable } = await criarDocumento('Fechamento de Caixa', periodo);
+
+  const linhas = Object.entries(resumoVendas.porFormaPagamento)
+    .filter(([, valor]) => valor > 0)
+    .map(([forma, valor]) => [LABEL_FORMA_FECHAMENTO[forma] || forma, formatBRL(valor)]);
+
+  autoTable(doc, {
+    startY: 46,
+    head: [['Forma de pagamento', 'Valor']],
+    body: linhas,
+    headStyles: { fillColor: [240, 100, 92] },
+    styles: { fontSize: 9 },
+    foot: [['Total vendido na sessão', formatBRL(resumoVendas.faturamento)]],
+    footStyles: { fillColor: [253, 236, 236], textColor: [20, 20, 20], fontStyle: 'bold' },
+  });
+
+  let y = doc.lastAutoTable.finalY + 14;
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.text('Fundo de caixa', 14, y);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(10);
+  doc.text(`Abertura: ${formatBRL(valorAbertura)}`, 14, y + 8);
+  doc.text(`Fechamento: ${formatBRL(valorFechamento)}`, 14, y + 15);
+
+  y += 30;
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.text('Comparação com a maquininha (Mercado Pago)', 14, y);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(10);
+
+  if (!relatorioMaquininha?.disponivel) {
+    doc.setTextColor(150, 60, 40);
+    doc.text(relatorioMaquininha?.motivo || 'Relatório da maquininha indisponível.', 14, y + 8);
+    doc.setTextColor(20, 20, 20);
+  } else {
+    const credSistema = resumoVendas.porFormaPagamento.CARTAO_CREDITO || 0;
+    const debSistema = resumoVendas.porFormaPagamento.CARTAO_DEBITO || 0;
+    autoTable(doc, {
+      startY: y + 4,
+      head: [['', 'Sistema', 'Maquininha (Mercado Pago)']],
+      body: [
+        ['Crédito', formatBRL(credSistema), formatBRL(relatorioMaquininha.totais.credit_card)],
+        ['Débito', formatBRL(debSistema), formatBRL(relatorioMaquininha.totais.debit_card)],
+        ['Total cartão', formatBRL(credSistema + debSistema), formatBRL(relatorioMaquininha.totalGeral)],
+      ],
+      headStyles: { fillColor: [240, 100, 92] },
+      styles: { fontSize: 9 },
+    });
+  }
+
+  doc.save(`fechamento-caixa-${Date.now()}.pdf`);
+}
+
 export async function gerarRelatorioEstoqueAtual(produtos) {
   const { doc, autoTable } = await criarDocumento('Relatório de Estoque Atual', `${produtos.length} produto(s) ativo(s)`);
 
