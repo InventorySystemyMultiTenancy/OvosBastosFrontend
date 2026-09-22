@@ -113,6 +113,16 @@ export function Vendas() {
     carregar();
   }
 
+  async function excluirVenda(venda) {
+    if (!confirm(`Excluir a venda #${venda.id} definitivamente? Essa ação não pode ser desfeita.`)) return;
+    try {
+      await api.delete(`/vendas/${venda.id}`);
+      carregar();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
   async function reabrirVenda(venda) {
     if (
       !confirm(
@@ -232,6 +242,9 @@ export function Vendas() {
                 <button className="btn btn-danger btn-sm" onClick={() => reabrirVenda(v)}>Reabrir</button>
               )}
             </>
+          )}
+          {ehAdmin && v.status !== 'CONFIRMADA' && (
+            <button className="btn btn-danger btn-sm" onClick={() => excluirVenda(v)}>Excluir</button>
           )}
           {v.status !== 'ORCAMENTO' && v.pagamentosPointMP?.some((p) => STATUS_MP_ATIVOS.includes(p.status)) && (
             <button className="btn btn-secondary btn-sm" onClick={() => abrirMaquininha(v)}>Maquininha</button>
