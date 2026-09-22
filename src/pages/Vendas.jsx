@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -38,6 +38,11 @@ export function Vendas() {
   const [confirmando, setConfirmando] = useState(false);
 
   const [comprovante, setComprovante] = useState(null);
+
+  const tabelaWrapRef = useRef(null);
+  function rolarTabela(delta) {
+    tabelaWrapRef.current?.scrollBy({ left: delta, behavior: 'smooth' });
+  }
 
   const [modalMaquininha, setModalMaquininha] = useState(null);
   const cobranca = useCobrancaMaquininha({
@@ -254,7 +259,27 @@ export function Vendas() {
       {erro && <div className="alert-box">{erro}</div>}
 
       {carregando ? <p className="text-muted">Carregando...</p> : (
-        <Table columns={columns} rows={vendas} rowKey={(v) => v.id} />
+        <div className="vendas-tabela-container">
+          <div className="vendas-tabela-scroll-botoes">
+            <button
+              type="button"
+              className="vendas-scroll-btn"
+              onClick={() => rolarTabela(-320)}
+              aria-label="Rolar tabela para a esquerda"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="vendas-scroll-btn"
+              onClick={() => rolarTabela(320)}
+              aria-label="Rolar tabela para a direita"
+            >
+              ›
+            </button>
+          </div>
+          <Table columns={columns} rows={vendas} rowKey={(v) => v.id} className="vendas-tabela" wrapRef={tabelaWrapRef} />
+        </div>
       )}
 
       {modalConfirmar && (
