@@ -26,6 +26,7 @@ export function Vendas() {
   const [vendas, setVendas] = useState([]);
   const [filtroStatus, setFiltroStatus] = useState('');
   const [filtroCaixa, setFiltroCaixa] = useState('');
+  const [filtroData, setFiltroData] = useState('');
   const [caixas, setCaixas] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -63,11 +64,12 @@ export function Vendas() {
     const params = new URLSearchParams();
     if (filtroStatus) params.set('status', filtroStatus);
     if (filtroCaixa) params.set('caixaId', filtroCaixa);
+    if (filtroData) params.set('data', filtroData);
     const query = params.toString();
     api.get(`/vendas${query ? `?${query}` : ''}`).then(setVendas).catch((e) => setErro(e.message)).finally(() => setCarregando(false));
   }
 
-  useEffect(carregar, [filtroStatus, filtroCaixa]);
+  useEffect(carregar, [filtroStatus, filtroCaixa, filtroData]);
   useEffect(() => { api.get('/caixas').then(setCaixas).catch(() => {}); }, []);
 
   function abrirConfirmar(venda) {
@@ -153,7 +155,28 @@ export function Vendas() {
     {
       key: 'createdAt',
       header: 'Data',
-      render: (v) => <span className="vendas-col-data">{new Date(v.createdAt).toLocaleDateString('pt-BR')}</span>,
+      render: (v) => (
+        <span className="vendas-col-data">
+          {new Date(v.confirmadaEm || v.createdAt).toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </span>
+      ),
+    },
+    {
+      key: 'origemPagamento',
+      header: 'Origem',
+      render: (v) => {
+        const viaMaquininha = v.pagamentosPointMP?.some((p) => p.status === 'APROVADO');
+        if (viaMaquininha) return <span className="badge badge-green">Maquininha</span>;
+        if (v.formaPagamento === 'CARTAO' && v.tipoCartaoManual) return <span className="badge badge-amber">Por fora</span>;
+        if (v.formaPagamento === 'CARTAO') return <span className="badge badge-gray">Cartão</span>;
+        return <span className="text-muted">—</span>;
+      },
     },
     {
       key: 'acoes',
@@ -213,11 +236,15 @@ export function Vendas() {
             {caixas.map((c) => <option key={c.id} value={c.id}>{c.nome} — {c.unidade}</option>)}
           </select>
         </div>
-        {(filtroStatus || filtroCaixa) && (
+        <div className="vendas-filtro-campo">
+          <label>Data</label>
+          <input type="date" value={filtroData} onChange={(e) => setFiltroData(e.target.value)} />
+        </div>
+        {(filtroStatus || filtroCaixa || filtroData) && (
           <button
             type="button"
             className="vendas-filtro-limpar"
-            onClick={() => { setFiltroStatus(''); setFiltroCaixa(''); }}
+            onClick={() => { setFiltroStatus(''); setFiltroCaixa(''); setFiltroData(''); }}
           >
             Limpar filtros
           </button>
