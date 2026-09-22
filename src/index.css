@@ -2092,6 +2092,18 @@ tbody tr:hover {
    lateral pra ver tudo — aqui deixamos ela mais densa (menos padding, fontes menores) pra
    caber mais sem rolar, e o pouco que sobrar de scroll fica alcançável pelos botões de seta
    logo acima da tabela, sem precisar descer até a barra de rolagem no rodapé. */
+.vendas-tabela table {
+  /* A tabela genérica força width:100%, que espalha as colunas mesmo quando o conteúdo
+     (badges curtos) não precisa disso, criando vãos enormes entre as colunas. Aqui deixamos
+     a largura ser a do conteúdo — o scroll lateral do wrapper cuida do resto se não couber. */
+  width: auto;
+}
+
+.vendas-tabela thead th,
+.vendas-tabela tbody td {
+  text-align: left;
+}
+
 .vendas-tabela thead th {
   padding: 8px 10px;
   font-size: 13px;
