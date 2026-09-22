@@ -44,6 +44,11 @@ export function Vendas() {
     tabelaWrapRef.current?.scrollBy({ left: delta, behavior: 'smooth' });
   }
 
+  const [nomesExpandidos, setNomesExpandidos] = useState({});
+  function alternarNomeExpandido(vendaId) {
+    setNomesExpandidos((prev) => ({ ...prev, [vendaId]: !prev[vendaId] }));
+  }
+
   const [modalMaquininha, setModalMaquininha] = useState(null);
   const cobranca = useCobrancaMaquininha({
     vendaId: modalMaquininha?.id || null,
@@ -139,7 +144,29 @@ export function Vendas() {
 
   const columns = [
     { key: 'id', header: '#', render: (v) => <span className="vendas-col-id">{v.id}</span> },
-    { key: 'cliente', header: 'Cliente', render: (v) => <span className="vendas-col-cliente">{v.cliente.nome}</span> },
+    {
+      key: 'cliente',
+      header: 'Cliente',
+      render: (v) => {
+        const nome = v.cliente.nome;
+        const eLongo = nome.length > 20;
+        const expandido = nomesExpandidos[v.id];
+        return (
+          <span className="vendas-col-cliente">
+            {eLongo && !expandido ? nome.slice(0, 20) : nome}
+            {eLongo && (
+              <button
+                type="button"
+                className="vendas-nome-toggle"
+                onClick={() => alternarNomeExpandido(v.id)}
+              >
+                {expandido ? ' menos' : '...'}
+              </button>
+            )}
+          </span>
+        );
+      },
+    },
     {
       key: 'vendedor',
       header: 'Vendedor',

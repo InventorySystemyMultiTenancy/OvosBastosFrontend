@@ -2130,6 +2130,22 @@ tbody tr:hover {
   font-size: 12px;
 }
 
+/* Nome de cliente enorme era o que causava os vãos gigantes entre colunas — truncado em
+   20 caracteres, e o "..." vira um botão pra revelar o resto sob demanda, em vez de sempre
+   reservar espaço pro nome inteiro. */
+.vendas-nome-toggle {
+  border: none;
+  background: none;
+  padding: 0;
+  margin-left: 2px;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
 .vendas-tabela-container {
   position: relative;
 }
