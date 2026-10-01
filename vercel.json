@@ -1,3 +1,9 @@
 {
+<<<<<<< HEAD
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+=======
+  "rewrites": [
+    { "source": "/((?!assets/|videoeggscroll.mp4|vrilllogo.png|favicon.png|apple-touch-icon.png).*)", "destination": "/index.html" }
+  ]
+>>>>>>> 2c827499d1f2ad5f5d6af3198c62b1004b0a6968
 }

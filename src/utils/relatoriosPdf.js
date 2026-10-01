@@ -1,0 +1,254 @@
+function formatBRL(valor) {
+  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatData(data) {
+  return new Date(data).toLocaleDateString('pt-BR');
+}
+
+// jsPDF + autotable são pesados (puxam html2canvas/dompurify) — import dinâmico
+// pra não engordar o bundle inicial de quem nunca gera relatório (ex: catálogo público).
+async function criarDocumento(titulo, subtitulo) {
+  const { jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
+  const doc = new jsPDF();
+
+  doc.setFontSize(18);
+  doc.setFont(undefined, 'bold');
+  doc.text('Ovos Bastos', 14, 18);
+
+  doc.setFontSize(13);
+  doc.text(titulo, 14, 28);
+
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(110, 110, 110);
+  doc.text(subtitulo, 14, 35);
+  doc.text(`Emitido em ${new Date().toLocaleString('pt-BR')}`, 14, 40);
+  doc.setTextColor(20, 20, 20);
+
+  return { doc, autoTable };
+}
+
+export async function gerarRelatorioVendas(vendas, { de, ate }) {
+  const periodo = de && ate ? `Período: ${formatData(de)} a ${formatData(ate)}` : 'Período: todas as vendas confirmadas';
+  const { doc, autoTable } = await criarDocumento('Relatório de Vendas por Período', periodo);
+
+  const total = vendas.reduce((soma, v) => soma + Number(v.total), 0);
+
+  autoTable(doc, {
+    startY: 46,
+    head: [['#', 'Cliente', 'Vendedor', 'Pagamento', 'Total', 'Data']],
+    body: vendas.map((v) => [
+      v.id,
+      v.cliente?.nome || '—',
+      v.vendedor?.nome || 'Loja Online',
+      v.formaPagamento || '—',
+      formatBRL(v.total),
+      formatData(v.confirmadaEm || v.createdAt),
+    ]),
+    headStyles: { fillColor: [240, 100, 92] },
+    styles: { fontSize: 9 },
+    foot: [['', '', '', 'Total', formatBRL(total), `${vendas.length} venda(s)`]],
+    footStyles: { fillColor: [253, 236, 236], textColor: [20, 20, 20], fontStyle: 'bold' },
+  });
+
+  doc.save(`relatorio-vendas-${Date.now()}.pdf`);
+}
+
+export async function gerarRelatorioClientesAtivos(clientes) {
+  const { doc, autoTable } = await criarDocumento(
+    'Relatório de Clientes Ativos',
+    `${clientes.length} cliente(s) cadastrado(s) e ativo(s)`
+  );
+
+  autoTable(doc, {
+    startY: 46,
+    head: [['Nome', 'Documento', 'Telefone', 'Cidade', 'Limite de crédito']],
+    body: clientes.map((c) => [
+      c.nome,
+      c.documento || '—',
+      c.telefone || '—',
+      c.cidade || '—',
+      formatBRL(c.limiteCredito),
+    ]),
+    headStyles: { fillColor: [240, 100, 92] },
+    styles: { fontSize: 9 },
+  });
+
+  doc.save(`relatorio-clientes-${Date.now()}.pdf`);
+}
+
+export async function gerarRelatorioLucro(dados, { de, ate }) {
+  const periodo = `Período: ${formatData(de)} a ${formatData(ate)}`;
+  const { doc, autoTable } = await criarDocumento('Relatório de Lucro por Período', periodo);
+
+  autoTable(doc, {
+    startY: 46,
+    head: [['Descrição', 'Fornecedor', 'Unidade', 'Valor', 'Pago em']],
+    body: dados.contasPagas.map((c) => [
+      c.descricao,
+      c.fornecedor || '—',
+      c.caixa?.nome || '—',
+      formatBRL(c.valor),
+      formatData(c.pagoEm),
+    ]),
+    headStyles: { fillColor: [240, 100, 92] },
+    styles: { fontSize: 9 },
+    foot: [['', '', '', formatBRL(dados.despesasTotal), `${dados.contasPagas.length} conta(s) paga(s)`]],
+    footStyles: { fillColor: [253, 236, 236], textColor: [20, 20, 20], fontStyle: 'bold' },
+  });
+
+  const y = doc.lastAutoTable.finalY + 14;
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.text('Resumo do período', 14, y);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(10);
+  doc.text(`Faturamento: ${formatBRL(dados.faturamento)}`, 14, y + 8);
+  doc.text(`Custo dos produtos vendidos: ${formatBRL(dados.custoProdutosTotal)}`, 14, y + 15);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(dados.lucro >= 0 ? 30 : 200, dados.lucro >= 0 ? 120 : 40, 30);
+  doc.text(`Lucro (faturamento − custo dos produtos): ${formatBRL(dados.lucro)}`, 14, y + 24);
+  doc.setTextColor(20, 20, 20);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Despesas pagas no período (não descontadas do lucro acima): ${formatBRL(dados.despesasTotal)}`, 14, y + 34);
+
+  doc.save(`relatorio-lucro-${Date.now()}.pdf`);
+}
+
+const LABEL_FORMA_FECHAMENTO = {
+  PIX: 'Pix',
+  DINHEIRO: 'Dinheiro',
+  CARTAO_CREDITO: 'Cartão de Crédito',
+  CARTAO_DEBITO: 'Cartão de Débito',
+  CARTAO_OUTRO: 'Cartão (não identificado)',
+  BOLETO: 'Boleto',
+  FIADO: 'Fiado',
+};
+
+export async function gerarRelatorioFechamentoDia(dados) {
+  const dia = `Data: ${formatData(dados.data)} · ${dados.quantidadeVendas} venda(s) confirmada(s)`;
+  const { doc, autoTable } = await criarDocumento('Fechamento do Dia', dia);
+
+  const linhas = Object.entries(dados.porFormaPagamento)
+    .filter(([, valor]) => valor > 0)
+    .map(([forma, valor]) => [LABEL_FORMA_FECHAMENTO[forma] || forma, formatBRL(valor)]);
+
+  autoTable(doc, {
+    startY: 46,
+    head: [['Forma de pagamento', 'Valor']],
+    body: linhas,
+    headStyles: { fillColor: [240, 100, 92] },
+    styles: { fontSize: 9 },
+    foot: [['Total vendido no dia', formatBRL(dados.faturamento)]],
+    footStyles: { fillColor: [253, 236, 236], textColor: [20, 20, 20], fontStyle: 'bold' },
+  });
+
+  const y = doc.lastAutoTable.finalY + 14;
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.text('Resumo do dia', 14, y);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(10);
+  doc.text(`Faturamento: ${formatBRL(dados.faturamento)}`, 14, y + 8);
+  doc.text(`Custo dos produtos vendidos: ${formatBRL(dados.custoProdutos)}`, 14, y + 15);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(dados.lucroLiquido >= 0 ? 30 : 200, dados.lucroLiquido >= 0 ? 120 : 40, 30);
+  doc.text(`Lucro líquido (venda total − custo dos produtos): ${formatBRL(dados.lucroLiquido)}`, 14, y + 24);
+  doc.setTextColor(20, 20, 20);
+  doc.setFont(undefined, 'normal');
+
+  doc.save(`fechamento-dia-${Date.now()}.pdf`);
+}
+
+// Relatório gerado na hora que uma sessão de caixa fecha: quanto vendeu em cada forma de
+// pagamento (dinheiro incluso) e, quando a maquininha Mercado Pago está configurada nesse
+// caixa, uma comparação lado a lado com o que a própria conta Mercado Pago registrou no mesmo
+// intervalo — pra bater com o relatório que a maquininha também consegue imprimir.
+export async function gerarRelatorioFechamentoCaixa({ caixaNome, abertaEm, fechadaEm, valorAbertura, valorFechamento, resumoVendas, relatorioMaquininha }) {
+  const periodo = `${caixaNome} · ${new Date(abertaEm).toLocaleString('pt-BR')} a ${new Date(fechadaEm).toLocaleString('pt-BR')}`;
+  const { doc, autoTable } = await criarDocumento('Fechamento de Caixa', periodo);
+
+  const linhas = Object.entries(resumoVendas.porFormaPagamento)
+    .filter(([, valor]) => valor > 0)
+    .map(([forma, valor]) => [LABEL_FORMA_FECHAMENTO[forma] || forma, formatBRL(valor)]);
+
+  autoTable(doc, {
+    startY: 46,
+    head: [['Forma de pagamento', 'Valor']],
+    body: linhas,
+    headStyles: { fillColor: [240, 100, 92] },
+    styles: { fontSize: 9 },
+    foot: [['Total vendido na sessão', formatBRL(resumoVendas.faturamento)]],
+    footStyles: { fillColor: [253, 236, 236], textColor: [20, 20, 20], fontStyle: 'bold' },
+  });
+
+  let y = doc.lastAutoTable.finalY + 14;
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.text('Fundo de caixa', 14, y);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(10);
+  doc.text(`Abertura: ${formatBRL(valorAbertura)}`, 14, y + 8);
+  doc.text(`Fechamento: ${formatBRL(valorFechamento)}`, 14, y + 15);
+
+  y += 30;
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.text('Comparação com a maquininha (Mercado Pago)', 14, y);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(10);
+
+  if (!relatorioMaquininha?.disponivel) {
+    doc.setTextColor(150, 60, 40);
+    doc.text(relatorioMaquininha?.motivo || 'Relatório da maquininha indisponível.', 14, y + 8);
+    doc.setTextColor(20, 20, 20);
+  } else {
+    const credSistema = resumoVendas.porFormaPagamento.CARTAO_CREDITO || 0;
+    const debSistema = resumoVendas.porFormaPagamento.CARTAO_DEBITO || 0;
+    autoTable(doc, {
+      startY: y + 4,
+      head: [['', 'Sistema', 'Maquininha (Mercado Pago)']],
+      body: [
+        ['Crédito', formatBRL(credSistema), formatBRL(relatorioMaquininha.totais.credit_card)],
+        ['Débito', formatBRL(debSistema), formatBRL(relatorioMaquininha.totais.debit_card)],
+        ['Total cartão', formatBRL(credSistema + debSistema), formatBRL(relatorioMaquininha.totalGeral)],
+      ],
+      headStyles: { fillColor: [240, 100, 92] },
+      styles: { fontSize: 9 },
+    });
+  }
+
+  doc.save(`fechamento-caixa-${Date.now()}.pdf`);
+}
+
+export async function gerarRelatorioEstoqueAtual(produtos) {
+  const { doc, autoTable } = await criarDocumento('Relatório de Estoque Atual', `${produtos.length} produto(s) ativo(s)`);
+
+  const totalUnidades = produtos.reduce((soma, p) => soma + p.quantidade, 0);
+
+  autoTable(doc, {
+    startY: 46,
+    head: [['Produto', 'Tipo', 'Unidade', 'Preço venda', 'Estoque', 'Mínimo', 'Situação']],
+    body: produtos.map((p) => {
+      const base = (p.niveisVenda || []).find((n) => n.ehBase);
+      return [
+        p.nome,
+        p.tipo || '—',
+        base ? base.nome : '—',
+        base ? formatBRL(base.preco) : '—',
+        p.quantidade,
+        p.estoqueMinimo,
+        p.quantidade <= p.estoqueMinimo ? 'Estoque baixo' : 'OK',
+      ];
+    }),
+    headStyles: { fillColor: [240, 100, 92] },
+    styles: { fontSize: 9 },
+    foot: [['', '', '', '', totalUnidades, '', 'Total de unidades']],
+    footStyles: { fillColor: [253, 236, 236], textColor: [20, 20, 20], fontStyle: 'bold' },
+  });
+
+  doc.save(`relatorio-estoque-${Date.now()}.pdf`);
+}

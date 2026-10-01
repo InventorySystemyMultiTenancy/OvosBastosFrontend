@@ -1,6 +1,6 @@
-export function Table({ columns, rows, rowKey, emptyMessage = 'Nenhum registro encontrado.' }) {
+export function Table({ columns, rows, rowKey, emptyMessage = 'Nenhum registro encontrado.', className = '', wrapRef }) {
   return (
-    <div className="table-wrap">
+    <div className={`table-wrap ${className}`.trim()} ref={wrapRef}>
       <table>
         <thead>
           <tr>

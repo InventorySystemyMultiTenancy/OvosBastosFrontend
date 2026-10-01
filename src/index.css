@@ -1,7 +1,7 @@
 :root {
-  --color-bg: #fffaf7;
+  --color-bg: #f5f6f8;
   --color-surface: #ffffff;
-  --color-border: #f1ded9;
+  --color-border: #eaecf1;
 
   --color-primary: #f0645c;
   --color-primary-dark: #cf1717;
@@ -9,19 +9,31 @@
   --color-primary-light: #f5a3a3;
   --color-primary-soft: #fdecec;
 
-  --color-text: #1f1d1d;
-  --color-text-muted: #78706d;
+  --color-text: #1c1d21;
+  --color-text-muted: #8b8e98;
 
-  --color-success: #1f9d55;
+  --color-success: #1fa15a;
   --color-success-soft: #e6f7ec;
-  --color-warning: #b8790a;
+  --color-warning: #d98a1c;
   --color-warning-soft: #fdf1de;
-  --color-danger: #cf1717;
+  --color-danger: #e0433c;
   --color-danger-soft: #fdecec;
+  --color-blue: #3a7bf2;
+  --color-blue-soft: #e9f0fe;
+  --color-purple: #8b5cf6;
+  --color-purple-soft: #f1ebfe;
 
-  --radius: 12px;
-  --shadow-sm: 0 1px 2px rgba(31, 29, 29, 0.06);
-  --shadow-md: 0 8px 24px rgba(240, 100, 92, 0.12);
+  --sidebar-bg-top: #f5960c;
+  --sidebar-bg-bottom: #ec8f0a;
+  --sidebar-width: 252px;
+  --sidebar-width-colapsada: 72px;
+  --sidebar-text: rgba(255, 255, 255, 0.68);
+  --sidebar-text-active: #ffffff;
+
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow-sm: 0 1px 2px rgba(20, 16, 15, 0.05);
+  --shadow-md: 0 12px 28px rgba(20, 16, 15, 0.08);
 
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   color-scheme: light;
@@ -33,6 +45,25 @@
 
 html, body, #root {
   height: 100%;
+}
+
+html, body {
+  /* Rede de segurança: nada no site deve empurrar a largura além da viewport no mobile.
+     Cada componente já é responsivo por conta própria — isso é só o último backstop pra
+     garantir que nunca aparece scroll horizontal, mesmo se algo escapar (ex: a sidebar
+     fixed+transform fora da tela, que sem isso conta pra scrollWidth do documento). */
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 body {
@@ -69,91 +100,418 @@ a {
 .app-shell {
   display: flex;
   min-height: 100vh;
+  background: var(--color-bg);
 }
 
-.sidebar {
-  width: 240px;
-  flex-shrink: 0;
-  background: linear-gradient(180deg, var(--color-primary-darker), var(--color-primary-dark));
-  color: #fff;
+.app-main {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 24px 16px;
+  margin-left: var(--sidebar-width);
+  transition: margin-left 0.25s ease;
+}
+
+/* ---------- Sidebar ---------- */
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--sidebar-width);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, var(--sidebar-bg-top), var(--sidebar-bg-bottom));
+  color: var(--sidebar-text);
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: width 0.25s ease;
+}
+
+.sidebar-toggle {
+  display: none;
+}
+
+@media (min-width: 901px) {
+  /* Botãozinho "puxador" na quina direita da sidebar, sempre na mesma altura — recolhe
+     pra virar só a logo + a seta, expande de volta ao clicar de novo. Só no desktop; no
+     mobile a navegação já é pelo menu hambúrguer.
+     position:fixed (não é filho da <aside>) — assim ele fica por cima da sidebar E da
+     página ao mesmo tempo, sem ser cortado pelo overflow:hidden da sidebar. */
+  .sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 50%;
+    left: calc(var(--sidebar-width) - 13px);
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 999px;
+    border: 2px solid var(--color-primary-dark);
+    background: #fff;
+    color: var(--color-primary-dark);
+    /* Reforça o contorno vermelho com um brilho por trás — o branco sozinho não destacava
+       o suficiente em cima do laranja. */
+    box-shadow: var(--shadow-sm), 0 0 10px rgba(207, 23, 23, 0.5);
+    z-index: 32;
+    transition: left 0.25s ease, background 0.15s ease;
+  }
+
+  .sidebar-toggle.is-colapsada {
+    left: calc(var(--sidebar-width-colapsada) - 13px);
+  }
+
+  .sidebar-toggle:hover {
+    background: var(--color-primary-soft);
+    color: var(--color-primary-darker);
+  }
+
+  .sidebar-toggle-icone {
+    width: 14px;
+    height: 14px;
+    transform: rotate(-90deg);
+    transition: transform 0.2s ease;
+  }
+
+  .sidebar-toggle-icone.is-colapsada {
+    transform: rotate(90deg);
+  }
+
+  .sidebar.is-colapsada {
+    width: var(--sidebar-width-colapsada);
+  }
+
+  .sidebar.is-colapsada .sidebar-brand-text,
+  .sidebar.is-colapsada .sidebar-nav,
+  .sidebar.is-colapsada .sidebar-footer {
+    display: none;
+  }
+
+  .sidebar.is-colapsada .sidebar-brand {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .app-main.is-colapsada {
+    margin-left: var(--sidebar-width-colapsada);
+  }
 }
 
 .sidebar-brand {
-  font-size: 20px;
-  font-weight: 700;
-  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 22px 20px;
+  flex-shrink: 0;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.15s ease;
 }
 
-.sidebar-tagline {
-  font-size: 12px;
-  opacity: 0.75;
-  margin-bottom: 28px;
+.sidebar-brand:hover {
+  opacity: 0.85;
+}
+
+.sidebar-brand-logo {
+  height: 42px;
+  width: 42px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+  /* Fundo agora é laranja mostarda — sem esse brilho vermelho atrás, a logo (e o
+     branco/creme dela) fica apagada, quase invisível contra o laranja. */
+  filter: drop-shadow(0 0 14px rgba(207, 23, 23, 0.85));
+}
+
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sidebar-brand-name {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #fff;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.sidebar-brand-tag {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
 }
 
 .sidebar-nav {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  flex: 1;
+  gap: 3px;
+  padding: 8px 14px;
 }
 
 .sidebar-link {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 10px 14px;
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.85);
+  border-radius: 10px;
+  color: var(--sidebar-text);
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-link-icon {
+  flex-shrink: 0;
+  opacity: 0.85;
 }
 
 .sidebar-link:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--sidebar-text-active);
 }
 
 .sidebar-link.active {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--color-primary-dark);
   color: #fff;
+  box-shadow: 0 4px 14px rgba(207, 23, 23, 0.35);
+}
+
+.sidebar-link.active .sidebar-link-icon {
+  opacity: 1;
+}
+
+.sidebar-footer {
+  flex-shrink: 0;
+  padding: 16px 18px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  /* Fade vermelho pra escurecer e destacar essa faixa — sem isso o nome do usuário fica
+     boiando no mesmo laranja do resto da sidebar, sem nenhuma separação visual. */
+  background: linear-gradient(180deg, rgba(115, 13, 13, 0.55), rgba(30, 6, 4, 0.65));
 }
 
 .sidebar-user {
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
-  padding-top: 16px;
-  font-size: 13px;
-}
-
-.sidebar-user-name {
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-
-.sidebar-user-role {
-  opacity: 0.75;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 12px;
 }
 
-.sidebar-logout {
-  background: rgba(255, 255, 255, 0.15);
-  border: none;
+.sidebar-user-avatar {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--color-primary-dark);
   color: #fff;
-  padding: 8px 12px;
-  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.sidebar-user-avatar:disabled {
+  cursor: default;
+}
+
+.sidebar-user-avatar-img {
   width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sidebar-user-avatar-hover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 9, 6, 0.55);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.sidebar-user-avatar-hover svg {
+  width: 15px;
+  height: 15px;
+}
+
+.sidebar-user-avatar:hover .sidebar-user-avatar-hover,
+.sidebar-user-avatar:disabled .sidebar-user-avatar-hover {
+  opacity: 1;
+}
+
+.sidebar-user-avatar-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: sidebar-avatar-spin 0.7s linear infinite;
+}
+
+@keyframes sidebar-avatar-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-user-avatar-spinner {
+    animation: none;
+  }
+}
+
+.sidebar-user-erro-foto {
+  color: #ffb4b4;
+  font-size: 11px;
+  margin: -4px 0 8px;
+}
+
+.sidebar-user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.sidebar-user-name {
   font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-user-role {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.sidebar-logout {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Antes era quase transparente (0.06 de opacidade) — some de vez no laranja/vermelho
+     do fundo. Vira um botão branco de verdade, com o texto na cor de destaque. */
+  background: #fff;
+  border: none;
+  color: var(--color-primary-dark);
+  padding: 9px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
 }
 
 .sidebar-logout:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-darker);
 }
+
+.sidebar-backdrop {
+  display: none;
+}
+
+.mobile-topbar {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .app-main {
+    margin-left: 0;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    background: rgba(15, 9, 6, 0.45);
+    border: none;
+    padding: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .sidebar-backdrop.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    background: var(--sidebar-bg-top);
+    color: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 15;
+  }
+
+  .mobile-menu-btn {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: none;
+    border: none;
+    padding: 4px;
+  }
+
+  .mobile-menu-btn span {
+    width: 20px;
+    height: 2px;
+    background: #fff;
+    border-radius: 2px;
+    display: block;
+  }
+}
+
+/* ---------- Conteúdo do admin ---------- */
 
 .main-content {
   flex: 1;
+}
+
+.main-content-inner {
   padding: 32px 40px;
-  overflow-x: auto;
+  max-width: 1400px;
+}
+
+@media (max-width: 640px) {
+  .main-content-inner {
+    padding: 20px 16px;
+  }
 }
 
 .page-header {
@@ -169,6 +527,28 @@ a {
   color: var(--color-text-muted);
   margin-top: 4px;
   font-size: 14px;
+}
+
+.page-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.page-tab {
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.page-tab.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
 }
 
 /* ---------- Buttons ---------- */
@@ -228,9 +608,23 @@ a {
   box-shadow: var(--shadow-sm);
 }
 
+/* Fundo bem clarinho pra destacar os cards que agora ficam recolhidos por padrão —
+   chama a atenção pra abrir sem gritar. Tom mais claro que --color-warning-soft/
+   --color-purple-soft de propósito, pra não se confundir com as barrinhas e selos que
+   já usam essas cores dentro do card (senão a barra do gráfico "some" no fundo). */
+.dash-card-amber {
+  background: #fdf8ee;
+  border-color: #f5e4bf;
+}
+
+.dash-card-purple {
+  background: #f9f6fe;
+  border-color: #e2d3fc;
+}
+
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 16px;
   margin-bottom: 28px;
 }
@@ -254,6 +648,1335 @@ a {
   margin-top: 4px;
 }
 
+/* ---------- Relatórios ---------- */
+
+.relatorios-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 18px;
+  margin-bottom: 32px;
+}
+
+.relatorio-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+}
+
+.relatorio-card-icone {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--color-primary-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  margin-bottom: 14px;
+}
+
+.relatorio-card h3 {
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.relatorio-card p {
+  font-size: 13px;
+  line-height: 1.5;
+  flex: 1;
+  margin-bottom: 16px;
+}
+
+.relatorio-card .btn {
+  align-self: flex-start;
+}
+
+/* ---------- Caixa ---------- */
+
+.caixa-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 22px;
+  align-items: start;
+}
+
+/* Sem isso, um grid item mantém min-width: auto por padrão — se qualquer coisa lá dentro
+   (busca, pills de categoria) tiver um mínimo de conteúdo maior que o espaço disponível, a
+   coluna toda empurra a página pra largura maior em vez de deixar os cards de produto
+   quebrarem linha, e sobra só rolagem lateral. min-width: 0 deixa a coluna encolher de
+   verdade e a grade de produtos (que já quebra linha sozinha) assume o controle. */
+.caixa-produtos-col {
+  min-width: 0;
+}
+
+.caixa-filtros {
+  margin-bottom: 18px;
+  position: relative;
+}
+
+.caixa-busca-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.caixa-icone-campo {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.caixa-icone-campo-icone {
+  position: absolute;
+  left: 14px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.caixa-icone-campo input {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: 14px;
+  /* !important de propósito: esse padding-left é o que abre espaço pro ícone da lupa não
+     ficar por cima do texto. Já perdeu pra um "padding" atalho mais específico declarado
+     depois (2x) — regras de padding específicas de contexto (ex: campos mais compactos
+     dentro do carrinho) só devem mexer em top/right/bottom, nunca no left. */
+  padding-left: 40px !important;
+}
+
+.caixa-icone-campo input:focus {
+  outline: 2px solid var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+.caixa-categorias-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.caixa-ver-categorias-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.caixa-ver-categorias-btn:hover {
+  border-color: var(--color-primary-light);
+  color: var(--color-primary-darker);
+}
+
+.caixa-categorias-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 10;
+  margin-top: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 180px;
+}
+
+.caixa-categorias-dropdown button {
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.caixa-categorias-dropdown button:hover {
+  background: var(--color-primary-soft);
+}
+
+.caixa-categorias-dropdown button.is-active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.caixa-categorias {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.caixa-categoria-pill {
+  flex-shrink: 0;
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.caixa-categoria-pill.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.caixa-unidade-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+/* Dentro do page-header (ao lado do título "Caixa") não precisa da margem extra —
+   o page-header já cuida do espaçamento embaixo dele. */
+.page-header .caixa-unidade-bar {
+  margin-bottom: 0;
+}
+
+.caixa-unidade-lista {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.caixa-unidade-pill {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.caixa-unidade-pill button:first-child {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background: none;
+  border: none;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.caixa-unidade-pill button:first-child strong {
+  font-size: 13px;
+}
+
+.caixa-unidade-pill button:first-child span {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.caixa-unidade-total {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-success);
+  margin-top: 2px;
+}
+
+.caixa-unidade-pill.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.caixa-unidade-pill.is-active button:first-child strong {
+  color: var(--color-primary);
+}
+
+.caixa-unidade-acoes {
+  display: flex;
+  gap: 2px;
+  padding-right: 4px;
+}
+
+.caixa-unidade-acoes button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  padding: 2px 4px;
+}
+
+.caixa-unidade-acoes button:hover {
+  color: var(--color-text);
+}
+
+.caixa-unidade-nova {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px dashed var(--color-border);
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.caixa-unidade-nova svg {
+  width: 16px;
+  height: 16px;
+}
+
+.caixa-unidade-nova:hover {
+  border-color: var(--color-primary);
+  border-style: solid;
+  color: var(--color-primary-dark);
+}
+
+.caixa-sessao-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+
+.caixa-abertura-gate {
+  max-width: 460px;
+  margin: 40px auto;
+  text-align: center;
+}
+
+.caixa-abertura-icone {
+  font-size: 36px;
+  margin-bottom: 8px;
+}
+
+.caixa-abertura-gate h2 {
+  margin: 0 0 8px;
+}
+
+.caixa-abertura-form {
+  text-align: left;
+  margin-top: 20px;
+}
+
+.caixa-abertura-form .btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.caixa-fechamento-resumo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.caixa-fechamento-resumo > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--color-text-muted);
+}
+
+.caixa-fechamento-resumo > div.caixa-fechamento-resumo-total {
+  border-top: 1px dashed var(--color-border);
+  padding-top: 8px;
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.caixa-produtos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr));
+  gap: 18px;
+}
+
+.caixa-produto-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.caixa-produto-card.is-esgotado {
+  cursor: default;
+}
+
+.caixa-produto-card:not(.is-esgotado):hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary-light);
+}
+
+.caixa-produto-img {
+  width: 100%;
+  height: 130px;
+  overflow: hidden;
+  background: var(--color-primary-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  flex-shrink: 0;
+}
+
+.caixa-produto-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.caixa-produto-card.is-esgotado .caixa-produto-img {
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+.caixa-produto-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px 16px;
+}
+
+.caixa-produto-nome {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.caixa-produto-unidade {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-primary-dark);
+}
+
+.caixa-produto-card.is-esgotado .caixa-produto-nome,
+.caixa-produto-card.is-esgotado .caixa-produto-unidade {
+  color: var(--color-text-muted);
+}
+
+.caixa-produto-rodape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.caixa-produto-preco {
+  font-weight: 700;
+  color: var(--color-text);
+  font-size: 16px;
+}
+
+.caixa-produto-esgotado-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-danger);
+}
+
+.caixa-produto-add {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.15s, transform 0.1s;
+}
+
+.caixa-produto-add svg {
+  width: 16px;
+  height: 16px;
+}
+
+.caixa-produto-add:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+  transform: scale(1.06);
+}
+
+.caixa-produto-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Card de embalagem/"caixa" (ex: caixa com 30 bandejas) — mesmo card de produto, só com uma
+   borda e uma tag pra diferenciar rápido do card avulso do mesmo produto na grade. */
+.caixa-produto-card-embalagem {
+  border-color: var(--color-purple);
+}
+
+.caixa-produto-tag-embalagem {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1;
+  background: var(--color-purple);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.caixa-produto-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  box-shadow: var(--shadow-sm);
+}
+
+.caixa-carregar-mais-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.caixa-carregar-mais-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.caixa-carregar-mais-btn:hover {
+  border-color: var(--color-primary-light);
+  color: var(--color-primary-darker);
+}
+
+.caixa-carrinho-col {
+  position: sticky;
+  top: 24px;
+}
+
+.caixa-carrinho-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 901px) {
+  /* No desktop o card é sticky (.caixa-carrinho-col) — mas sticky não ajuda em nada se o
+     próprio card fica mais alto que a tela (ex: forma de pagamento "Pago por fora" some com
+     um texto explicativo + seletor débito/crédito a mais): o botão de finalizar, lá embaixo,
+     só aparece rolando a página inteira. Travando a altura no viewport e deixando o card em
+     si rolar resolve isso pra qualquer conteúdo extra que apareça aqui no futuro, não só
+     esse caso — sem quebrar o mobile, que já tem sua própria rolagem em tela cheia. */
+  .caixa-carrinho-card {
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+}
+
+.caixa-carrinho-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.caixa-carrinho-topo-acoes {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.caixa-fechar-carrinho-mobile {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.caixa-carrinho-titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.caixa-carrinho-titulo svg {
+  color: var(--color-primary);
+}
+
+.caixa-limpar-btn {
+  background: none;
+  border: none;
+  color: var(--color-danger);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.caixa-carrinho-vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 36px 12px;
+  color: var(--color-text-muted);
+}
+
+.caixa-carrinho-vazio svg {
+  width: 44px;
+  height: 44px;
+  color: var(--color-border);
+  margin-bottom: 6px;
+}
+
+.caixa-carrinho-vazio p {
+  font-weight: 700;
+  color: var(--color-text);
+  font-size: 15px;
+}
+
+.caixa-carrinho-vazio span {
+  font-size: 13px;
+}
+
+.caixa-itens-lista {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Lista de itens é a única parte do carrinho que rola por dentro — assim o total, a
+     forma de pagamento e o botão de finalizar continuam sempre visíveis sem precisar
+     rolar a box inteira, mesmo com bastante item no pedido. */
+  overflow-y: auto;
+  max-height: 190px;
+  flex-shrink: 1;
+  /* Barra de rolagem sempre visível (fina) — sinaliza que há mais itens abaixo mesmo
+     antes do usuário passar o mouse ou tocar na lista. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.caixa-itens-lista::-webkit-scrollbar {
+  width: 5px;
+}
+
+.caixa-itens-lista::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+}
+
+.caixa-itens-lista li {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.caixa-item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.caixa-item-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.caixa-item-info span {
+  font-size: 11px;
+}
+
+.caixa-item-alternar-unidade {
+  align-self: flex-start;
+  margin-top: 2px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
+.caixa-item-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-primary-soft);
+  border-radius: 999px;
+  padding: 3px 6px;
+}
+
+.caixa-item-stepper button {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.caixa-item-stepper button:disabled {
+  opacity: 0.4;
+}
+
+.caixa-item-subtotal {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.caixa-item-remover {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.caixa-item-remover:hover {
+  color: var(--color-danger);
+}
+
+.caixa-resumo {
+  border-top: 1px dashed var(--color-border);
+  padding-top: 10px;
+  flex-shrink: 0;
+}
+
+.caixa-resumo-linha {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+
+.caixa-resumo-linha strong {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.caixa-resumo-ajustes {
+  display: flex;
+  gap: 10px;
+}
+
+.caixa-resumo-ajustes .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.caixa-resumo-total-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-primary-darker);
+}
+
+.caixa-campo-cliente {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.caixa-formas-pagamento {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.caixa-forma-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.caixa-forma-icone {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+}
+
+.caixa-forma-icone svg {
+  width: 17px;
+  height: 17px;
+}
+
+.caixa-forma-btn.is-maquininha .caixa-forma-icone { color: var(--color-blue); }
+.caixa-forma-btn.is-dinheiro .caixa-forma-icone { color: var(--color-success); }
+.caixa-forma-btn.is-dividido .caixa-forma-icone { color: var(--color-purple); }
+
+.caixa-forma-btn.is-maquininha.is-active { border-color: var(--color-blue); background: var(--color-blue-soft); }
+.caixa-forma-btn.is-maquininha.is-active .caixa-forma-icone { background: var(--color-blue); color: #fff; }
+.caixa-forma-btn.is-dinheiro.is-active { border-color: var(--color-success); background: var(--color-success-soft); }
+.caixa-forma-btn.is-dinheiro.is-active .caixa-forma-icone { background: var(--color-success); color: #fff; }
+.caixa-forma-btn.is-dividido.is-active { border-color: var(--color-purple); background: var(--color-purple-soft); }
+.caixa-forma-btn.is-dividido.is-active .caixa-forma-icone { background: var(--color-purple); color: #fff; }
+
+.caixa-forma-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.caixa-forma-maquininha-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.caixa-dividir-cartao-btn {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 3px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.caixa-dividir-cartao-btn.is-active {
+  border-color: var(--color-blue);
+  background: var(--color-blue-soft);
+  color: var(--color-blue);
+}
+
+.caixa-dividir-cartao-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.caixa-aviso-maquininha {
+  margin-top: 8px;
+  margin-bottom: 0;
+  font-size: 12px;
+  padding: 8px 10px;
+}
+
+/* Fallback genérico de "selecionado" pro .caixa-forma-btn quando usado fora do trio
+   Maquininha/Dinheiro/Dividir (ex: o seletor Débito/Crédito de "pago por fora") — os `is-*`
+   específicos acima continuam vencendo por terem mais classes na seletor. */
+.caixa-forma-btn.is-active {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.caixa-tipo-cartao-manual {
+  display: flex;
+  gap: 8px;
+}
+
+.caixa-tipo-cartao-manual .caixa-forma-btn {
+  flex: 1;
+}
+
+/* Opção de pagamento "avulsa": venda paga na maquininha por fora do sistema, lançada aqui já
+   concluída. Fica visualmente separada do trio principal (Maquininha/Dinheiro/Dividir) — cor
+   âmbar de aviso pra sinalizar que é um caminho alternativo/menos comum, não mais um botão. */
+.caixa-cartao-manual-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.caixa-cartao-manual-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.caixa-cartao-manual-btn.is-active {
+  border-style: solid;
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.caixa-troco-box {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.caixa-troco-valor {
+  font-weight: 700;
+  color: var(--color-success);
+  margin-top: 6px;
+}
+
+.caixa-troco-falta {
+  font-weight: 700;
+  color: var(--color-danger);
+  margin-top: 6px;
+}
+
+.caixa-finalizar-btn {
+  width: 100%;
+  justify-content: center;
+  font-size: 15px;
+  padding: 12px;
+  flex-shrink: 0;
+}
+
+/* Campos do carrinho um pouco mais compactos que o padrão do resto do sistema —
+   ajuda a caber tudo (itens, total, pagamento, botão) sem precisar rolar a box. */
+.caixa-carrinho-card .field {
+  gap: 4px;
+}
+
+.caixa-carrinho-card .field label {
+  font-size: 12px;
+}
+
+.caixa-carrinho-card .field input {
+  padding: 8px 10px;
+}
+
+.caixa-carrinho-card .caixa-icone-campo input {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.caixa-recibo-wrap {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.caixa-recibo {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  padding: 32px;
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+}
+
+.caixa-recibo-icone {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  border-radius: 999px;
+  background: var(--color-success);
+  color: #fff;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.caixa-recibo-itens {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  text-align: left;
+}
+
+.caixa-recibo-itens li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.caixa-recibo-total {
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 10px;
+  color: var(--color-primary-darker);
+}
+
+/* ---------- Impressão do comprovante (bobina térmica ~58mm, não A4) ----------
+   .recibo-termico marca só o trecho que deve sair no papel — tudo mais na página
+   (sidebar, cabeçalho do modal, botões) fica escondido no print via visibility.
+   @page força o navegador a tentar usar a largura da bobina em vez do A4 padrão;
+   a impressora ainda pode ter sua própria config de papel no driver do SO, isso aqui
+   é o que dá pro navegador mandar certo. */
+@media print {
+  /* Não dá pra confiar que left:0 comece depois da margem de @page — em algumas engines de
+     impressão isso é calculado contra o papel inteiro (não a área já descontada da margem),
+     e foi isso que cortou primeiro a esquerda, depois a direita. Centralizar com
+     left:0; right:0; margin:auto resolve os dois casos de uma vez: com uma largura bem mais
+     estreita que a bobina, sobra folga solta dos dois lados não importa qual das duas
+     interpretações o navegador usar. */
+  @page {
+    size: 58mm auto;
+    margin: 2mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .recibo-termico,
+  .recibo-termico * {
+    visibility: visible;
+  }
+
+  .recibo-termico {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 46mm;
+    margin: 0 auto;
+    box-sizing: border-box;
+    padding: 0;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: #000;
+  }
+
+  /* Bobina térmica imprime por calor — traço fino sai fraco. Negrito de verdade (não só
+     o font-weight: 600 da base) garante contraste em qualquer impressora dessas. */
+  .recibo-termico strong,
+  .recibo-termico b {
+    font-weight: 700;
+  }
+
+  .recibo-termico h2,
+  .recibo-termico h3 {
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+    margin: 0 0 6px;
+  }
+
+  .recibo-termico p {
+    margin: 2px 0;
+  }
+
+  .recibo-termico .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    border-top: 1px dashed #000;
+    padding-top: 4px;
+    margin: 6px 0 4px;
+  }
+
+  .recibo-termico .caixa-recibo-itens,
+  .recibo-termico ul {
+    font-size: 11px;
+    padding-left: 0;
+  }
+
+  .recibo-termico .caixa-recibo-total {
+    font-size: 13px;
+    font-weight: 700;
+    border-top: 1px dashed #000;
+    padding-top: 4px;
+    color: #000;
+  }
+
+  .recibo-termico .caixa-recibo-icone {
+    display: none;
+  }
+}
+
+/* Carrinho flutuante (mobile) — escondido em telas largas, onde o carrinho já fica
+   sempre visível na coluna lateral. */
+.caixa-fab-carrinho {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .caixa-layout {
+    grid-template-columns: 1fr;
+  }
+
+  /* No mobile o carrinho não fica mais numa coluna ao lado — vira uma tela cheia que só
+     aparece quando o botão flutuante é clicado, pra sobrar espaço pros produtos. */
+  .caixa-carrinho-col {
+    display: none;
+  }
+
+  .caixa-carrinho-col.is-aberto-mobile {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    background: var(--color-bg);
+    padding: 14px;
+    /* Rede de segurança: se mesmo compacto o conteúdo não couber (tela muito pequena +
+       muitos itens), a tela toda do carrinho rola em vez de quebrar o layout — mas o
+       normal é caber tudo sem precisar disso. */
+    overflow-y: auto;
+  }
+
+  .caixa-carrinho-col.is-aberto-mobile .caixa-carrinho-card {
+    height: 100%;
+    min-height: 100%;
+    border: none;
+    box-shadow: none;
+    padding: 4px;
+  }
+
+  .caixa-carrinho-col.is-aberto-mobile .caixa-itens-lista {
+    flex: 1 1 auto;
+    max-height: none;
+  }
+
+  .caixa-carrinho-col.is-aberto-mobile form {
+    flex-shrink: 0;
+  }
+
+  .caixa-fechar-carrinho-mobile {
+    display: flex;
+  }
+
+  .caixa-fab-carrinho {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 55;
+    width: 54px;
+    height: 54px;
+    border-radius: 999px;
+    border: none;
+    background: var(--color-success);
+    color: #fff;
+    box-shadow: var(--shadow-md);
+  }
+
+  .caixa-fab-carrinho svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .caixa-fab-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--color-bg);
+  }
+}
+
+@media (max-width: 480px) {
+  .caixa-busca-row {
+    flex-wrap: wrap;
+  }
+
+  .caixa-icone-campo {
+    flex-basis: 100%;
+  }
+
+  .caixa-categorias-menu {
+    flex: 1;
+  }
+
+  .caixa-ver-categorias-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .caixa-categorias-dropdown {
+    left: 0;
+    right: 0;
+  }
+
+  /* Cards de produto bem menores — cabe mais gente na tela sem rolar tanto. */
+  .caixa-produtos-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(104px, 100%), 1fr));
+    gap: 8px;
+  }
+
+  .caixa-produto-img {
+    height: 78px;
+    font-size: 24px;
+  }
+
+  .caixa-produto-corpo {
+    padding: 8px 8px 10px;
+    gap: 2px;
+  }
+
+  .caixa-produto-nome {
+    font-size: 12px;
+    line-height: 1.25;
+  }
+
+  .caixa-produto-unidade {
+    font-size: 10px;
+  }
+
+  .caixa-produto-rodape {
+    margin-top: 4px;
+  }
+
+  .caixa-produto-preco {
+    font-size: 13px;
+  }
+
+  .caixa-produto-esgotado-label {
+    font-size: 11px;
+  }
+
+  .caixa-produto-add {
+    width: 26px;
+    height: 26px;
+  }
+
+  .caixa-produto-add svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .caixa-produto-badge {
+    top: 6px;
+    right: 6px;
+    min-width: 18px;
+    height: 18px;
+    font-size: 11px;
+  }
+}
+
 /* ---------- Table ---------- */
 
 .table-wrap {
@@ -270,7 +1993,7 @@ table {
 }
 
 thead th {
-  text-align: left;
+  text-align: center;
   padding: 12px 16px;
   background: var(--color-primary-soft);
   color: var(--color-primary-darker);
@@ -282,6 +2005,14 @@ tbody td {
   padding: 12px 16px;
   border-top: 1px solid var(--color-border);
   white-space: nowrap;
+  text-align: center;
+}
+
+/* Colunas de ações (Editar/Remover etc.) usam um <div style="display:flex"> pra enfileirar
+   os botões — text-align não centraliza um bloco, então centralizamos o conteúdo flex em
+   si. Não interfere em divs que já definem o próprio justify-content (ex: fora de tabela). */
+tbody td > div {
+  justify-content: center;
 }
 
 tbody tr:hover {
@@ -292,6 +2023,273 @@ tbody tr:hover {
   text-align: center;
   color: var(--color-text-muted);
   padding: 32px;
+}
+
+/* Matriz de estoque (Produtos > Estoque por Unidade): cada célula é editável in-place pra
+   corrigir a contagem física direto, sem precisar de um Recebimento. */
+.matriz-estoque-input {
+  width: 72px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  text-align: center;
+  font-size: 13px;
+}
+
+.matriz-estoque-input:focus {
+  outline: 2px solid var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+/* ---------- Lucro por Produto: linhas de detalhe por nível de venda ---------- */
+
+.linha-lucro-produto.is-expansivel {
+  cursor: pointer;
+}
+
+.linha-lucro-seta {
+  width: 20px;
+  color: var(--color-text-muted);
+}
+
+.linha-lucro-nivel td {
+  background: var(--color-primary-soft);
+}
+
+.linha-lucro-nivel-nome {
+  padding-left: 32px !important;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+/* ---------- Tabela de Vendas: cor diferente por coluna ---------- */
+/* Tons "600/700" bem saturados — mantêm contraste confortável em fundo branco (a maioria
+   passa AA pra texto normal) e ficam bem distintos um do outro coluna a coluna. */
+
+.vendas-col-id,
+.vendas-col-cliente,
+.vendas-col-vendedor,
+.vendas-col-unidade,
+.vendas-col-pagamento,
+.vendas-col-total,
+.vendas-col-data {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.vendas-col-id { color: #4f46e5; background: #eef2ff; font-weight: 700; }
+.vendas-col-cliente { color: #2563eb; background: #eff6ff; font-weight: 600; }
+.vendas-col-vendedor { color: #7c3aed; background: #f5f3ff; font-weight: 600; }
+.vendas-col-unidade { color: #0d9488; background: #f0fdfa; font-weight: 600; }
+.vendas-col-pagamento { color: #db2777; background: #fdf2f8; font-weight: 600; }
+.vendas-col-total { color: #16a34a; background: #f0fdf4; font-weight: 700; }
+.vendas-col-data { color: #c2410c; background: #fff7ed; font-weight: 600; }
+
+/* Tabela de Vendas ganhou colunas demais (Data+hora, Origem) e passou a exigir scroll
+   lateral pra ver tudo — aqui deixamos ela mais densa (menos padding, fontes menores) pra
+   caber mais sem rolar, e o pouco que sobrar de scroll fica alcançável pelos botões de seta
+   logo acima da tabela, sem precisar descer até a barra de rolagem no rodapé. */
+.vendas-tabela table {
+  /* A tabela genérica força width:100%, que espalha as colunas mesmo quando o conteúdo
+     (badges curtos) não precisa disso, criando vãos enormes entre as colunas. Aqui deixamos
+     a largura ser a do conteúdo — o scroll lateral do wrapper cuida do resto se não couber. */
+  width: auto;
+}
+
+.vendas-tabela thead th,
+.vendas-tabela tbody td {
+  text-align: left;
+}
+
+.vendas-tabela thead th {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.vendas-tabela tbody td {
+  padding: 8px 10px;
+}
+
+.vendas-tabela .vendas-col-id,
+.vendas-tabela .vendas-col-cliente,
+.vendas-tabela .vendas-col-vendedor,
+.vendas-tabela .vendas-col-unidade,
+.vendas-tabela .vendas-col-pagamento,
+.vendas-tabela .vendas-col-total,
+.vendas-tabela .vendas-col-data,
+.vendas-tabela .badge {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.vendas-tabela .btn-sm {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+/* Nome de cliente enorme era o que causava os vãos gigantes entre colunas — truncado em
+   20 caracteres, e o "..." vira um botão pra revelar o resto sob demanda, em vez de sempre
+   reservar espaço pro nome inteiro. */
+.vendas-nome-toggle {
+  border: none;
+  background: none;
+  padding: 0;
+  margin-left: 2px;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.vendas-tabela-container {
+  position: relative;
+}
+
+.vendas-tabela-scroll-botoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.vendas-scroll-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vendas-scroll-btn:hover {
+  background: var(--color-primary-soft);
+}
+
+/* ---------- Filtros de Vendas ---------- */
+
+.vendas-filtros {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.vendas-filtro-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 190px;
+}
+
+.vendas-filtro-campo label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.vendas-filtro-campo select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  padding: 10px 36px 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8e98' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center / 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.vendas-filtro-campo select:hover {
+  border-color: var(--color-primary-light);
+}
+
+.vendas-filtro-campo select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.vendas-filtro-limpar {
+  border: none;
+  background: none;
+  color: var(--color-danger);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 4px;
+  cursor: pointer;
+}
+
+.vendas-filtro-limpar:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Thumbnail de produto ---------- */
+
+.produto-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+}
+
+.produto-thumb-vazio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  background: var(--color-primary-soft);
+}
+
+.produto-thumb-lg {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  font-size: 28px;
+}
+
+/* ---------- Avatar de usuário (foto de perfil) ---------- */
+
+.usuario-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  display: block;
+  margin: 0 auto;
+}
+
+.usuario-thumb-vazio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-darker);
 }
 
 /* ---------- Badges ---------- */
@@ -314,14 +2312,156 @@ tbody tr:hover {
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 14px;
+}
+
+/* Formulário de "novo nível": mesma grade responsiva de .form-grid, só que o botão de submit
+   fica numa linha própria (não entra na grade de campos) pra nunca ficar espremido numa coluna
+   de ~200px ao lado de um <select>/<input> em telas médias. */
+.produto-embalagem-form-acao {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.produto-imagem-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.produto-imagem-campo {
+  margin-bottom: 14px;
+}
+
+/* Cada nível de venda é uma "linha" que pode ter até 8 elementos (foto, nome, preço, código de
+   barras, 3 botões condicionais, upload de foto) — em telas estreitas isso não cabe numa linha
+   só, então o layout é flex com wrap em vez de grid de colunas fixas: o que não couber desce
+   pra linha de baixo, nunca estoura a largura do card. */
+.produto-embalagens-lista {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.produto-embalagens-lista li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  padding: 10px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.produto-embalagem-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.produto-embalagem-nome {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.produto-embalagem-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 2 1 320px;
+  min-width: 0;
+}
+
+.produto-embalagem-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-soft);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.produto-embalagem-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.produto-embalagem-preco-input,
+.produto-embalagem-codigo-input {
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  font-size: 13px;
+  min-width: 0;
+}
+
+.produto-embalagem-preco-input {
+  width: 90px;
+  flex: 0 1 90px;
+}
+
+.produto-embalagem-codigo-input {
+  width: 150px;
+  flex: 1 1 150px;
+  max-width: 220px;
+}
+
+.produto-embalagem-preco-input:focus,
+.produto-embalagem-codigo-input:focus {
+  outline: 2px solid var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+.produto-embalagem-foto-btn {
+  position: relative;
+  cursor: pointer;
+  text-align: center;
+  overflow: hidden;
+}
+
+.produto-embalagem-foto-btn input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  /* Nos menores telas cada input de linha vira largura livre (some o "min-width" fixo) pra
+     não forçar a linha de ações a ficar mais larga que o card. */
+  .produto-embalagem-preco-input,
+  .produto-embalagem-codigo-input {
+    flex: 1 1 100px;
+    width: auto;
+  }
+
+  .produto-embalagem-acoes {
+    flex-basis: 100%;
+  }
 }
 
 .field {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .field label {
@@ -331,6 +2471,7 @@ tbody tr:hover {
 }
 
 .field input, .field select {
+  width: 100%;
   padding: 9px 12px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -366,6 +2507,20 @@ tbody tr:hover {
   box-shadow: var(--shadow-md);
 }
 
+.modal-box.is-largo {
+  max-width: 880px;
+}
+
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: 12px;
+  }
+
+  .modal-box {
+    padding: 18px;
+  }
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -390,20 +2545,89 @@ tbody tr:hover {
 /* ---------- Login ---------- */
 
 .login-shell {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #feab84, #f26556 55%, #f17966);
+  background: linear-gradient(180deg, var(--sidebar-bg-top), var(--sidebar-bg-bottom));
+  overflow: hidden;
+}
+
+.login-roleta {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 640px;
+  height: 640px;
+  margin: -320px 0 0 -320px;
+  animation: login-roleta-spin 26s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-roleta-item {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  font-size: 32px;
+  line-height: 1;
+  transform: translate(-50%, -50%) rotate(calc(360deg / var(--n) * var(--i))) translateY(-300px);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.18));
+  opacity: 0.85;
+}
+
+@keyframes login-roleta-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .login-card {
+  position: relative;
+  z-index: 1;
   background: var(--color-surface);
   border-radius: 16px;
   padding: 40px;
   width: 100%;
   max-width: 380px;
-  box-shadow: var(--shadow-md);
+  /* Brilho vermelho por trás do card branco — sem isso ele fica meio "apagado" em cima
+     do laranja mostarda do fundo, os dois ficam próximos demais em tom. */
+  box-shadow: 0 0 90px 12px rgba(207, 23, 23, 0.45), var(--shadow-md);
+}
+
+.login-logo {
+  display: block;
+  height: 84px;
+  width: 84px;
+  object-fit: contain;
+  margin: 0 auto 12px;
+  /* Mesmo motivo do logo da sidebar: precisa de destaque pra não sumir no laranja. */
+  filter: drop-shadow(0 0 22px rgba(207, 23, 23, 0.8));
+}
+
+@media (max-width: 480px) {
+  .login-shell {
+    padding: 20px;
+  }
+
+  .login-card {
+    padding: 28px 22px;
+  }
+
+  .login-roleta {
+    width: 400px;
+    height: 400px;
+    margin: -200px 0 0 -200px;
+  }
+
+  .login-roleta-item {
+    font-size: 24px;
+    transform: translate(-50%, -50%) rotate(calc(360deg / var(--n) * var(--i))) translateY(-180px);
+  }
 }
 
 .login-tag {
@@ -448,17 +2672,18 @@ tbody tr:hover {
   color: var(--color-text-muted);
 }
 
+.text-success {
+  color: var(--color-success);
+}
+
+.text-danger {
+  color: var(--color-danger);
+}
+
 .section-title {
   font-size: 16px;
   font-weight: 600;
   margin: 28px 0 12px;
-}
-
-.cart-line {
-  display: flex;
-  gap: 10px;
-  align-items: flex-end;
-  margin-bottom: 10px;
 }
 
 .alert-box {
@@ -468,4 +2693,1468 @@ tbody tr:hover {
   padding: 12px 16px;
   font-size: 13px;
   margin-bottom: 16px;
+}
+
+/* ---------- E-commerce / Catálogo (site principal) ---------- */
+
+.catalogo-theme {
+  --color-bg: #fff6e5;
+  --color-surface: rgba(255, 250, 240, 0.86);
+  --color-text: #3b2418;
+  --color-text-muted: #8a6a52;
+  --color-border: #e8d9c0;
+}
+
+.ecommerce-page-shell {
+  position: relative;
+  min-height: 100vh;
+  color: var(--color-text);
+}
+
+/* Vídeo de fundo fixo, atrás de todo o catálogo (header, grid, footer) */
+
+.ecommerce-bg-video {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #0f0906;
+}
+
+.ecommerce-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Header do catálogo */
+
+.catalogo-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(255, 246, 229, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.catalogo-header-top {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.catalogo-header-logo {
+  font-size: 19px;
+  font-weight: 700;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Ícone de ovo clicável 3x pra entrar no admin — usado no header e no footer */
+
+.icone-ovo-admin {
+  background: none;
+  border: none;
+  padding: 2px;
+  margin: 0;
+  font-size: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.icone-ovo-admin.is-pulsando {
+  transform: scale(1.35);
+}
+
+.logo-vrill-icone {
+  height: 52px;
+  width: 52px;
+  object-fit: contain;
+  display: block;
+}
+
+.catalogo-busca {
+  flex: 1;
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--color-text);
+  font-size: 14px;
+  max-width: 360px;
+}
+
+.catalogo-busca:focus {
+  outline: 2px solid var(--color-primary-light);
+}
+
+.catalogo-categorias {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 32px 14px;
+  max-width: 1200px;
+  margin: 0 auto;
+  scrollbar-width: thin;
+}
+
+.catalogo-categoria-pill {
+  flex-shrink: 0;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.catalogo-categoria-pill:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary-darker);
+}
+
+@media (max-width: 560px) {
+  .catalogo-header-top {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px 20px;
+    gap: 10px;
+  }
+
+  .catalogo-busca {
+    max-width: none;
+  }
+
+  .catalogo-categorias {
+    padding: 0 20px 14px;
+  }
+
+  .categoria-secao {
+    scroll-margin-top: 190px;
+  }
+}
+
+/* Apresentação da empresa (scroll reveal) */
+
+.empresa-showcase {
+  padding: 10vh 32px;
+  max-width: 1160px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.empresa-frases {
+  display: flex;
+  flex-direction: column;
+  gap: 16vh;
+}
+
+.empresa-frase {
+  display: flex;
+  will-change: transform, opacity;
+}
+
+.empresa-frase-esquerda {
+  justify-content: flex-start;
+}
+
+.empresa-frase-direita {
+  justify-content: flex-end;
+}
+
+.empresa-frase-card {
+  max-width: 640px;
+  background: var(--color-surface);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--color-border);
+  border-radius: 22px;
+  padding: 36px 40px;
+  box-shadow: var(--shadow-md);
+}
+
+.empresa-frase-card h3 {
+  font-size: clamp(26px, 4vw, 44px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.empresa-frase-card p {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--color-primary-dark);
+  margin: 14px 0 0;
+  line-height: 1.5;
+}
+
+.empresa-cta {
+  display: flex;
+  justify-content: center;
+  margin-top: 18vh;
+  will-change: transform, opacity;
+}
+
+.empresa-whatsapp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #25d366;
+  color: #fff;
+  text-decoration: none;
+  font-size: 17px;
+  font-weight: 700;
+  padding: 16px 32px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.empresa-whatsapp-btn:hover {
+  background: #1ebc59;
+  transform: translateY(-3px);
+}
+
+.empresa-whatsapp-btn span {
+  font-size: 20px;
+}
+
+@media (max-width: 720px) {
+  .empresa-showcase {
+    padding: 8vh 20px;
+  }
+
+  .empresa-frases {
+    gap: 10vh;
+  }
+
+  .empresa-frase-esquerda,
+  .empresa-frase-direita {
+    justify-content: center;
+  }
+
+  .empresa-frase-card {
+    padding: 26px 24px;
+  }
+
+  .empresa-cta {
+    margin-top: 10vh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .empresa-frase,
+  .empresa-cta {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* Footer do catálogo */
+
+.catalogo-footer {
+  margin-top: auto;
+  background: #3b2418;
+  color: rgba(255, 246, 229, 0.85);
+  padding: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.catalogo-footer-empresa strong {
+  font-size: 16px;
+  color: #fff6e5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.catalogo-footer-empresa p {
+  font-size: 13px;
+  opacity: 0.8;
+  margin-top: 4px;
+  max-width: 420px;
+}
+
+.catalogo-footer-credito {
+  font-size: 12px;
+  opacity: 0.7;
+  letter-spacing: 0.03em;
+}
+
+/* Catálogo */
+
+.ecommerce-catalog-section {
+  max-width: 1160px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 40px 32px 60px;
+}
+
+.catalogo-intro {
+  margin-bottom: 32px;
+}
+
+.catalogo-intro h2 {
+  font-size: clamp(34px, 5vw, 52px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #fff6e5;
+  text-shadow: 0 4px 18px rgba(15, 9, 6, 0.55), 0 2px 6px rgba(15, 9, 6, 0.4);
+}
+
+.categorias-lista {
+  max-width: 1160px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 32px 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 72px;
+}
+
+.categoria-secao {
+  scroll-margin-top: 150px;
+}
+
+.categoria-secao-titulo {
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  margin: 0 0 22px;
+  padding-left: 16px;
+  border-left: 5px solid var(--color-primary);
+}
+
+.ecommerce-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
+  row-gap: 48px;
+  column-gap: 28px;
+}
+
+.ecommerce-card {
+  background: var(--color-surface);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.ecommerce-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary-light);
+}
+
+.ecommerce-card.is-esgotado {
+  opacity: 0.6;
+}
+
+.ecommerce-card-media {
+  height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  background: linear-gradient(135deg, var(--color-primary-soft), #fff);
+}
+
+.ecommerce-card-media-foto {
+  padding: 0;
+  overflow: hidden;
+}
+
+.ecommerce-card-media-foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.ecommerce-card:hover .ecommerce-card-media-foto img {
+  transform: scale(1.06);
+}
+
+.ecommerce-card-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.ecommerce-card-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 22px;
+}
+
+.ecommerce-card-body h3 {
+  font-size: 16px;
+  margin: 2px 0 0;
+}
+
+.ecommerce-card-unidade {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  text-transform: capitalize;
+}
+
+.ecommerce-card-niveis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ecommerce-card-nivel-pill {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ecommerce-card-nivel-pill.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.ecommerce-card-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ecommerce-card-price {
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--color-primary-darker);
+}
+
+.ecommerce-stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-primary-soft);
+  border-radius: 999px;
+  padding: 4px 6px;
+}
+
+.ecommerce-stepper button {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.ecommerce-stepper button:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+  transform: scale(1.05);
+}
+
+.ecommerce-stepper button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ecommerce-stepper span {
+  min-width: 16px;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* Barra de carrinho flutuante */
+
+.ecommerce-cart-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: var(--color-surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  border-radius: 999px;
+  padding: 10px 12px 10px 22px;
+  animation: ecommerce-cartbar-in 0.25s ease;
+}
+
+@keyframes ecommerce-cartbar-in {
+  from { opacity: 0; transform: translate(-50%, 16px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.ecommerce-cart-summary {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.3;
+}
+
+.ecommerce-cart-summary strong {
+  font-size: 16px;
+  color: var(--color-text);
+}
+
+/* Checkout */
+
+.ecommerce-checkout-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 29, 29, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 60;
+  animation: ecommerce-fade-in 0.2s ease;
+}
+
+@keyframes ecommerce-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ecommerce-checkout-drawer {
+  width: 100%;
+  max-width: 440px;
+  height: 100%;
+  background: var(--color-surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 28px 26px;
+  overflow-y: auto;
+  animation: ecommerce-drawer-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: -12px 0 32px rgba(31, 29, 29, 0.18);
+}
+
+@keyframes ecommerce-drawer-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.ecommerce-payment-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.ecommerce-payment-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+
+.ecommerce-payment-option:hover {
+  border-color: var(--color-primary-light);
+}
+
+.ecommerce-payment-option.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-darker);
+  transform: scale(1.02);
+}
+
+.ecommerce-checkout-resumo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--color-primary-soft);
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.ecommerce-checkout-resumo strong {
+  font-size: 18px;
+  color: var(--color-primary-darker);
+}
+
+/* Tela de sucesso */
+
+.ecommerce-success {
+  text-align: center;
+  padding-top: 12px;
+}
+
+.ecommerce-success-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  border-radius: 999px;
+  background: var(--color-success);
+  color: #fff;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: ecommerce-success-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes ecommerce-success-pop {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.ecommerce-success-itens {
+  text-align: left;
+  list-style: none;
+  padding: 0;
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.ecommerce-success-total {
+  font-size: 18px;
+  font-weight: 700;
+  margin-top: 12px;
+  color: var(--color-primary-darker);
+}
+
+@media (max-width: 640px) {
+  .ecommerce-checkout-drawer {
+    max-width: 100%;
+  }
+
+  .ecommerce-catalog-section {
+    padding: 36px 18px 60px;
+  }
+
+  .categorias-lista {
+    padding: 0 18px 80px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ecommerce-cart-bar {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    transform: none;
+    justify-content: space-between;
+  }
+
+  @keyframes ecommerce-cartbar-in {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .catalogo-footer {
+    padding: 24px 20px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ---------- Dashboard ---------- */
+
+.dash-greeting-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.dash-greeting-header h1 {
+  font-size: 24px;
+}
+
+.dash-greeting-header p {
+  color: var(--color-text-muted);
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.dash-greeting-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dash-date-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+}
+
+.dash-date-pill svg {
+  color: var(--color-text-muted);
+}
+
+.dash-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.dash-kpi-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+.dash-kpi-card.is-clicavel {
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.dash-kpi-card.is-clicavel:hover,
+.dash-kpi-card.is-clicavel:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary-light);
+  outline: none;
+}
+
+.dash-kpi-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.dash-kpi-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.dash-kpi-sublabel {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.dash-kpi-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dash-kpi-icon.is-green { background: var(--color-success-soft); color: var(--color-success); }
+.dash-kpi-icon.is-blue { background: var(--color-blue-soft); color: var(--color-blue); }
+.dash-kpi-icon.is-orange { background: var(--color-warning-soft); color: var(--color-warning); }
+.dash-kpi-icon.is-purple { background: var(--color-purple-soft); color: var(--color-purple); }
+
+.dash-kpi-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.15;
+}
+
+.dash-kpi-value.is-negativo {
+  color: var(--color-danger);
+}
+
+.dash-kpi-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px 3px 6px;
+  border-radius: 999px;
+}
+
+.dash-kpi-trend svg {
+  width: 13px;
+  height: 13px;
+}
+
+.dash-kpi-trend.is-up { background: var(--color-success-soft); color: var(--color-success); }
+.dash-kpi-trend.is-down { background: var(--color-danger-soft); color: var(--color-danger); }
+.dash-kpi-trend.is-neutral { background: #f1f1f4; color: var(--color-text-muted); }
+
+.dash-kpi-trend-note {
+  color: var(--color-text-muted);
+  font-weight: 500;
+  margin-left: 2px;
+}
+
+.dash-kpi-detalhe {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.dash-periodo-toggle {
+  display: flex;
+  gap: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.dash-periodo-btn {
+  border: none;
+  background: none;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.dash-periodo-btn.is-active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.dash-periodo-limpar {
+  padding: 7px 10px;
+  color: var(--color-text-muted);
+}
+
+.dash-periodo-limpar:hover {
+  color: var(--color-danger);
+}
+
+.dash-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+/* Gráfico de linha (SVG) */
+
+/* ---------- Tipografia unificada dos gráficos ---------- */
+/* Mesmo par de tamanhos em todo gráfico do dashboard — valor grande e em negrito,
+   rótulo menor e mais leve — pra tudo ficar simétrico e fácil de ler à distância. */
+:root {
+  --chart-value-fs: 17px;
+  --chart-label-fs: 14px;
+}
+
+/* ---------- Gráfico de linha "batimento" (vendas por período) ---------- */
+
+.dash-chart {
+  position: relative;
+}
+
+.dash-chart-svg {
+  width: 100%;
+  height: 220px;
+  overflow: visible;
+}
+
+.dash-chart-grid {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.dash-chart-area {
+  fill: var(--color-success);
+  opacity: 0.12;
+}
+
+.dash-chart-line {
+  fill: none;
+  stroke: var(--color-success);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.dash-chart-guide {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.dash-chart-dot {
+  fill: var(--color-success);
+  stroke: var(--color-surface);
+  stroke-width: 2;
+}
+
+.dash-chart-dot-live {
+  fill: none;
+  stroke: var(--color-success);
+  stroke-width: 2;
+  opacity: 0.55;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dash-chart-pulse 1.8s ease-out infinite;
+}
+
+@keyframes dash-chart-pulse {
+  0% { r: 5; opacity: 0.55; }
+  100% { r: 13; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-chart-dot-live {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+.dash-chart-axis-label {
+  fill: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dash-chart-summary {
+  font-size: var(--chart-label-fs);
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+.dash-tooltip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  background: var(--color-text);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  z-index: 2;
+}
+
+.dash-tooltip strong {
+  font-size: 15px;
+}
+
+/* ---------- Gráfico de barras verticais (categorias) ---------- */
+/* Usado em: Rendimento por caixa, Produtos mais vendidos, Dias com mais vendas,
+   Horário de pico — mesmo componente visual em todo lugar, só muda a cor de destaque. */
+
+.dash-vbar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding-top: 6px;
+}
+
+.dash-vbar-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.dash-vbar-value {
+  font-size: var(--chart-value-fs);
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Gráficos com muitas colunas (produtos, dias, horários) precisam de um valor mais
+   compacto pra não colidir com a coluna vizinha — o rótulo completo continua no title. */
+.dash-vbar-chart.is-denso .dash-vbar-value {
+  font-size: 14px;
+}
+
+.dash-vbar-track {
+  width: 100%;
+  max-width: 68px;
+  height: 170px;
+  display: flex;
+  align-items: flex-end;
+  background: var(--color-primary-soft);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.dash-vbar-fill {
+  width: 100%;
+  min-height: 5px;
+  border-radius: 12px 12px 0 0;
+  background: var(--color-primary);
+  transition: height 0.3s ease;
+}
+
+.dash-vbar-fill.is-outros {
+  background: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+.dash-vbar-track.is-green { background: var(--color-success-soft); }
+.dash-vbar-fill.is-green { background: var(--color-success); }
+.dash-vbar-track.is-purple { background: var(--color-purple-soft); }
+.dash-vbar-fill.is-purple { background: var(--color-purple); }
+.dash-vbar-fill.is-pico { background: var(--color-success); }
+
+.dash-vbar-label {
+  font-size: var(--chart-label-fs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-vbar-sub {
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: -4px;
+}
+
+@media (max-width: 640px) {
+  .dash-vbar-chart {
+    gap: 8px;
+  }
+
+  .dash-vbar-track {
+    max-width: 40px;
+    height: 130px;
+  }
+
+  .dash-vbar-value {
+    font-size: 14px;
+  }
+
+  /* Com 7-8 colunas, espremer tudo na tela deixa o valor ilegível (corta pra "R$ ...").
+     Mesma solução já usada nas tabelas: em vez de espremer, rola por dentro do card —
+     a página continua sem overflow, só esse gráfico específico ganha uma faixa scrollável. */
+  .dash-vbar-chart.is-denso {
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding-bottom: 6px;
+    margin: 0 -4px;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .dash-vbar-chart.is-denso .dash-vbar-col {
+    flex: 0 0 auto;
+    width: 64px;
+  }
+
+  .dash-vbar-chart.is-denso .dash-vbar-value {
+    font-size: 13px;
+  }
+}
+
+/* Seção secundária (resumo mais compacto, abaixo do que importa mais) */
+
+.dash-secao-secundaria {
+  margin-top: 12px;
+}
+
+.dash-secao-secundaria .section-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.stat-grid.is-compacto {
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat-grid.is-compacto .stat-tile {
+  padding: 14px 16px;
+}
+
+.stat-grid.is-compacto .stat-tile .stat-value {
+  font-size: 20px;
+}
+
+/* Ranking de clientes */
+
+.dash-ranklist {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dash-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dash-rank-pos {
+  font-weight: 700;
+  font-size: var(--chart-label-fs);
+  color: var(--color-primary-darker);
+  width: 26px;
+  flex-shrink: 0;
+}
+
+.dash-rank-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-rank-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: var(--chart-label-fs);
+  margin-bottom: 5px;
+}
+
+.dash-rank-nome {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-rank-valor {
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.dash-rank-track {
+  background: var(--color-primary-soft);
+  border-radius: 999px;
+  height: 9px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+
+.dash-rank-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-primary);
+}
+
+.dash-rank-pedidos {
+  font-size: 13px;
+}
+
+/* Alerta de fiado */
+
+.dash-fiado-ok {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.dash-fiado-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.dash-fiado-card.is-critico {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.dash-divergencia-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.dash-divergencia-link:hover {
+  border-color: var(--color-danger);
+  box-shadow: var(--shadow-sm);
+}
+
+.dash-divergencia-cta {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-danger);
+}
+
+.dash-fiado-resumo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.dash-fiado-valor {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-primary-darker);
+}
+
+.dash-fiado-lista {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.dash-fiado-lista li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  font-size: 13px;
+  padding: 6px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.dash-fiado-lista li:first-child {
+  border-top: none;
+}
+
+.dash-fiado-lista li.is-vencida .dash-fiado-cliente {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+/* Melhores produtos por unidade */
+
+.dash-melhores-caixas {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dash-melhores-caixa-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: var(--chart-label-fs);
+  font-weight: 700;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.dash-melhores-caixa-header:hover {
+  color: var(--color-primary-darker);
+}
+
+.dash-melhores-caixa-seta {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+  transition: transform 0.15s ease;
+}
+
+.dash-melhores-caixa-seta.is-aberto {
+  transform: rotate(180deg);
+}
+
+/* ---------- Lucro por unidade (drill-down do card "Lucro Líquido") ---------- */
+
+.lucro-unidade-voltar {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.lucro-unidade-voltar:hover {
+  color: var(--color-primary-dark);
+}
+
+.lucro-unidade-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lucro-unidade-card {
+  padding: 18px 20px;
+}
+
+.lucro-unidade-header {
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.lucro-unidade-nome {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.lucro-unidade-resumo {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: flex-end;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.lucro-unidade-resumo strong {
+  color: var(--color-text);
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.lucro-unidade-detalhe {
+  border-top: 1px dashed var(--color-border);
+  margin-top: 16px;
+  padding-top: 2px;
+}
+
+.dash-melhores-caixa-lista {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dash-melhores-caixa-lista li {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--chart-label-fs);
+}
+
+.dash-melhores-rank {
+  font-weight: 700;
+  font-size: var(--chart-label-fs);
+  color: var(--color-purple);
+}
+
+.dash-melhores-main {
+  min-width: 0;
+}
+
+.dash-melhores-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.dash-melhores-track {
+  background: var(--color-purple-soft);
+  border-radius: 999px;
+  height: 7px;
+  overflow: hidden;
+}
+
+.dash-melhores-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-purple);
+}
+
+.dash-melhores-qtd {
+  font-weight: 700;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 640px) {
+  .dash-fiado-lista li {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
 }

@@ -1,0 +1,1578 @@
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { api, resolveUploadUrl } from '../api/client';
+import { useAuth } from '../context/AuthContext';
+import { Modal } from '../components/Modal';
+import { PainelCobrancaMaquininha } from '../components/PainelCobrancaMaquininha';
+import { useCobrancaMaquininha } from '../hooks/useCobrancaMaquininha';
+import { gerarRelatorioFechamentoCaixa } from '../utils/relatoriosPdf';
+import {
+  IconBasket,
+  IconSearch,
+  IconGrid,
+  IconCartao,
+  IconDinheiro,
+  IconDividir,
+  IconPlus,
+  IconChevronDown,
+  IconVendas,
+} from '../components/icons';
+
+const CAIXA_STORAGE_KEY = 'eggcontrol_caixa_id';
+const CAIXA_VAZIO = { nome: '', unidade: '' };
+const PRODUTOS_POR_PAGINA = 8;
+
+const FORMAS_PAGAMENTO = [
+  { id: 'MAQUININHA', label: 'Maquininha', Icon: IconCartao },
+  { id: 'DINHEIRO', label: 'Dinheiro', Icon: IconDinheiro },
+  { id: 'DIVIDIDO', label: 'Dividir', Icon: IconDividir },
+];
+
+const LABEL_FORMA = { DINHEIRO: 'Dinheiro', CARTAO: 'Cartão', PIX: 'Pix' };
+
+const LABEL_FORMA_FECHAMENTO = {
+  PIX: 'Pix',
+  DINHEIRO: 'Dinheiro',
+  CARTAO_CREDITO: 'Cartão de Crédito',
+  CARTAO_DEBITO: 'Cartão de Débito',
+  CARTAO_OUTRO: 'Cartão (não identificado)',
+  BOLETO: 'Boleto',
+  FIADO: 'Fiado',
+};
+
+const TEMPO_LIMITE_PAGAMENTO_SEGUNDOS = 5 * 60;
+
+function formatBRL(valor) {
+  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+export function Caixa() {
+  const { usuario } = useAuth();
+  const ehAdmin = usuario?.perfil === 'ADMIN';
+  const unidadeTravada = usuario?.unidade || null;
+
+  const [produtos, setProdutos] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
+  const [busca, setBusca] = useState('');
+  const [avisoLeitor, setAvisoLeitor] = useState('');
+  const buscaInputRef = useRef(null);
+  const [categoriaAtiva, setCategoriaAtiva] = useState('Todos');
+  const [categoriasAbertas, setCategoriasAbertas] = useState(false);
+  const categoriasRef = useRef(null);
+  const [produtosVisiveis, setProdutosVisiveis] = useState(PRODUTOS_POR_PAGINA);
+
+  useEffect(() => {
+    if (!categoriasAbertas) return;
+    function aoClicarFora(e) {
+      if (categoriasRef.current && !categoriasRef.current.contains(e.target)) setCategoriasAbertas(false);
+    }
+    document.addEventListener('mousedown', aoClicarFora);
+    return () => document.removeEventListener('mousedown', aoClicarFora);
+  }, [categoriasAbertas]);
+
+  const [caixas, setCaixas] = useState([]);
+  const [caixaId, setCaixaId] = useState(() => {
+    // Se o login for travado a uma unidade, o efeito abaixo confirma (ou troca) essa
+    // escolha assim que a lista de caixas carregar — uma unidade pode ter mais de um
+    // caixa físico, então não dá mais pra saber qual escolher só com o que tem aqui.
+    const salvo = localStorage.getItem(CAIXA_STORAGE_KEY);
+    return salvo ? Number(salvo) : null;
+  });
+  const [modalCaixa, setModalCaixa] = useState(null);
+  const [formCaixa, setFormCaixa] = useState(CAIXA_VAZIO);
+  const [salvandoCaixa, setSalvandoCaixa] = useState(false);
+
+  const [mpToken, setMpToken] = useState('');
+  const [mpSalvandoToken, setMpSalvandoToken] = useState(false);
+  const [mpDevices, setMpDevices] = useState([]);
+  const [mpCarregandoDevices, setMpCarregandoDevices] = useState(false);
+  const [mpDeviceSelecionado, setMpDeviceSelecionado] = useState('');
+  const [mpAssociando, setMpAssociando] = useState(false);
+  const [mpRemovendo, setMpRemovendo] = useState(false);
+  const [mpErro, setMpErro] = useState('');
+
+  const [carrinho, setCarrinho] = useState([]);
+  const [carrinhoMobileAberto, setCarrinhoMobileAberto] = useState(false);
+  const [nomeCliente, setNomeCliente] = useState('');
+  const [desconto, setDesconto] = useState(0);
+  const [acrescimo, setAcrescimo] = useState(0);
+  const [formaPagamento, setFormaPagamento] = useState('DINHEIRO');
+  const [valorRecebido, setValorRecebido] = useState('');
+  const [valorDinheiroDividido, setValorDinheiroDividido] = useState('');
+  const [dividirCartao, setDividirCartao] = useState(false);
+  const [valorDebitoDividido, setValorDebitoDividido] = useState('');
+  const [valorCreditoDividido, setValorCreditoDividido] = useState('');
+  // "Pago por fora": venda já paga fisicamente fora do sistema (ex: internet caiu e não dava
+  // pra usar o app, ou um Pix recebido direto sem passar pelo checkout) — vira uma 4ª forma de
+  // pagamento própria (formaPagamento 'CARTAO_MANUAL' aqui no front) que lança a venda direto
+  // como concluída, sem chamar a integração Mercado Pago nem esperar nenhuma confirmação (ver
+  // finalizarVenda). 'DEBITO'/'CREDITO' viram uma venda CARTAO com Venda.tipoCartaoManual
+  // preenchido; 'PIX' vira uma venda PIX comum (já suportada pelo checkout, só não tinha botão
+  // pra ela no caixa).
+  const [metodoPagoPorFora, setMetodoPagoPorFora] = useState('');
+
+  const [enviando, setEnviando] = useState(false);
+  const [erroVenda, setErroVenda] = useState('');
+  const [vendaConcluida, setVendaConcluida] = useState(null);
+
+  const [sessaoInfo, setSessaoInfo] = useState(null);
+  const [carregandoSessao, setCarregandoSessao] = useState(false);
+  const [valorAberturaInput, setValorAberturaInput] = useState('');
+  const [abrindoCaixaFisico, setAbrindoCaixaFisico] = useState(false);
+  const [erroAbrirCaixaFisico, setErroAbrirCaixaFisico] = useState('');
+  const [avisoDivergencia, setAvisoDivergencia] = useState(null);
+
+  const [modalFecharCaixa, setModalFecharCaixa] = useState(false);
+  const [valorFechamentoInput, setValorFechamentoInput] = useState('');
+  const [observacaoFechamento, setObservacaoFechamento] = useState('');
+  const [fechandoCaixaFisico, setFechandoCaixaFisico] = useState(false);
+  const [erroFecharCaixaFisico, setErroFecharCaixaFisico] = useState('');
+  const [relatorioFechamento, setRelatorioFechamento] = useState(null);
+  const [gerandoPdfFechamento, setGerandoPdfFechamento] = useState(false);
+
+  const [vendaAguardandoPagamento, setVendaAguardandoPagamento] = useState(null);
+  const [avisoMaquininha, setAvisoMaquininha] = useState('');
+
+  function carregarProdutos() {
+    setCarregando(true);
+    const rota = caixaId ? `/caixas/${caixaId}/estoque` : '/produtos';
+    api
+      .get(rota)
+      .then((lista) => setProdutos(caixaId ? lista : lista.map((p) => ({ ...p, quantidade: 0 }))))
+      .catch((e) => setErro(e.message))
+      .finally(() => setCarregando(false));
+  }
+
+  // Estoque é por unidade: trocar de caixa refaz a busca e limpa o carrinho, já que a
+  // quantidade disponível de cada item (e o carrinho montado) pertence à unidade anterior.
+  useEffect(carregarProdutos, [caixaId]);
+  useEffect(() => setCarrinho([]), [caixaId]);
+
+  function carregarSessao() {
+    if (!caixaId) { setSessaoInfo(null); return; }
+    setCarregandoSessao(true);
+    api
+      .get(`/caixas/${caixaId}/sessao-atual`)
+      .then(setSessaoInfo)
+      .catch(() => setSessaoInfo(null))
+      .finally(() => setCarregandoSessao(false));
+  }
+
+  useEffect(carregarSessao, [caixaId]);
+
+  async function abrirCaixaFisico(e) {
+    e.preventDefault();
+    setAbrindoCaixaFisico(true);
+    setErroAbrirCaixaFisico('');
+    try {
+      const resultado = await api.post(`/caixas/${caixaId}/sessoes/abrir`, { valorAbertura: Number(valorAberturaInput) });
+      setValorAberturaInput('');
+      carregarSessao();
+      carregarProdutos();
+      if (resultado.divergenciaDetectada) {
+        // Pra não-admin o backend não manda valorEsperadoAbertura/divergenciaAbertura —
+        // aqui só sobra o aviso genérico, sem revelar o quanto ficou de diferença.
+        setAvisoDivergencia(
+          resultado.valorEsperadoAbertura !== undefined
+            ? {
+                valorEsperado: Number(resultado.valorEsperadoAbertura),
+                valorAbertura: Number(resultado.valorAbertura),
+                divergencia: Number(resultado.divergenciaAbertura),
+              }
+            : {}
+        );
+      }
+    } catch (err) {
+      setErroAbrirCaixaFisico(err.message);
+    } finally {
+      setAbrindoCaixaFisico(false);
+    }
+  }
+
+  function abrirModalFecharCaixa() {
+    setValorFechamentoInput('');
+    setObservacaoFechamento('');
+    setErroFecharCaixaFisico('');
+    setModalFecharCaixa(true);
+    carregarSessao();
+  }
+
+  async function fecharCaixaFisico(e) {
+    e.preventDefault();
+    setFechandoCaixaFisico(true);
+    setErroFecharCaixaFisico('');
+    try {
+      const resultado = await api.put(`/caixas/${caixaId}/sessoes/fechar`, {
+        valorFechamento: Number(valorFechamentoInput),
+        observacao: observacaoFechamento.trim() || undefined,
+      });
+      setModalFecharCaixa(false);
+      carregarSessao();
+      // Relatório de vendas da sessão que acabou de fechar já vem pronto na resposta —
+      // mostra na hora, sem precisar ir até o Financeiro depois, pra bater com a maquininha
+      // enquanto o dinheiro ainda está contado na mão.
+      setRelatorioFechamento({
+        caixaNome: caixasAtivos.find((c) => c.id === caixaId)?.nome || 'Caixa',
+        abertaEm: resultado.abertaEm,
+        fechadaEm: resultado.fechadaEm,
+        valorAbertura: resultado.valorAbertura,
+        valorFechamento: resultado.valorFechamento,
+        resumoVendas: resultado.resumoVendas,
+        relatorioMaquininha: resultado.relatorioMaquininha,
+      });
+    } catch (err) {
+      setErroFecharCaixaFisico(err.message);
+    } finally {
+      setFechandoCaixaFisico(false);
+    }
+  }
+
+  async function exportarPdfFechamento() {
+    if (!relatorioFechamento) return;
+    setGerandoPdfFechamento(true);
+    try {
+      await gerarRelatorioFechamentoCaixa(relatorioFechamento);
+    } finally {
+      setGerandoPdfFechamento(false);
+    }
+  }
+
+  function carregarCaixas() {
+    api.get('/caixas').then(setCaixas).catch(() => {});
+  }
+
+  useEffect(carregarCaixas, []);
+
+  useEffect(() => {
+    if (caixas.length === 0) return;
+    // Login travado a uma unidade só pode escolher entre os caixas ativos daquela
+    // unidade — se sobrar só um, já seleciona ele sozinho (a maioria das lojas tem um).
+    const permitidos = unidadeTravada
+      ? caixas.filter((c) => c.ativo && c.unidade === unidadeTravada)
+      : caixas.filter((c) => c.ativo);
+    const atual = permitidos.find((c) => c.id === caixaId);
+    if (!atual) setCaixaId(permitidos.length === 1 ? permitidos[0].id : null);
+  }, [caixas, caixaId, unidadeTravada]);
+
+  const caixaAtual = caixas.find((c) => c.id === caixaId);
+  const maquininhaDisponivel = Boolean(caixaAtual?.mpConfigurado);
+
+  // Maquininha é a forma padrão sempre que a unidade tem uma configurada — só troca de
+  // novo quando a unidade muda (ou a maquininha some), nunca por cima de uma escolha manual
+  // do usuário no meio da venda atual (por isso formaPagamento não entra nas dependências).
+  useEffect(() => {
+    setFormaPagamento(maquininhaDisponivel ? 'MAQUININHA' : 'DINHEIRO');
+  }, [caixaId, maquininhaDisponivel]);
+
+  function selecionarCaixa(id) {
+    setCaixaId(id);
+    localStorage.setItem(CAIXA_STORAGE_KEY, String(id));
+  }
+
+  function abrirNovoCaixa() {
+    setFormCaixa(CAIXA_VAZIO);
+    setModalCaixa('novo');
+  }
+
+  function abrirEditarCaixa(caixa) {
+    setFormCaixa({ nome: caixa.nome, unidade: caixa.unidade });
+    setModalCaixa(caixa);
+    setMpToken('');
+    setMpErro('');
+    setMpDevices([]);
+    setMpDeviceSelecionado(caixa.mpDeviceId || '');
+  }
+
+  async function recarregarCaixaModal(caixaId) {
+    const lista = await api.get('/caixas');
+    setCaixas(lista);
+    const atualizado = lista.find((c) => c.id === caixaId);
+    if (atualizado) setModalCaixa(atualizado);
+  }
+
+  async function conectarMercadoPago() {
+    if (!mpToken.trim()) return;
+    setMpSalvandoToken(true);
+    setMpErro('');
+    try {
+      const resultado = await api.post(`/caixas/${modalCaixa.id}/mercadopago/token`, { accessToken: mpToken.trim() });
+      setMpDevices(resultado.devices || []);
+      setMpToken('');
+      await recarregarCaixaModal(modalCaixa.id);
+    } catch (err) {
+      setMpErro(err.message);
+    } finally {
+      setMpSalvandoToken(false);
+    }
+  }
+
+  async function buscarMaquininhas() {
+    setMpCarregandoDevices(true);
+    setMpErro('');
+    try {
+      const devices = await api.get(`/caixas/${modalCaixa.id}/mercadopago/devices`);
+      setMpDevices(devices || []);
+    } catch (err) {
+      setMpErro(err.message);
+    } finally {
+      setMpCarregandoDevices(false);
+    }
+  }
+
+  async function associarMaquininha() {
+    if (!mpDeviceSelecionado) return;
+    setMpAssociando(true);
+    setMpErro('');
+    try {
+      await api.post(`/caixas/${modalCaixa.id}/mercadopago/device`, { deviceId: mpDeviceSelecionado });
+      await recarregarCaixaModal(modalCaixa.id);
+    } catch (err) {
+      setMpErro(err.message);
+    } finally {
+      setMpAssociando(false);
+    }
+  }
+
+  async function removerMercadoPago() {
+    if (!confirm('Remover a configuração do Mercado Pago deste caixa? A conta e a maquininha associadas serão desvinculadas.')) return;
+    setMpRemovendo(true);
+    setMpErro('');
+    try {
+      await api.delete(`/caixas/${modalCaixa.id}/mercadopago`);
+      setMpDevices([]);
+      setMpDeviceSelecionado('');
+      await recarregarCaixaModal(modalCaixa.id);
+    } catch (err) {
+      setMpErro(err.message);
+    } finally {
+      setMpRemovendo(false);
+    }
+  }
+
+  async function salvarCaixa(e) {
+    e.preventDefault();
+    setSalvandoCaixa(true);
+    try {
+      if (modalCaixa === 'novo') {
+        const criado = await api.post('/caixas', formCaixa);
+        carregarCaixas();
+        selecionarCaixa(criado.id);
+      } else {
+        await api.put(`/caixas/${modalCaixa.id}`, formCaixa);
+        carregarCaixas();
+      }
+      setModalCaixa(null);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSalvandoCaixa(false);
+    }
+  }
+
+  async function desativarCaixa(caixa) {
+    if (!confirm(`Desativar o caixa "${caixa.nome}"?`)) return;
+    await api.put(`/caixas/${caixa.id}`, { ativo: false });
+    carregarCaixas();
+  }
+
+  const caixasAtivos = useMemo(() => caixas.filter((c) => c.ativo), [caixas]);
+  // Vendedor travado a uma unidade só vê/escolhe entre os caixas daquela unidade —
+  // admin (ou login sem restrição) continua vendo todos.
+  const caixasVisiveis = useMemo(
+    () => (unidadeTravada ? caixasAtivos.filter((c) => c.unidade === unidadeTravada) : caixasAtivos),
+    [caixasAtivos, unidadeTravada]
+  );
+
+  const categorias = useMemo(() => {
+    const tipos = Array.from(new Set(produtos.map((p) => p.tipo).filter(Boolean)));
+    return ['Todos', ...tipos];
+  }, [produtos]);
+
+  const produtosFiltrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    return produtos.filter((p) => {
+      const bateCategoria = categoriaAtiva === 'Todos' || p.tipo === categoriaAtiva;
+      const bateBusca = !termo || p.nome.toLowerCase().includes(termo);
+      return bateCategoria && bateBusca;
+    });
+  }, [produtos, categoriaAtiva, busca]);
+
+  // Leitor de código de barras (USB, emula teclado): bipar digita o código no campo de busca
+  // seguido de Enter. Mapa por código pra achar produto+nível em O(1) sem bater no backend.
+  const niveisPorCodigoBarras = useMemo(() => {
+    const mapa = new Map();
+    produtos.forEach((p) => {
+      (p.niveisVenda || []).forEach((n) => {
+        if (n.codigoBarras) mapa.set(n.codigoBarras, { produto: p, nivel: n });
+      });
+    });
+    return mapa;
+  }, [produtos]);
+
+  // Ao apertar Enter no campo de busca, tenta primeiro como código de barras bipado — se bater,
+  // adiciona direto ao carrinho (sempre com quantidade 1) e limpa o campo pra próxima leitura;
+  // senão, deixa o texto no campo normalmente pra filtrar a grade por nome.
+  function aoTeclarBusca(e) {
+    if (e.key !== 'Enter') return;
+    const codigo = busca.trim();
+    if (!codigo) return;
+    const achado = niveisPorCodigoBarras.get(codigo);
+    if (!achado) return;
+    e.preventDefault();
+    const { produto, nivel } = achado;
+    const cabeMais = totalGraoComprometido(produto.id) + nivel.quantidadeGrao <= produto.quantidade;
+    if (!cabeMais) {
+      setAvisoLeitor(`"${produto.nome}" sem estoque suficiente.`);
+    } else {
+      adicionar(produto, nivel);
+      setAvisoLeitor('');
+    }
+    setBusca('');
+  }
+
+  // Volta pra primeira página de produtos sempre que o filtro muda — senão "carregar mais"
+  // fica com uma contagem que não bate com a lista nova.
+  useEffect(() => setProdutosVisiveis(PRODUTOS_POR_PAGINA), [categoriaAtiva, busca, caixaId]);
+
+  const produtosParaExibir = produtosFiltrados.slice(0, produtosVisiveis);
+  const temMaisProdutos = produtosVisiveis < produtosFiltrados.length;
+
+  // Um produto pode estar no carrinho em mais de uma "linha" ao mesmo tempo — um nível de
+  // venda (Unidade/Dúzia/Bandeja/Caixa) por linha — todas puxando do mesmo estoque em
+  // grão-base do produto, já que nível não tem estoque próprio. Por isso a chave de uma linha
+  // é (produtoId, nivelVendaId), e o limite de quanto dá pra adicionar soma o grão de todas as
+  // linhas daquele produto, não só a linha que está sendo alterada.
+  function totalGraoComprometido(produtoId, carrinhoAtual = carrinho) {
+    return carrinhoAtual
+      .filter((i) => i.produtoId === produtoId)
+      .reduce((soma, i) => soma + i.quantidade * i.quantidadeGrao, 0);
+  }
+
+  function quantidadeNoCarrinho(produtoId, nivelVendaId) {
+    return carrinho.find((i) => i.produtoId === produtoId && i.nivelVendaId === nivelVendaId)?.quantidade || 0;
+  }
+
+  // Adiciona 1 unidade do nível de venda escolhido (ex: 1 Dúzia, 1 Caixa) — todo nível
+  // desconta do mesmo estoque em grão-base do produto (nivel.quantidadeGrao), sem distinção
+  // entre "produto normal" e "embalagem fechada" (ver NivelVendaProduto no backend).
+  function adicionar(produto, nivel) {
+    if (produto.quantidade < nivel.quantidadeGrao) return;
+    setCarrinho((atual) => {
+      if (totalGraoComprometido(produto.id, atual) + nivel.quantidadeGrao > produto.quantidade) return atual;
+      const existente = atual.find((i) => i.produtoId === produto.id && i.nivelVendaId === nivel.id);
+      if (existente) {
+        return atual.map((i) => (i === existente ? { ...i, quantidade: i.quantidade + 1 } : i));
+      }
+      return [
+        ...atual,
+        {
+          produtoId: produto.id,
+          nivelVendaId: nivel.id,
+          nome: nivel.ehBase ? produto.nome : `${produto.nome} — ${nivel.nome}`,
+          precoVenda: nivel.preco,
+          quantidade: 1,
+          quantidadeGrao: nivel.quantidadeGrao,
+          estoqueTotalProduto: produto.quantidade,
+        },
+      ];
+    });
+  }
+
+  function aumentar(produtoId, nivelVendaId) {
+    setCarrinho((atual) => {
+      const item = atual.find((i) => i.produtoId === produtoId && i.nivelVendaId === nivelVendaId);
+      if (!item) return atual;
+      if (totalGraoComprometido(produtoId, atual) + item.quantidadeGrao > item.estoqueTotalProduto) return atual;
+      return atual.map((i) => (i === item ? { ...i, quantidade: i.quantidade + 1 } : i));
+    });
+  }
+
+  function diminuir(produtoId, nivelVendaId) {
+    setCarrinho((atual) =>
+      atual
+        .map((i) => (i.produtoId === produtoId && i.nivelVendaId === nivelVendaId ? { ...i, quantidade: i.quantidade - 1 } : i))
+        .filter((i) => i.quantidade > 0)
+    );
+  }
+
+  function removerItem(produtoId, nivelVendaId) {
+    setCarrinho((atual) => atual.filter((i) => !(i.produtoId === produtoId && i.nivelVendaId === nivelVendaId)));
+  }
+
+  const subtotal = useMemo(() => carrinho.reduce((s, i) => s + Number(i.precoVenda) * i.quantidade, 0), [carrinho]);
+  const totalItens = carrinho.reduce((s, i) => s + i.quantidade, 0);
+  const total = Math.max(subtotal - (Number(desconto) || 0) + (Number(acrescimo) || 0), 0);
+  const troco = Math.max(Number(valorRecebido || 0) - total, 0);
+  const faltaReceber = Math.max(total - Number(valorRecebido || 0), 0);
+  const valorMaquininhaDividido = Math.max(total - (Number(valorDinheiroDividido) || 0), 0);
+  const centavos = (v) => Math.round(Number(v || 0) * 100);
+  const divisaoCartaoValida =
+    Number(valorDebitoDividido) > 0 &&
+    Number(valorCreditoDividido) > 0 &&
+    centavos(valorDebitoDividido) + centavos(valorCreditoDividido) === centavos(total);
+  const divisaoValida =
+    (formaPagamento !== 'DIVIDIDO' || (Number(valorDinheiroDividido) > 0 && Number(valorDinheiroDividido) < total)) &&
+    (formaPagamento !== 'MAQUININHA' || !dividirCartao || divisaoCartaoValida) &&
+    (formaPagamento !== 'CARTAO_MANUAL' || Boolean(metodoPagoPorFora));
+
+  function alternarDividirCartao() {
+    setDividirCartao((v) => !v);
+    setFormaPagamento('MAQUININHA');
+  }
+
+  function limparVenda() {
+    setCarrinho([]);
+    setNomeCliente('');
+    setDesconto(0);
+    setAcrescimo(0);
+    setFormaPagamento(maquininhaDisponivel ? 'MAQUININHA' : 'DINHEIRO');
+    setValorRecebido('');
+    setValorDinheiroDividido('');
+    setDividirCartao(false);
+    setValorDebitoDividido('');
+    setValorCreditoDividido('');
+    setMetodoPagoPorFora('');
+    setErroVenda('');
+    setVendaConcluida(null);
+    setCarrinhoMobileAberto(false);
+  }
+
+  // Tenta cancelar a venda depois de uma cobrança na maquininha não dar certo (rejeitada,
+  // cancelada, ou timeout). Se alguma cobrança anterior desta mesma venda já tinha sido
+  // aprovada (pagamento dividido entre débito e crédito, um já pago), o backend recusa o
+  // cancelamento (409) pra não perder o rastro desse valor já capturado no cartão do cliente
+  // — nesse caso só avisa o operador, mantém a venda em aberto e o painel pronto pra reenviar
+  // o valor que falta.
+  async function tentarCancelarVenda(vendaId, mensagemSucesso) {
+    try {
+      await api.put(`/vendas/${vendaId}/cancelar`, {});
+      setVendaAguardandoPagamento(null);
+      cobranca.reset();
+      if (mensagemSucesso) setErroVenda(mensagemSucesso);
+    } catch (err) {
+      setAvisoMaquininha(err.message);
+    }
+  }
+
+  const cobranca = useCobrancaMaquininha({
+    vendaId: vendaAguardandoPagamento?.id || null,
+    timeoutSegundos: TEMPO_LIMITE_PAGAMENTO_SEGUNDOS,
+    onQuitado: async () => {
+      const vendaId = vendaAguardandoPagamento?.id;
+      if (!vendaId) return;
+      try {
+        const venda = await api.get(`/vendas/${vendaId}`);
+        setVendaConcluida(venda);
+        carregarProdutos();
+        carregarSessao();
+      } finally {
+        setVendaAguardandoPagamento(null);
+      }
+    },
+    onTimeout: () => {
+      // O hook já cancelou a cobrança que estourou o tempo — só falta decidir o que fazer
+      // com a venda (ver tentarCancelarVenda acima).
+      if (vendaAguardandoPagamento) {
+        tentarCancelarVenda(vendaAguardandoPagamento.id, 'Tempo esgotado sem confirmação do pagamento. Venda cancelada.');
+      }
+    },
+  });
+
+  async function cancelarPagamentoEVenda() {
+    if (!vendaAguardandoPagamento) return;
+    setAvisoMaquininha('');
+    await cobranca.cancelarAtiva().catch(() => {});
+    await tentarCancelarVenda(vendaAguardandoPagamento.id);
+  }
+
+  async function finalizarVenda(e) {
+    e.preventDefault();
+    if (carrinho.length === 0 || !caixaId || !divisaoValida) return;
+    setEnviando(true);
+    setErroVenda('');
+    try {
+      // "Pago por fora" (CARTAO_MANUAL): o pagamento já aconteceu fisicamente fora do app (ex:
+      // maquininha sem internet, ou Pix recebido direto) — vira uma venda comum já confirmada,
+      // sem passar pela integração Mercado Pago nem pelo fluxo de espera abaixo. Débito/crédito
+      // vira CARTAO com tipoCartaoManual; Pix vira PIX (que já confirma na hora, sem "tipo").
+      const pagoPorFora = formaPagamento === 'CARTAO_MANUAL';
+      const formaPagamentoPorFora = metodoPagoPorFora === 'PIX' ? 'PIX' : 'CARTAO';
+      const viaMaquininha = formaPagamento === 'MAQUININHA' || formaPagamento === 'DIVIDIDO';
+      const itens = carrinho.map((i) => ({
+        produtoId: i.produtoId,
+        nivelVendaId: i.nivelVendaId,
+        quantidade: i.quantidade,
+      }));
+      const body = {
+        nomeCliente: nomeCliente.trim() || 'Cliente Balcão',
+        itens,
+        formaPagamento: viaMaquininha ? 'MAQUININHA' : pagoPorFora ? formaPagamentoPorFora : formaPagamento,
+        tipoCartaoManual: pagoPorFora && metodoPagoPorFora !== 'PIX' ? metodoPagoPorFora : undefined,
+        desconto: Number(desconto) || 0,
+        acrescimo: Number(acrescimo) || 0,
+        caixaId,
+        valorDinheiro: formaPagamento === 'DIVIDIDO' ? Number(valorDinheiroDividido) : undefined,
+      };
+
+      const venda = await api.post('/vendas/checkout', body);
+
+      if (viaMaquininha) {
+        // Sem "Dividir débito/crédito": manda a cobrança cheia (valor restante inteiro) direto,
+        // preservando o fluxo de um clique de sempre. Com o toggle ativo, a primeira cobrança já
+        // sai só com o valor do débito — a segunda (crédito) fica pronta pra enviar no painel,
+        // com o valor restante já pré-preenchido certinho já que débito + crédito = total.
+        const primeiraCobranca = formaPagamento === 'MAQUININHA' && dividirCartao ? Number(valorDebitoDividido) : undefined;
+        try {
+          await api.post(`/vendas/${venda.id}/pagamento-maquininha`, primeiraCobranca !== undefined ? { valor: primeiraCobranca } : {});
+        } catch (err) {
+          await api.put(`/vendas/${venda.id}/cancelar`, {}).catch(() => {});
+          throw err;
+        }
+        setAvisoMaquininha('');
+        setVendaAguardandoPagamento(venda);
+      } else {
+        setVendaConcluida(venda);
+        carregarProdutos();
+        carregarSessao();
+      }
+    } catch (err) {
+      setErroVenda(err.message);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  if (vendaConcluida) {
+    return (
+      <div className="caixa-recibo-wrap">
+        <div className="caixa-recibo">
+          <div className="recibo-termico">
+            <div className="caixa-recibo-icone">✓</div>
+            <h2>Venda #{vendaConcluida.id} concluída</h2>
+            <p className="text-muted">Cliente: {vendaConcluida.cliente.nome}</p>
+            {vendaConcluida.caixa && (
+              <p className="text-muted">Caixa: {vendaConcluida.caixa.nome} · {vendaConcluida.caixa.unidade}</p>
+            )}
+
+            <div className="section-title">Itens</div>
+            <ul className="caixa-recibo-itens">
+              {vendaConcluida.itens.map((i) => (
+                <li key={i.id}>
+                  <span><strong>{i.quantidade}x</strong> {i.produto.nome}{i.nivelVenda && !i.nivelVenda.ehBase ? ` — ${i.nivelVenda.nome}` : ''}</span>
+                  <strong>{formatBRL(Number(i.precoUnit) * i.quantidade)}</strong>
+                </li>
+              ))}
+            </ul>
+
+            {Number(vendaConcluida.desconto) > 0 && (
+              <p className="text-muted">Desconto aplicado: <strong>{formatBRL(vendaConcluida.desconto)}</strong></p>
+            )}
+            {Number(vendaConcluida.acrescimo) > 0 && (
+              <p className="text-muted">Acréscimo aplicado: <strong>{formatBRL(vendaConcluida.acrescimo)}</strong></p>
+            )}
+            <p className="caixa-recibo-total">Total: <strong>{formatBRL(vendaConcluida.total)}</strong></p>
+            {(() => {
+              const cobrancasAprovadas = (vendaConcluida.pagamentosPointMP || []).filter((p) => p.status === 'APROVADO');
+              if (cobrancasAprovadas.length > 1) {
+                return (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0' }}>
+                    {Number(vendaConcluida.valorDinheiro || 0) > 0 && (
+                      <li className="text-muted">Dinheiro — <strong>{formatBRL(vendaConcluida.valorDinheiro)}</strong></li>
+                    )}
+                    {cobrancasAprovadas.map((p, idx) => (
+                      <li key={p.id} className="text-muted">Maquininha ({idx + 1}) — <strong>{formatBRL(p.valor)}</strong></li>
+                    ))}
+                  </ul>
+                );
+              }
+              if (Number(vendaConcluida.valorDinheiro || 0) > 0) {
+                return (
+                  <p className="text-muted">
+                    Pagamento: Dinheiro (<strong>{formatBRL(vendaConcluida.valorDinheiro)}</strong>) + Maquininha (<strong>{formatBRL(Number(vendaConcluida.total) - Number(vendaConcluida.valorDinheiro))}</strong>)
+                  </p>
+                );
+              }
+              const labelPagamento = LABEL_FORMA[vendaConcluida.formaPagamento] || vendaConcluida.formaPagamento;
+              // Pix só chega aqui vindo do "Pago por fora" (não existe outro jeito de vender
+              // por Pix no caixa hoje), então já dá pra assumir o sufixo sem precisar de um
+              // campo específico pra isso, ao contrário do cartão (que também acontece via
+              // maquininha integrada, sem ser "por fora").
+              const sufixoPagoPorFora =
+                vendaConcluida.tipoCartaoManual === 'DEBITO' ? ' (Débito, pago por fora)'
+                  : vendaConcluida.tipoCartaoManual === 'CREDITO' ? ' (Crédito, pago por fora)'
+                    : vendaConcluida.formaPagamento === 'PIX' ? ' (pago por fora)'
+                      : '';
+              return <p className="text-muted">Pagamento: {labelPagamento}{sufixoPagoPorFora}</p>;
+            })()}
+
+            {vendaConcluida.formaPagamento === 'DINHEIRO' && valorRecebido !== '' && (
+              <p className="text-muted">Recebido: <strong>{formatBRL(valorRecebido)}</strong> · Troco: <strong>{formatBRL(troco)}</strong></p>
+            )}
+          </div>
+
+          <div className="modal-actions" style={{ justifyContent: 'center' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => window.print()}>Imprimir</button>
+            <button type="button" className="btn btn-primary" onClick={limparVenda}>Nova Venda</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="caixa-page">
+      <div className="page-header">
+        <div>
+          <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}><IconBasket /> Caixa</h1>
+          <p>Selecione os produtos para adicionar ao pedido.</p>
+        </div>
+
+        <div className="caixa-unidade-bar">
+          {caixasVisiveis.length === 0 ? (
+            <p className="text-muted" style={{ margin: 0 }}>
+              {ehAdmin
+                ? 'Nenhum caixa cadastrado ainda.'
+                : unidadeTravada
+                  ? `Nenhum caixa ativo em ${unidadeTravada} — fale com um administrador.`
+                  : 'Nenhum caixa disponível — peça para um administrador cadastrar.'}
+            </p>
+          ) : (
+            <div className="caixa-unidade-lista">
+              {caixasVisiveis.map((c) => (
+                <div key={c.id} className={`caixa-unidade-pill${caixaId === c.id ? ' is-active' : ''}`}>
+                  <button type="button" onClick={() => selecionarCaixa(c.id)}>
+                    <strong>{c.nome}</strong>
+                    <span>{c.unidade}</span>
+                    {caixaId === c.id && sessaoInfo?.sessaoAberta && (
+                      <span className="caixa-unidade-total">
+                        {formatBRL(Number(sessaoInfo.sessaoAberta.valorAbertura) + Number(sessaoInfo.vendasDinheiroSessao || 0))} em caixa
+                      </span>
+                    )}
+                  </button>
+                  {ehAdmin && (
+                    <span className="caixa-unidade-acoes">
+                      <button type="button" title="Editar" onClick={() => abrirEditarCaixa(c)}>✎</button>
+                      <button type="button" title="Desativar" onClick={() => desativarCaixa(c)}>×</button>
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {ehAdmin && (
+            <button
+              type="button"
+              className="caixa-unidade-nova"
+              onClick={abrirNovoCaixa}
+              title="Novo caixa/unidade"
+              aria-label="Novo caixa/unidade"
+            >
+              <IconPlus />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {erro && <div className="alert-box">{erro}</div>}
+
+      {caixaId && carregandoSessao ? (
+        <p className="text-muted">Verificando situação do caixa...</p>
+      ) : caixaId && !sessaoInfo?.sessaoAberta ? (
+        <div className="caixa-abertura-gate card">
+          <div className="caixa-abertura-icone">🔒</div>
+          <h2>Caixa fechado</h2>
+          <p className="text-muted">
+            Conte o fundo de caixa (o dinheiro inicial para troco, antes de qualquer venda) e informe o valor abaixo
+            para abrir e começar a vender.
+          </p>
+          {sessaoInfo?.ultimoFechamento && (
+            <p className="text-muted">
+              {sessaoInfo.ultimoFechamento.valorFechamento !== undefined ? (
+                <>
+                  Fundo deixado no último fechamento: <strong>{formatBRL(sessaoInfo.ultimoFechamento.valorFechamento)}</strong> por{' '}
+                  {sessaoInfo.ultimoFechamento.usuarioFechamento?.nome || '—'} em{' '}
+                  {new Date(sessaoInfo.ultimoFechamento.fechadaEm).toLocaleString('pt-BR')}
+                </>
+              ) : (
+                <>
+                  Fechado por {sessaoInfo.ultimoFechamento.usuarioFechamento?.nome || '—'} em{' '}
+                  {new Date(sessaoInfo.ultimoFechamento.fechadaEm).toLocaleString('pt-BR')}. Conte o fundo de caixa com atenção antes de informar o valor.
+                </>
+              )}
+            </p>
+          )}
+          <form onSubmit={abrirCaixaFisico} className="caixa-abertura-form">
+            <div className="field">
+              <label>Fundo de caixa (R$) *</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={valorAberturaInput}
+                onChange={(e) => setValorAberturaInput(e.target.value)}
+                placeholder="0,00"
+                autoFocus
+                required
+              />
+            </div>
+            {erroAbrirCaixaFisico && <div className="alert-box">{erroAbrirCaixaFisico}</div>}
+            <button type="submit" className="btn btn-primary" disabled={abrindoCaixaFisico || valorAberturaInput === ''}>
+              {abrindoCaixaFisico ? 'Abrindo...' : 'Abrir caixa'}
+            </button>
+          </form>
+        </div>
+      ) : (
+        <>
+          {caixaId && sessaoInfo?.sessaoAberta && (
+            <div className="caixa-sessao-bar">
+              <span>
+                Caixa aberto por <strong>{sessaoInfo.sessaoAberta.usuarioAbertura.nome}</strong> às{' '}
+                {new Date(sessaoInfo.sessaoAberta.abertaEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · Fundo de caixa: {formatBRL(sessaoInfo.sessaoAberta.valorAbertura)}
+              </span>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={abrirModalFecharCaixa}>Fechar caixa</button>
+            </div>
+          )}
+
+      <div className="caixa-layout">
+        <div className="caixa-produtos-col">
+          <div className="caixa-filtros">
+            <div className="caixa-busca-row">
+              <div className="caixa-icone-campo">
+                <IconSearch className="caixa-icone-campo-icone" />
+                <input
+                  ref={buscaInputRef}
+                  className="caixa-busca"
+                  type="search"
+                  placeholder="Buscar produto ou bipar código de barras..."
+                  value={busca}
+                  onChange={(e) => { setBusca(e.target.value); if (avisoLeitor) setAvisoLeitor(''); }}
+                  onKeyDown={aoTeclarBusca}
+                />
+              </div>
+              {avisoLeitor && <p className="caixa-troco-falta" style={{ margin: '6px 0 0' }}>{avisoLeitor}</p>}
+              <div className="caixa-categorias-menu" ref={categoriasRef}>
+                <button
+                  type="button"
+                  className="caixa-ver-categorias-btn"
+                  onClick={() => setCategoriasAbertas((v) => !v)}
+                >
+                  <IconGrid /> Ver categorias
+                </button>
+                {categoriasAbertas && (
+                  <div className="caixa-categorias-dropdown">
+                    {categorias.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        className={categoriaAtiva === c ? 'is-active' : ''}
+                        onClick={() => { setCategoriaAtiva(c); setCategoriasAbertas(false); }}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="caixa-categorias">
+              {categorias.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`caixa-categoria-pill${categoriaAtiva === c ? ' is-active' : ''}`}
+                  onClick={() => setCategoriaAtiva(c)}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {carregando ? (
+            <p className="text-muted">Carregando produtos...</p>
+          ) : produtosFiltrados.length === 0 ? (
+            <p className="text-muted">Nenhum produto encontrado.</p>
+          ) : (
+            <>
+              <div className="caixa-produtos-grid">
+                {produtosParaExibir.map((p) => {
+                  const niveis = p.niveisVenda || [];
+                  if (niveis.length === 0) {
+                    return (
+                      <div key={p.id} className="caixa-produto-card is-esgotado">
+                        <div className="caixa-produto-img">
+                          {p.imagemUrl ? <img src={resolveUploadUrl(p.imagemUrl)} alt={p.nome} /> : <span aria-hidden="true">🥚</span>}
+                        </div>
+                        <div className="caixa-produto-corpo">
+                          <strong className="caixa-produto-nome">{p.nome}</strong>
+                          <span className="caixa-produto-esgotado-label">Sem nível de venda cadastrado</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <Fragment key={p.id}>
+                      {niveis.map((nivel) => {
+                        const qtdCarrinho = quantidadeNoCarrinho(p.id, nivel.id);
+                        const cabemMais = totalGraoComprometido(p.id) + nivel.quantidadeGrao <= p.quantidade;
+                        const esgotado = p.quantidade < nivel.quantidadeGrao;
+                        const imagem = nivel.imagemUrl || p.imagemUrl;
+                        return (
+                          <div
+                            key={nivel.id}
+                            className={`caixa-produto-card${nivel.ehBase ? '' : ' caixa-produto-card-embalagem'}${esgotado ? ' is-esgotado' : ''}`}
+                            onClick={esgotado ? undefined : () => adicionar(p, nivel)}
+                          >
+                            {qtdCarrinho > 0 && <span className="caixa-produto-badge">{qtdCarrinho}</span>}
+                            {!nivel.ehBase && <span className="caixa-produto-tag-embalagem">{nivel.nome}</span>}
+                            <div className="caixa-produto-img">
+                              {imagem ? <img src={resolveUploadUrl(imagem)} alt={p.nome} /> : <span aria-hidden="true">{nivel.ehBase ? '🥚' : '📦'}</span>}
+                            </div>
+                            <div className="caixa-produto-corpo">
+                              <strong className="caixa-produto-nome">{nivel.ehBase ? p.nome : `${p.nome} — ${nivel.nome}`}</strong>
+                              <span className="caixa-produto-unidade">{nivel.ehBase ? nivel.nome : `${nivel.quantidadeGrao} un.`}</span>
+                              <div className="caixa-produto-rodape">
+                                {esgotado ? (
+                                  <span className="caixa-produto-esgotado-label">Esgotado</span>
+                                ) : (
+                                  <>
+                                    <span className="caixa-produto-preco">{formatBRL(nivel.preco)}</span>
+                                    <button
+                                      type="button"
+                                      className="caixa-produto-add"
+                                      disabled={!cabemMais}
+                                      aria-label={`Adicionar ${p.nome} — ${nivel.nome}`}
+                                    >
+                                      <IconPlus />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </Fragment>
+                  );
+                })}
+              </div>
+              {temMaisProdutos && (
+                <div className="caixa-carregar-mais-wrap">
+                  <button
+                    type="button"
+                    className="caixa-carregar-mais-btn"
+                    onClick={() => setProdutosVisiveis((v) => v + PRODUTOS_POR_PAGINA)}
+                  >
+                    Carregar mais produtos <IconChevronDown />
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className={`caixa-carrinho-col${carrinhoMobileAberto ? ' is-aberto-mobile' : ''}`}>
+          <div className="caixa-carrinho-card">
+            <div className="caixa-carrinho-topo">
+              <div className="caixa-carrinho-titulo"><IconVendas /> Pedido atual</div>
+              <div className="caixa-carrinho-topo-acoes">
+                {carrinho.length > 0 && (
+                  <button type="button" className="caixa-limpar-btn" onClick={limparVenda}>Limpar</button>
+                )}
+                <button
+                  type="button"
+                  className="caixa-fechar-carrinho-mobile"
+                  onClick={() => setCarrinhoMobileAberto(false)}
+                  aria-label="Fechar carrinho"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {carrinho.length === 0 ? (
+              <div className="caixa-carrinho-vazio">
+                <IconVendas />
+                <p>Nenhum item ainda.</p>
+                <span>Clique nos produtos ao lado para adicionar.</span>
+              </div>
+            ) : (
+              <ul className="caixa-itens-lista">
+                {carrinho.map((i) => {
+                  const podeAumentar =
+                    totalGraoComprometido(i.produtoId) + i.quantidadeGrao <= i.estoqueTotalProduto;
+                  return (
+                    <li key={`${i.produtoId}-${i.nivelVendaId}`}>
+                      <div className="caixa-item-info">
+                        <strong>{i.nome}</strong>
+                        <span className="text-muted">{formatBRL(i.precoVenda)} cada</span>
+                      </div>
+                      <div className="caixa-item-stepper">
+                        <button type="button" onClick={() => diminuir(i.produtoId, i.nivelVendaId)} aria-label="Diminuir">−</button>
+                        <span>{i.quantidade}</span>
+                        <button
+                          type="button"
+                          onClick={() => aumentar(i.produtoId, i.nivelVendaId)}
+                          disabled={!podeAumentar}
+                          aria-label="Aumentar"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <div className="caixa-item-subtotal">{formatBRL(i.precoVenda * i.quantidade)}</div>
+                      <button
+                        type="button"
+                        className="caixa-item-remover"
+                        onClick={() => removerItem(i.produtoId, i.nivelVendaId)}
+                        aria-label="Remover item"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            <form onSubmit={finalizarVenda}>
+              <div className="caixa-resumo">
+                <div className="caixa-resumo-linha">
+                  <span>{totalItens} {totalItens === 1 ? 'item' : 'itens'}</span>
+                  <span>Subtotal <strong>{formatBRL(subtotal)}</strong></span>
+                </div>
+                <div className="caixa-resumo-ajustes">
+                  <div className="field">
+                    <label>Desconto (R$)</label>
+                    <input type="number" min="0" step="0.01" value={desconto} onChange={(e) => setDesconto(e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>Acréscimo (R$)</label>
+                    <input type="number" min="0" step="0.01" value={acrescimo} onChange={(e) => setAcrescimo(e.target.value)} />
+                  </div>
+                </div>
+                <div className="caixa-resumo-total-box">
+                  <span>Total</span>
+                  <span>{formatBRL(total)}</span>
+                </div>
+              </div>
+
+              <div className="field caixa-campo-cliente">
+                <label>Cliente</label>
+                <div className="caixa-icone-campo">
+                  <IconSearch className="caixa-icone-campo-icone" />
+                  <input value={nomeCliente} onChange={(e) => setNomeCliente(e.target.value)} placeholder="Buscar cliente..." />
+                </div>
+              </div>
+
+              <div className="field" style={{ marginBottom: 14 }}>
+                <label>Forma de pagamento *</label>
+                <div className="caixa-formas-pagamento">
+                  {FORMAS_PAGAMENTO.map((f) => {
+                    const indisponivel = (f.id === 'MAQUININHA' || f.id === 'DIVIDIDO') && !maquininhaDisponivel;
+                    const botao = (
+                      <button
+                        type="button"
+                        className={`caixa-forma-btn is-${f.id.toLowerCase()}${formaPagamento === f.id ? ' is-active' : ''}`}
+                        onClick={() => setFormaPagamento(f.id)}
+                        disabled={indisponivel}
+                        title={indisponivel ? 'Configure a maquininha deste caixa em "Editar caixa"' : undefined}
+                      >
+                        <span className="caixa-forma-icone"><f.Icon /></span>
+                        {f.label}
+                      </button>
+                    );
+                    if (f.id !== 'MAQUININHA') return <Fragment key={f.id}>{botao}</Fragment>;
+                    return (
+                      <div key={f.id} className="caixa-forma-maquininha-col">
+                        <button
+                          type="button"
+                          className={`caixa-dividir-cartao-btn${dividirCartao && formaPagamento === 'MAQUININHA' ? ' is-active' : ''}`}
+                          onClick={alternarDividirCartao}
+                          disabled={indisponivel}
+                        >
+                          Dividir débito/crédito
+                        </button>
+                        {botao}
+                      </div>
+                    );
+                  })}
+                </div>
+                {caixaId && !maquininhaDisponivel && (
+                  <p className="alert-box caixa-aviso-maquininha">
+                    ⚠️ Este caixa não tem maquininha configurada. {ehAdmin ? 'Configure em "Editar caixa".' : 'Peça para um administrador configurar.'}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  className={`caixa-cartao-manual-btn${formaPagamento === 'CARTAO_MANUAL' ? ' is-active' : ''}`}
+                  onClick={() => setFormaPagamento('CARTAO_MANUAL')}
+                  title="Para vendas já pagas por fora do sistema (ex: maquininha sem internet, ou um Pix recebido direto)"
+                >
+                  <IconCartao /> Venda paga por fora (lançar sem confirmar)
+                </button>
+              </div>
+
+              {formaPagamento === 'CARTAO_MANUAL' && (
+                <div className="caixa-troco-box">
+                  <p className="text-muted" style={{ marginTop: 0, marginBottom: 10 }}>
+                    Para vendas já pagas por fora do sistema (ex: maquininha sem internet, ou um Pix recebido
+                    direto). A venda é lançada direto como concluída — sem confirmar nenhum pagamento aqui.
+                  </p>
+                  <div className="field">
+                    <label>Qual foi a forma de pagamento? *</label>
+                    <div className="caixa-tipo-cartao-manual">
+                      <button
+                        type="button"
+                        className={`caixa-forma-btn${metodoPagoPorFora === 'DEBITO' ? ' is-active' : ''}`}
+                        onClick={() => setMetodoPagoPorFora('DEBITO')}
+                      >
+                        Débito
+                      </button>
+                      <button
+                        type="button"
+                        className={`caixa-forma-btn${metodoPagoPorFora === 'CREDITO' ? ' is-active' : ''}`}
+                        onClick={() => setMetodoPagoPorFora('CREDITO')}
+                      >
+                        Crédito
+                      </button>
+                      <button
+                        type="button"
+                        className={`caixa-forma-btn${metodoPagoPorFora === 'PIX' ? ' is-active' : ''}`}
+                        onClick={() => setMetodoPagoPorFora('PIX')}
+                      >
+                        Pix
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {formaPagamento === 'DINHEIRO' && (
+                <div className="caixa-troco-box">
+                  <div className="field">
+                    <label>Valor recebido (R$)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={valorRecebido}
+                      onChange={(e) => setValorRecebido(e.target.value)}
+                      placeholder={total.toFixed(2)}
+                    />
+                  </div>
+                  {valorRecebido !== '' && (
+                    faltaReceber > 0 ? (
+                      <p className="caixa-troco-falta">Falta receber {formatBRL(faltaReceber)}</p>
+                    ) : (
+                      <p className="caixa-troco-valor">Troco: {formatBRL(troco)}</p>
+                    )
+                  )}
+                </div>
+              )}
+
+              {formaPagamento === 'DIVIDIDO' && (
+                <div className="caixa-troco-box">
+                  <div className="field">
+                    <label>Valor em dinheiro (R$)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={valorDinheiroDividido}
+                      onChange={(e) => setValorDinheiroDividido(e.target.value)}
+                      placeholder="0,00"
+                      autoFocus
+                    />
+                  </div>
+                  {valorDinheiroDividido !== '' && (
+                    divisaoValida ? (
+                      <p className="caixa-troco-valor">Na maquininha: {formatBRL(valorMaquininhaDividido)}</p>
+                    ) : (
+                      <p className="caixa-troco-falta">
+                        {Number(valorDinheiroDividido) >= total
+                          ? 'O valor em dinheiro precisa ser menor que o total — senão é só "Dinheiro".'
+                          : 'Informe um valor em dinheiro maior que zero.'}
+                      </p>
+                    )
+                  )}
+                </div>
+              )}
+
+              {formaPagamento === 'MAQUININHA' && dividirCartao && (
+                <div className="caixa-troco-box">
+                  <div className="form-grid">
+                    <div className="field">
+                      <label>1ª cobrança — Débito (R$)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={valorDebitoDividido}
+                        onChange={(e) => setValorDebitoDividido(e.target.value)}
+                        placeholder="0,00"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="field">
+                      <label>2ª cobrança — Crédito (R$)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={valorCreditoDividido}
+                        onChange={(e) => setValorCreditoDividido(e.target.value)}
+                        placeholder="0,00"
+                      />
+                    </div>
+                  </div>
+                  {(valorDebitoDividido !== '' || valorCreditoDividido !== '') && (
+                    divisaoCartaoValida ? (
+                      <p className="caixa-troco-valor">
+                        Débito: {formatBRL(valorDebitoDividido)} · Crédito: {formatBRL(valorCreditoDividido)}
+                      </p>
+                    ) : (
+                      <p className="caixa-troco-falta">A soma de débito + crédito precisa ser igual ao total ({formatBRL(total)}).</p>
+                    )
+                  )}
+                </div>
+              )}
+
+              {!caixaId && caixasAtivos.length > 0 && (
+                <p className="caixa-troco-falta" style={{ marginBottom: 10 }}>Selecione um caixa/unidade acima para vender.</p>
+              )}
+
+              {erroVenda && <div className="alert-box">{erroVenda}</div>}
+
+              <button
+                type="submit"
+                className="btn btn-primary caixa-finalizar-btn"
+                disabled={enviando || carrinho.length === 0 || !caixaId || !divisaoValida}
+              >
+                {enviando
+                  ? 'Enviando...'
+                  : formaPagamento === 'MAQUININHA' && dividirCartao
+                    ? `Cobrar 1ª parcela (débito) · ${formatBRL(valorDebitoDividido || 0)}`
+                    : formaPagamento === 'MAQUININHA'
+                      ? `Cobrar na Maquininha · ${formatBRL(total)}`
+                      : formaPagamento === 'DIVIDIDO'
+                        ? `Cobrar na Maquininha · ${formatBRL(valorMaquininhaDividido)}`
+                        : formaPagamento === 'CARTAO_MANUAL'
+                          ? `Lançar venda paga por fora · ${formatBRL(total)}`
+                          : `Finalizar Venda · ${formatBRL(total)}`}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        className="caixa-fab-carrinho"
+        onClick={() => setCarrinhoMobileAberto(true)}
+        aria-label="Abrir carrinho"
+      >
+        <IconVendas />
+        {totalItens > 0 && <span className="caixa-fab-badge">{totalItens}</span>}
+      </button>
+        </>
+      )}
+
+      {modalCaixa && (
+        <Modal title={modalCaixa === 'novo' ? 'Novo caixa/unidade' : `Editar ${modalCaixa.nome}`} onClose={() => setModalCaixa(null)}>
+          <form onSubmit={salvarCaixa}>
+            <div className="form-grid">
+              <div className="field">
+                <label>Nome do caixa *</label>
+                <input
+                  value={formCaixa.nome}
+                  onChange={(e) => setFormCaixa({ ...formCaixa, nome: e.target.value })}
+                  placeholder="Caixa 1"
+                  required
+                />
+              </div>
+              <div className="field">
+                <label>Unidade *</label>
+                <input
+                  value={formCaixa.unidade}
+                  onChange={(e) => setFormCaixa({ ...formCaixa, unidade: e.target.value })}
+                  placeholder="Matriz"
+                  list="unidades-existentes"
+                  required
+                />
+                <datalist id="unidades-existentes">
+                  {[...new Set(caixas.map((c) => c.unidade))].map((u) => <option key={u} value={u} />)}
+                </datalist>
+                <p className="text-muted" style={{ marginTop: 6, fontSize: 12 }}>
+                  Usar o nome de uma unidade já existente cadastra mais um caixa pra mesma loja.
+                </p>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModalCaixa(null)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary" disabled={salvandoCaixa}>{salvandoCaixa ? 'Salvando...' : 'Salvar'}</button>
+            </div>
+          </form>
+
+          {modalCaixa !== 'novo' && (
+            <div>
+              <div className="section-title">Maquininha Mercado Pago (Point)</div>
+              {mpErro && <div className="alert-box">{mpErro}</div>}
+
+              {modalCaixa.mpUserId ? (
+                <>
+                  <p className="text-muted">
+                    Conta conectada: <strong>{modalCaixa.mpNicknameConta || modalCaixa.mpUserId}</strong>
+                  </p>
+                  <p className="text-muted">
+                    Maquininha associada: {modalCaixa.mpDeviceId ? <strong>{modalCaixa.mpDeviceId}</strong> : 'nenhuma'}
+                  </p>
+                  <div className="field">
+                    <label>Selecionar maquininha</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select value={mpDeviceSelecionado} onChange={(e) => setMpDeviceSelecionado(e.target.value)}>
+                        <option value="">{mpDevices.length ? 'Selecione...' : 'Clique em "Buscar" ao lado'}</option>
+                        {mpDevices.map((d) => (
+                          <option key={d.id} value={d.id}>{d.id}{d.pos_id ? ` — ${d.pos_id}` : ''}</option>
+                        ))}
+                      </select>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={buscarMaquininhas} disabled={mpCarregandoDevices}>
+                        {mpCarregandoDevices ? 'Buscando...' : 'Buscar'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 8 }}>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={associarMaquininha} disabled={mpAssociando || !mpDeviceSelecionado}>
+                      {mpAssociando ? 'Associando...' : 'Associar maquininha'}
+                    </button>
+                    <button type="button" className="btn btn-danger btn-sm" onClick={removerMercadoPago} disabled={mpRemovendo}>
+                      {mpRemovendo ? 'Removendo...' : 'Remover configuração'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted">
+                    Cole o Access Token de produção da conta Mercado Pago deste caixa (Painel do Desenvolvedor MP → Suas integrações → Credenciais de produção).
+                  </p>
+                  <div className="field">
+                    <label>Access Token</label>
+                    <input
+                      type="password"
+                      value={mpToken}
+                      onChange={(e) => setMpToken(e.target.value)}
+                      placeholder="APP_USR-..."
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="modal-actions" style={{ justifyContent: 'flex-start' }}>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={conectarMercadoPago} disabled={mpSalvandoToken || !mpToken.trim()}>
+                      {mpSalvandoToken ? 'Conectando...' : 'Conectar conta'}
+                    </button>
+                  </div>
+
+                  {mpDevices.length > 0 && (
+                    <div className="field">
+                      <label>Selecionar maquininha</label>
+                      <select value={mpDeviceSelecionado} onChange={(e) => setMpDeviceSelecionado(e.target.value)}>
+                        <option value="">Selecione...</option>
+                        {mpDevices.map((d) => (
+                          <option key={d.id} value={d.id}>{d.id}{d.pos_id ? ` — ${d.pos_id}` : ''}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        style={{ marginTop: 8 }}
+                        onClick={associarMaquininha}
+                        disabled={mpAssociando || !mpDeviceSelecionado}
+                      >
+                        {mpAssociando ? 'Associando...' : 'Associar maquininha'}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </Modal>
+      )}
+
+      {modalFecharCaixa && (
+        <Modal title="Fechar caixa" onClose={() => setModalFecharCaixa(false)}>
+          <form onSubmit={fecharCaixaFisico}>
+            {sessaoInfo?.sessaoAberta && (
+              <div className="caixa-fechamento-resumo">
+                <div>
+                  <span>Fundo de caixa (abertura)</span>
+                  <strong>{formatBRL(sessaoInfo.sessaoAberta.valorAbertura)}</strong>
+                </div>
+                <div>
+                  <span>Vendido em dinheiro hoje</span>
+                  <strong>{formatBRL(sessaoInfo.vendasDinheiroSessao || 0)}</strong>
+                </div>
+                <div className="caixa-fechamento-resumo-total">
+                  <span>Deveria ter no caixa agora</span>
+                  <strong>{formatBRL(Number(sessaoInfo.sessaoAberta.valorAbertura) + Number(sessaoInfo.vendasDinheiroSessao || 0))}</strong>
+                </div>
+              </div>
+            )}
+            <p className="text-muted" style={{ marginBottom: 16 }}>
+              Conte o dinheiro físico, recolha o que exceder o fundo de caixa e informe abaixo quanto vai deixar
+              guardado para abrir amanhã.
+            </p>
+            <div className="field">
+              <label>Fundo de caixa a deixar (R$) *</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={valorFechamentoInput}
+                onChange={(e) => setValorFechamentoInput(e.target.value)}
+                placeholder="0,00"
+                autoFocus
+                required
+              />
+            </div>
+            <div className="field">
+              <label>Observação (opcional)</label>
+              <input
+                value={observacaoFechamento}
+                onChange={(e) => setObservacaoFechamento(e.target.value)}
+                placeholder="Ex: recolhido R$200 para o cofre"
+              />
+            </div>
+            {erroFecharCaixaFisico && <div className="alert-box">{erroFecharCaixaFisico}</div>}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModalFecharCaixa(false)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary" disabled={fechandoCaixaFisico || valorFechamentoInput === ''}>
+                {fechandoCaixaFisico ? 'Fechando...' : 'Fechar caixa'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {relatorioFechamento && (
+        <Modal title={`Relatório de fechamento — ${relatorioFechamento.caixaNome}`} onClose={() => setRelatorioFechamento(null)}>
+          <p className="text-muted" style={{ marginTop: 0 }}>
+            {new Date(relatorioFechamento.abertaEm).toLocaleString('pt-BR')} até{' '}
+            {new Date(relatorioFechamento.fechadaEm).toLocaleString('pt-BR')}
+          </p>
+
+          <div className="section-title" style={{ marginTop: 0 }}>Por forma de pagamento</div>
+          {Object.values(relatorioFechamento.resumoVendas.porFormaPagamento).every((v) => v <= 0) ? (
+            <p className="text-muted">Nenhuma venda confirmada nesta sessão.</p>
+          ) : (
+            <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0 16px' }}>
+              {Object.entries(relatorioFechamento.resumoVendas.porFormaPagamento)
+                .filter(([, valor]) => valor > 0)
+                .map(([forma, valor]) => (
+                  <li key={forma} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
+                    <span>{LABEL_FORMA_FECHAMENTO[forma] || forma}</span>
+                    <strong style={{ marginLeft: 'auto' }}>{formatBRL(valor)}</strong>
+                  </li>
+                ))}
+              <li
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '8px 0 0',
+                  marginTop: 4,
+                  borderTop: '1px solid var(--color-border)',
+                }}
+              >
+                <span>Total vendido</span>
+                <strong style={{ marginLeft: 'auto' }}>{formatBRL(relatorioFechamento.resumoVendas.faturamento)}</strong>
+              </li>
+            </ul>
+          )}
+
+          <div className="section-title">Comparação com a maquininha</div>
+          {!relatorioFechamento.relatorioMaquininha?.disponivel ? (
+            <p className="text-muted">
+              {relatorioFechamento.relatorioMaquininha?.motivo || 'Relatório da maquininha indisponível.'}
+            </p>
+          ) : (
+            <table style={{ width: '100%', fontSize: 13, marginBottom: 8, borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '4px 0' }}></th>
+                  <th style={{ padding: '4px 0' }}>Sistema</th>
+                  <th style={{ padding: '4px 0' }}>Maquininha</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ padding: '4px 0' }}>Crédito</td>
+                  <td style={{ textAlign: 'center' }}>
+                    {formatBRL(relatorioFechamento.resumoVendas.porFormaPagamento.CARTAO_CREDITO || 0)}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>{formatBRL(relatorioFechamento.relatorioMaquininha.totais.credit_card)}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '4px 0' }}>Débito</td>
+                  <td style={{ textAlign: 'center' }}>
+                    {formatBRL(relatorioFechamento.resumoVendas.porFormaPagamento.CARTAO_DEBITO || 0)}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>{formatBRL(relatorioFechamento.relatorioMaquininha.totais.debit_card)}</td>
+                </tr>
+              </tbody>
+            </table>
+          )}
+
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setRelatorioFechamento(null)}>Fechar</button>
+            <button type="button" className="btn btn-primary" onClick={exportarPdfFechamento} disabled={gerandoPdfFechamento}>
+              📄 {gerandoPdfFechamento ? 'Gerando...' : 'Exportar PDF'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {avisoDivergencia && (
+        <Modal title="Divergência no fundo de caixa" onClose={() => setAvisoDivergencia(null)}>
+          {avisoDivergencia.valorEsperado !== undefined ? (
+            <>
+              <p>
+                O fechamento anterior deste caixa deixou <strong>{formatBRL(avisoDivergencia.valorEsperado)}</strong> de fundo, mas
+                o fundo informado agora foi <strong>{formatBRL(avisoDivergencia.valorAbertura)}</strong>.
+              </p>
+              <p className={avisoDivergencia.divergencia > 0 ? 'text-success' : 'text-danger'} style={{ fontWeight: 700 }}>
+                Diferença: {avisoDivergencia.divergencia > 0 ? '+' : ''}{formatBRL(avisoDivergencia.divergencia)}
+              </p>
+            </>
+          ) : (
+            <p>O fundo de caixa informado na abertura não bateu com o valor deixado no último fechamento.</p>
+          )}
+          <p className="text-muted">O administrador foi notificado dessa divergência no Dashboard e no Financeiro.</p>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-primary" onClick={() => setAvisoDivergencia(null)}>Entendi, continuar</button>
+          </div>
+        </Modal>
+      )}
+
+      {vendaAguardandoPagamento && (
+        <Modal title={`Cobrança na maquininha — Venda #${vendaAguardandoPagamento.id}`} onClose={undefined}>
+          {avisoMaquininha && <div className="alert-box">{avisoMaquininha}</div>}
+          <PainelCobrancaMaquininha
+            pagamentos={cobranca.pagamentos}
+            resumo={cobranca.resumo}
+            carregando={cobranca.carregando}
+            enviando={cobranca.enviando}
+            cancelando={cobranca.cancelando}
+            erro={cobranca.erro}
+            tempoRestante={cobranca.tempoRestante}
+            onEnviar={cobranca.enviarCobranca}
+            onCancelar={cancelarPagamentoEVenda}
+          />
+          {cobranca.resumo && !cobranca.resumo.completo && !cobranca.resumo.cobrancaAtiva && (
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={cancelarPagamentoEVenda}>Cancelar venda</button>
+            </div>
+          )}
+        </Modal>
+      )}
+    </div>
+  );
+}

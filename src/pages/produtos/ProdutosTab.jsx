@@ -1,0 +1,646 @@
+import { useEffect, useMemo, useState } from 'react';
+import { api, resolveUploadUrl } from '../../api/client';
+import { Table } from '../../components/Table';
+import { Modal } from '../../components/Modal';
+import { HistoricoProdutoModal } from './HistoricoProdutoModal';
+
+const PRODUTO_VAZIO = { nome: '', tipo: '', estoqueMinimo: 0, quantidade: 0 };
+const MOVIMENTO_VAZIO = { produtoId: '', caixaId: '', quantidade: '', validade: '', motivo: '' };
+const NOVA_CATEGORIA = '__nova__';
+const NIVEL_VAZIO = { nome: '', quantidadeGrao: '', preco: '', codigoBarras: '' };
+
+function formatBRL(valor) {
+  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function round2(valor) {
+  return Math.round(Number(valor) * 100) / 100;
+}
+
+export function ProdutosTab() {
+  const [produtos, setProdutos] = useState([]);
+  const [alertas, setAlertas] = useState({ estoqueBaixo: [], validadeProxima: [] });
+  const [caixas, setCaixas] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
+
+  const [modalProduto, setModalProduto] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
+  const [formProduto, setFormProduto] = useState(PRODUTO_VAZIO);
+  // precoCusto é sempre guardado por grão-base (mesmo formato do banco) — o campo exibido no
+  // formulário é convertido na hora pro nível de referência atual (ver precoCustoExibido).
+  const [precoCustoGrao, setPrecoCustoGrao] = useState(null);
+  // Texto bruto digitado no campo "Preço de custo" — mantido separado do valor numérico
+  // (precoCustoGrao) pra aceitar vírgula OU ponto como separador decimal sem o campo "comer"
+  // o que a pessoa está digitando (um <input> controlado que reformatasse o texto a cada
+  // tecla, a partir do número já convertido, perderia a vírgula/zero à direita ainda incompletos).
+  const [precoCustoInput, setPrecoCustoInput] = useState('');
+  const [modoNovaCategoria, setModoNovaCategoria] = useState(false);
+  const [imagemArquivo, setImagemArquivo] = useState(null);
+  const [imagemPreview, setImagemPreview] = useState(null);
+  const [salvandoProduto, setSalvandoProduto] = useState(false);
+
+  const [niveis, setNiveis] = useState([]);
+  const [formNivel, setFormNivel] = useState(NIVEL_VAZIO);
+  const [salvandoNivel, setSalvandoNivel] = useState(false);
+
+  const nivelBase = niveis.find((n) => n.ehBase) || null;
+  const precoCustoExibido = precoCustoGrao !== null && nivelBase ? round2(precoCustoGrao * nivelBase.quantidadeGrao) : '';
+
+  // Resincroniza o texto do campo só quando o nível de referência muda de identidade (abrir o
+  // modal, trocar de nível via "Usar como referência") — de propósito NÃO depende de
+  // precoCustoExibido, senão reformataria o campo a cada tecla digitada (ver alterarPrecoCustoInput).
+  useEffect(() => {
+    setPrecoCustoInput(precoCustoExibido === '' ? '' : String(precoCustoExibido).replace('.', ','));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nivelBase?.id]);
+
+  const categoriasExistentes = useMemo(
+    () => Array.from(new Set(produtos.map((p) => p.tipo).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [produtos]
+  );
+
+  const [modalMovimento, setModalMovimento] = useState(null); // 'entrada' | 'saida' | null
+  const [formMovimento, setFormMovimento] = useState(MOVIMENTO_VAZIO);
+  const [salvandoMovimento, setSalvandoMovimento] = useState(false);
+
+  const [produtoHistorico, setProdutoHistorico] = useState(null);
+
+  function carregar() {
+    setCarregando(true);
+    Promise.all([api.get('/produtos'), api.get('/estoque/alertas'), api.get('/caixas?ativo=true')])
+      .then(([p, a, c]) => {
+        setProdutos(p);
+        setAlertas(a);
+        setCaixas(c);
+      })
+      .catch((e) => setErro(e.message))
+      .finally(() => setCarregando(false));
+  }
+
+  useEffect(carregar, []);
+
+  function carregarNiveis(produtoId) {
+    api.get(`/produtos/${produtoId}/niveis`).then(setNiveis).catch(() => setNiveis([]));
+  }
+
+  function abrirNovoProduto() {
+    setEditandoId(null);
+    setFormProduto(PRODUTO_VAZIO);
+    setPrecoCustoGrao(null);
+    setModoNovaCategoria(false);
+    setImagemArquivo(null);
+    setImagemPreview(null);
+    setNiveis([]);
+    setFormNivel(NIVEL_VAZIO);
+    setModalProduto(true);
+  }
+
+  function abrirEditarProduto(produto) {
+    setEditandoId(produto.id);
+    setFormProduto({
+      nome: produto.nome,
+      tipo: produto.tipo || '',
+      estoqueMinimo: produto.estoqueMinimo,
+      quantidade: produto.quantidade,
+    });
+    setPrecoCustoGrao(produto.precoCusto !== null && produto.precoCusto !== undefined ? Number(produto.precoCusto) : null);
+    // Se o produto já tem um tipo fora da lista atual (não deveria acontecer, mas por
+    // segurança), abre direto no campo de texto em vez de um <select> sem essa opção.
+    setModoNovaCategoria(Boolean(produto.tipo) && !categoriasExistentes.includes(produto.tipo));
+    setImagemArquivo(null);
+    setImagemPreview(resolveUploadUrl(produto.imagemUrl));
+    setFormNivel(NIVEL_VAZIO);
+    // Zera antes de recarregar: sem isso, reabrir o modal do mesmo produto manteria o
+    // nível de referência antigo (mesmo id) e o campo de preço de custo abaixo não
+    // resincronizaria com o valor recém-carregado (ver efeito ligado a nivelBase?.id).
+    setNiveis([]);
+    carregarNiveis(produto.id);
+    setModalProduto(true);
+  }
+
+  async function enviarImagemNivel(nivel, arquivo) {
+    const dados = new FormData();
+    dados.append('imagem', arquivo);
+    try {
+      await api.upload(`/produtos/${editandoId}/niveis/${nivel.id}/imagem`, dados);
+      carregarNiveis(editandoId);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function adicionarNivel(e) {
+    e.preventDefault();
+    setSalvandoNivel(true);
+    try {
+      await api.post(`/produtos/${editandoId}/niveis`, {
+        nome: formNivel.nome.trim(),
+        quantidadeGrao: Number(formNivel.quantidadeGrao),
+        preco: formNivel.preco === '' ? undefined : Number(formNivel.preco),
+        codigoBarras: formNivel.codigoBarras.trim() || undefined,
+      });
+      setFormNivel(NIVEL_VAZIO);
+      carregarNiveis(editandoId);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSalvandoNivel(false);
+    }
+  }
+
+  async function salvarPrecoNivel(nivel, novoPreco) {
+    if (novoPreco === '' || Number.isNaN(Number(novoPreco))) return;
+    try {
+      await api.put(`/produtos/${editandoId}/niveis/${nivel.id}`, { preco: Number(novoPreco) });
+      carregarNiveis(editandoId);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function salvarCodigoBarrasNivel(nivel, novoCodigo) {
+    if (novoCodigo === (nivel.codigoBarras || '')) return;
+    try {
+      await api.put(`/produtos/${editandoId}/niveis/${nivel.id}`, { codigoBarras: novoCodigo.trim() });
+      carregarNiveis(editandoId);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function definirComoBase(nivel) {
+    try {
+      await api.post(`/produtos/${editandoId}/niveis/${nivel.id}/definir-base`, {});
+      carregarNiveis(editandoId);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function recalcularNivel(nivel) {
+    try {
+      await api.post(`/produtos/${editandoId}/niveis/${nivel.id}/recalcular`, {});
+      carregarNiveis(editandoId);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function removerNivel(nivel) {
+    if (!confirm(`Remover o nível "${nivel.nome}"?`)) return;
+    try {
+      await api.delete(`/produtos/${editandoId}/niveis/${nivel.id}`);
+      carregarNiveis(editandoId);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  function selecionarCategoria(valor) {
+    if (valor === NOVA_CATEGORIA) {
+      setModoNovaCategoria(true);
+      setFormProduto({ ...formProduto, tipo: '' });
+    } else {
+      setFormProduto({ ...formProduto, tipo: valor });
+    }
+  }
+
+  function selecionarImagem(e) {
+    const arquivo = e.target.files?.[0];
+    if (!arquivo) return;
+    setImagemArquivo(arquivo);
+    setImagemPreview(URL.createObjectURL(arquivo));
+  }
+
+  // Aceita vírgula OU ponto como separador decimal (ex: "0,15" ou "0.15"). Guarda o texto
+  // digitado tal como veio (pra não atrapalhar quem ainda está no meio de digitar "0,15") e só
+  // atualiza o valor numérico de verdade quando o texto já dá pra converter num número válido.
+  function alterarPrecoCustoInput(textoDigitado) {
+    setPrecoCustoInput(textoDigitado);
+    if (textoDigitado.trim() === '') {
+      setPrecoCustoGrao(null);
+      return;
+    }
+    const numero = Number(textoDigitado.replace(',', '.'));
+    if (!Number.isNaN(numero)) {
+      setPrecoCustoGrao(numero / nivelBase.quantidadeGrao);
+    }
+  }
+
+  async function salvarProduto(e) {
+    e.preventDefault();
+    setSalvandoProduto(true);
+    try {
+      const payload = editandoId
+        ? {
+            ...formProduto,
+            estoqueMinimo: Number(formProduto.estoqueMinimo),
+            precoCusto: precoCustoGrao,
+          }
+        : {
+            ...formProduto,
+            estoqueMinimo: Number(formProduto.estoqueMinimo),
+            quantidade: Number(formProduto.quantidade),
+          };
+
+      const produtoSalvo = editandoId
+        ? await api.put(`/produtos/${editandoId}`, payload)
+        : await api.post('/produtos', payload);
+
+      if (imagemArquivo) {
+        const dados = new FormData();
+        dados.append('imagem', imagemArquivo);
+        await api.upload(`/produtos/${produtoSalvo.id}/imagem`, dados);
+      }
+
+      if (editandoId) {
+        setModalProduto(false);
+        setFormProduto(PRODUTO_VAZIO);
+        setImagemArquivo(null);
+        setImagemPreview(null);
+      } else {
+        // Produto recém-criado: mantém o modal aberto, agora em modo edição, pra dar pra
+        // cadastrar os níveis de venda dele na hora sem precisar reabrir.
+        setEditandoId(produtoSalvo.id);
+        setImagemArquivo(null);
+        setImagemPreview(resolveUploadUrl(produtoSalvo.imagemUrl));
+        carregarNiveis(produtoSalvo.id);
+      }
+      carregar();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSalvandoProduto(false);
+    }
+  }
+
+  async function excluirProduto(produto) {
+    if (!confirm(`Excluir "${produto.nome}" do estoque?`)) return;
+    try {
+      await api.delete(`/produtos/${produto.id}`);
+      carregar();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  function abrirMovimento(tipo, produto) {
+    setModalMovimento(tipo);
+    setFormMovimento({ ...MOVIMENTO_VAZIO, produtoId: produto.id });
+  }
+
+  async function salvarMovimento(e) {
+    e.preventDefault();
+    setSalvandoMovimento(true);
+    try {
+      const payload = { produtoId: Number(formMovimento.produtoId), quantidade: Number(formMovimento.quantidade), motivo: formMovimento.motivo };
+      if (modalMovimento === 'entrada') {
+        await api.post('/estoque/entrada', { ...payload, validade: formMovimento.validade || undefined });
+      } else {
+        await api.post('/estoque/saida', { ...payload, caixaId: Number(formMovimento.caixaId) });
+      }
+      setModalMovimento(null);
+      carregar();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSalvandoMovimento(false);
+    }
+  }
+
+  const columns = [
+    {
+      key: 'imagem',
+      header: '',
+      render: (p) =>
+        p.imagemUrl ? (
+          <img src={resolveUploadUrl(p.imagemUrl)} alt={p.nome} className="produto-thumb" />
+        ) : (
+          <div className="produto-thumb produto-thumb-vazio">🥚</div>
+        ),
+    },
+    { key: 'nome', header: 'Produto' },
+    {
+      key: 'niveisVenda',
+      header: 'Nível de referência',
+      render: (p) => {
+        const base = (p.niveisVenda || []).find((n) => n.ehBase);
+        return base ? `${base.nome} — ${formatBRL(base.preco)}` : <span className="text-muted">Sem nível cadastrado</span>;
+      },
+    },
+    {
+      key: 'quantidade',
+      header: 'Não distribuído',
+      render: (p) => (
+        <span>
+          {p.quantidade}{' '}
+          {p.estoqueTotal <= p.estoqueMinimo && <span className="badge badge-red">baixo</span>}
+        </span>
+      ),
+    },
+    { key: 'estoqueMinimo', header: 'Estoque mínimo' },
+    {
+      key: 'acoes',
+      header: '',
+      render: (p) => (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => abrirMovimento('entrada', p)}>+ Entrada</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => abrirMovimento('saida', p)}>− Saída</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => abrirEditarProduto(p)}>Editar</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => setProdutoHistorico(p)}>Histórico</button>
+          <button className="btn btn-danger btn-sm" onClick={() => excluirProduto(p)}>Excluir</button>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <p>Entrada e saída automatizadas, controle por lote e validade. "Não distribuído" é o estoque recebido que ainda não foi alocado a nenhuma unidade — veja "Estoque por Unidade" para o que já está nas unidades.</p>
+        </div>
+        <button className="btn btn-primary" onClick={abrirNovoProduto}>+ Novo produto</button>
+      </div>
+
+      {erro && <div className="alert-box">{erro}</div>}
+
+      {alertas.estoqueBaixo.length > 0 && (
+        <div className="alert-box">
+          Estoque baixo: {alertas.estoqueBaixo.map((p) => p.nome).join(', ')}
+        </div>
+      )}
+      {alertas.validadeProxima.length > 0 && (
+        <div className="alert-box">
+          Lotes próximos da validade: {alertas.validadeProxima.map((l) => `${l.produto.nome} (${new Date(l.validade).toLocaleDateString('pt-BR')})`).join(', ')}
+        </div>
+      )}
+
+      {carregando ? <p className="text-muted">Carregando...</p> : (
+        <Table columns={columns} rows={produtos} rowKey={(p) => p.id} />
+      )}
+
+      {modalProduto && (
+        <Modal title={editandoId ? 'Editar produto' : 'Novo produto'} onClose={() => setModalProduto(false)} className="is-largo">
+          <form onSubmit={salvarProduto}>
+            <div className="field produto-imagem-campo">
+              <label>Imagem</label>
+              <div className="produto-imagem-row">
+                {imagemPreview ? (
+                  <img src={imagemPreview} alt="Prévia" className="produto-thumb produto-thumb-lg" />
+                ) : (
+                  <div className="produto-thumb produto-thumb-lg produto-thumb-vazio">🥚</div>
+                )}
+                <input type="file" accept="image/*" onChange={selecionarImagem} />
+              </div>
+              <p className="text-muted" style={{ marginTop: 6, fontSize: 12 }}>
+                Imagem padrão do produto — cada nível de venda abaixo pode ter a sua própria foto; sem uma, usa esta.
+              </p>
+            </div>
+
+            <div className="form-grid">
+              <div className="field">
+                <label>Nome *</label>
+                <input value={formProduto.nome} onChange={(e) => setFormProduto({ ...formProduto, nome: e.target.value })} required />
+              </div>
+              <div className="field">
+                <label>Categoria</label>
+                {modoNovaCategoria ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      value={formProduto.tipo}
+                      onChange={(e) => setFormProduto({ ...formProduto, tipo: e.target.value })}
+                      placeholder="Nome da nova categoria"
+                      autoFocus
+                    />
+                    {categoriasExistentes.length > 0 && (
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => selecionarCategoria('')}>
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <select value={formProduto.tipo} onChange={(e) => selecionarCategoria(e.target.value)}>
+                    <option value="">Sem categoria</option>
+                    {categoriasExistentes.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                    <option value={NOVA_CATEGORIA}>+ Nova categoria...</option>
+                  </select>
+                )}
+              </div>
+              {editandoId && nivelBase && (
+                <div className="field">
+                  <label>Preço de custo (por {nivelBase.nome})</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={precoCustoInput}
+                    onChange={(e) => alterarPrecoCustoInput(e.target.value)}
+                  />
+                </div>
+              )}
+              {!editandoId && (
+                <div className="field">
+                  <label>Estoque inicial (grão-base)</label>
+                  <input type="number" min="0" value={formProduto.quantidade} onChange={(e) => setFormProduto({ ...formProduto, quantidade: e.target.value })} />
+                </div>
+              )}
+              <div className="field">
+                <label>Estoque mínimo (alerta, grão-base)</label>
+                <input type="number" min="0" value={formProduto.estoqueMinimo} onChange={(e) => setFormProduto({ ...formProduto, estoqueMinimo: e.target.value })} />
+              </div>
+            </div>
+            {editandoId && (
+              <p className="text-muted" style={{ marginTop: 10, fontSize: 12 }}>
+                Estoque atual não muda por aqui — use "+ Entrada" / "− Saída" na tabela, ou registre um Recebimento.
+              </p>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModalProduto(false)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary" disabled={salvandoProduto}>{salvandoProduto ? 'Salvando...' : 'Salvar'}</button>
+            </div>
+          </form>
+
+          {editandoId && (
+            <div style={{ marginTop: 24, borderTop: '1px solid var(--color-border)', paddingTop: 18 }}>
+              <div className="section-title" style={{ marginTop: 0 }}>Níveis de venda</div>
+              <p className="text-muted" style={{ marginBottom: 12, fontSize: 13 }}>
+                Cada nível (ex: Unidade, Dúzia, Bandeja, Caixa) é um jeito de vender este mesmo produto, com preço e
+                foto próprios — todos descontam do mesmo estoque. O nível marcado <strong>Referência</strong> tem o
+                preço digitado à mão; os demais são calculados automaticamente a partir dele (você pode ajustar
+                qualquer um manualmente depois).
+              </p>
+
+              {niveis.length > 0 && (
+                <ul className="produto-embalagens-lista">
+                  {niveis.map((n) => (
+                    <li key={n.id}>
+                      <div className="produto-embalagem-info">
+                        <span className="produto-embalagem-thumb">
+                          {n.imagemUrl || imagemPreview ? (
+                            <img src={n.imagemUrl ? resolveUploadUrl(n.imagemUrl) : imagemPreview} alt={n.nome} />
+                          ) : (
+                            <span aria-hidden="true">📦</span>
+                          )}
+                        </span>
+                        <span className="produto-embalagem-nome">
+                          <strong>{n.nome}</strong>
+                          <span className="text-muted"> · {n.quantidadeGrao} grão-base{n.ehBase ? ' · referência' : n.precoManual ? ' · preço manual' : ''}</span>
+                        </span>
+                      </div>
+                      <div className="produto-embalagem-acoes">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          defaultValue={n.preco}
+                          key={`${n.id}-${n.preco}`}
+                          className="produto-embalagem-preco-input"
+                          title="Preço"
+                          onBlur={(e) => {
+                            if (Number(e.target.value) !== Number(n.preco)) salvarPrecoNivel(n, e.target.value);
+                          }}
+                        />
+                        <input
+                          type="text"
+                          defaultValue={n.codigoBarras || ''}
+                          key={`${n.id}-${n.codigoBarras}-barras`}
+                          className="produto-embalagem-codigo-input"
+                          placeholder="Código de barras"
+                          title="Código de barras deste nível — bipe o leitor aqui ou digite"
+                          onBlur={(e) => salvarCodigoBarrasNivel(n, e.target.value)}
+                        />
+                        {!n.ehBase && (
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => definirComoBase(n)}>
+                            Usar como referência
+                          </button>
+                        )}
+                        {!n.ehBase && n.precoManual && (
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => recalcularNivel(n)}>
+                            Recalcular
+                          </button>
+                        )}
+                        <label className="btn btn-secondary btn-sm produto-embalagem-foto-btn">
+                          Foto
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const arquivo = e.target.files?.[0];
+                              if (arquivo) enviarImagemNivel(n, arquivo);
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+                        {!n.ehBase && (
+                          <button type="button" className="btn btn-danger btn-sm" onClick={() => removerNivel(n)}>Remover</button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <form onSubmit={adicionarNivel} className="form-grid produto-embalagem-form">
+                <div className="field">
+                  <label>Nome</label>
+                  <input
+                    value={formNivel.nome}
+                    onChange={(e) => setFormNivel({ ...formNivel, nome: e.target.value })}
+                    placeholder={niveis.length === 0 ? 'Ex: Dúzia' : 'Ex: Caixa com 30 bandejas'}
+                    required
+                  />
+                </div>
+                <div className="field">
+                  <label>Quantidade em grão-base</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formNivel.quantidadeGrao}
+                    onChange={(e) => setFormNivel({ ...formNivel, quantidadeGrao: e.target.value })}
+                    placeholder={niveis.length === 0 ? 'Ex: 1 ovo' : 'Ex: 360 ovos'}
+                    required
+                  />
+                </div>
+                <div className="field">
+                  <label>Preço (R$){niveis.length > 0 ? ' — em branco calcula automático' : ''}</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formNivel.preco}
+                    onChange={(e) => setFormNivel({ ...formNivel, preco: e.target.value })}
+                    required={niveis.length === 0}
+                  />
+                </div>
+                <div className="field">
+                  <label>Código de barras (opcional)</label>
+                  <input
+                    value={formNivel.codigoBarras}
+                    onChange={(e) => setFormNivel({ ...formNivel, codigoBarras: e.target.value })}
+                    placeholder="Bipe o leitor aqui ou digite"
+                  />
+                </div>
+                <div className="produto-embalagem-form-acao">
+                  <button type="submit" className="btn btn-secondary" disabled={salvandoNivel}>
+                    {salvandoNivel ? 'Adicionando...' : '+ Adicionar nível'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </Modal>
+      )}
+
+      {modalMovimento && (
+        <Modal title={modalMovimento === 'entrada' ? 'Entrada de estoque' : 'Saída para uma unidade'} onClose={() => setModalMovimento(null)}>
+          <form onSubmit={salvarMovimento}>
+            {modalMovimento === 'saida' && (
+              <p className="text-muted" style={{ marginTop: 0, marginBottom: 14 }}>
+                Tira do não distribuído e envia pra uma unidade. Pode repetir quantas vezes quiser pra redistribuir.
+              </p>
+            )}
+            <div className="form-grid">
+              {modalMovimento === 'saida' && (
+                <div className="field">
+                  <label>Unidade de destino *</label>
+                  <select value={formMovimento.caixaId} onChange={(e) => setFormMovimento({ ...formMovimento, caixaId: e.target.value })} required>
+                    <option value="" disabled>Selecione...</option>
+                    {caixas.map((c) => (
+                      <option key={c.id} value={c.id}>{c.nome} — {c.unidade}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className="field">
+                <label>Quantidade *</label>
+                <input type="number" min="1" value={formMovimento.quantidade} onChange={(e) => setFormMovimento({ ...formMovimento, quantidade: e.target.value })} required />
+              </div>
+              {modalMovimento === 'entrada' && (
+                <div className="field">
+                  <label>Validade do lote</label>
+                  <input type="date" value={formMovimento.validade} onChange={(e) => setFormMovimento({ ...formMovimento, validade: e.target.value })} />
+                </div>
+              )}
+              <div className="field">
+                <label>Motivo / observação</label>
+                <input value={formMovimento.motivo} onChange={(e) => setFormMovimento({ ...formMovimento, motivo: e.target.value })} />
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModalMovimento(null)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary" disabled={salvandoMovimento}>{salvandoMovimento ? 'Salvando...' : 'Confirmar'}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {produtoHistorico && (
+        <HistoricoProdutoModal produto={produtoHistorico} onClose={() => setProdutoHistorico(null)} />
+      )}
+    </div>
+  );
+}

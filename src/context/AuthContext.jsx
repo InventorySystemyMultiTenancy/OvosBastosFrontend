@@ -23,8 +23,18 @@ export function AuthProvider({ children }) {
     setUsuario(null);
   }, []);
 
+  // Atualiza o usuário logado em memória + localStorage sem precisar de um novo login —
+  // usado depois de trocar a foto de perfil, por exemplo.
+  const atualizarUsuario = useCallback((parcial) => {
+    setUsuario((atual) => {
+      const atualizado = { ...atual, ...parcial };
+      localStorage.setItem('eggcontrol_usuario', JSON.stringify(atualizado));
+      return atualizado;
+    });
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ usuario, login, logout }}>
+    <AuthContext.Provider value={{ usuario, login, logout, atualizarUsuario }}>
       {children}
     </AuthContext.Provider>
   );
