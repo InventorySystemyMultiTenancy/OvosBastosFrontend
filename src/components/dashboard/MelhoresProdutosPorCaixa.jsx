@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { IconChevronDown } from '../icons';
 
-// expandirTudo: abre todos os blocos (usado na impressão do dashboard).
-export function MelhoresProdutosPorCaixa({ dados, expandirTudo = false }) {
+export function MelhoresProdutosPorCaixa({ dados }) {
   // Fechado por padrão — mostrar os 5 produtos de cada caixa de uma vez só deixa o card
   // poluído quando há várias unidades; o admin abre só a(s) que quer ver.
   const [abertos, setAbertos] = useState(() => new Set());
@@ -22,7 +21,7 @@ export function MelhoresProdutosPorCaixa({ dados, expandirTudo = false }) {
     <div className="dash-melhores-caixas">
       {dados.map((c) => {
         const chave = c.caixaId ?? 'sem-caixa';
-        const aberto = expandirTudo || abertos.has(chave);
+        const aberto = abertos.has(chave);
         const maxQtd = Math.max(1, ...c.produtos.map((p) => p.quantidade));
         return (
           <div key={chave} className="dash-melhores-caixa-bloco">
