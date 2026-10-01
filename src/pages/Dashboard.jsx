@@ -16,7 +16,6 @@ import { EstoquePorUnidadeBotao } from '../components/dashboard/EstoquePorUnidad
 import { FechamentoDiaBotao } from '../components/dashboard/FechamentoDiaBotao';
 import { MelhoresProdutosPorCaixa } from '../components/dashboard/MelhoresProdutosPorCaixa';
 import { CaixaDivergenciaAlerta } from '../components/dashboard/CaixaDivergenciaAlerta';
-import { gerarRelatorioDashboard } from '../utils/relatoriosPdf';
 import { IconLucro, IconFaturamento, IconGastos, IconVendas, IconArrowUp, IconArrowDown, IconCalendar } from '../components/icons';
 
 const PERIODOS = [
@@ -140,21 +139,33 @@ export function Dashboard() {
     setModalData(false);
   }
 
-  async function imprimirRelatorio() {
-    if (!resumo) return;
-    setImprimindo(true);
-    try {
-      await gerarRelatorioDashboard(resumo, {
-        periodoLabel: labelPeriodoAtual(resumo.periodoDias, periodoCustom),
-        comparacaoLabel: labelPeriodoAnterior(resumo.periodoDias, periodoCustom),
-        ehAdmin,
-      });
-    } catch (e) {
-      setErro(`Não foi possível gerar o relatório: ${e.message}`);
-    } finally {
+  // Impressão do dashboard inteiro como está na tela (gráficos inclusos), no período
+  // selecionado. A classe no body ativa o CSS de impressão do dashboard (index.css) sem
+  // mexer no da bobina térmica do recibo; o @page A4 entra só durante essa impressão porque
+  // o @page global é o de 58mm. imprimindo também abre as seções que ficam recolhidas.
+  useEffect(() => {
+    if (!imprimindo) return undefined;
+    document.body.classList.add('imprimindo-dashboard');
+    const estiloPagina = document.createElement('style');
+    estiloPagina.textContent = '@page { size: A4 portrait; margin: 10mm; }';
+    document.head.appendChild(estiloPagina);
+
+    function limpar() {
+      document.body.classList.remove('imprimindo-dashboard');
+      estiloPagina.remove();
       setImprimindo(false);
     }
-  }
+    window.addEventListener('afterprint', limpar, { once: true });
+    // Espera o React renderizar as seções abertas antes de abrir o diálogo.
+    const timer = setTimeout(() => window.print(), 300);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('afterprint', limpar);
+      document.body.classList.remove('imprimindo-dashboard');
+      estiloPagina.remove();
+    };
+  }, [imprimindo]);
 
   const primeiroNome = usuario?.nome?.split(' ')[0];
 
@@ -175,11 +186,11 @@ export function Dashboard() {
           <button
             type="button"
             className="btn btn-secondary btn-sm"
-            onClick={imprimirRelatorio}
+            onClick={() => setImprimindo(true)}
             disabled={carregando || !resumo || imprimindo}
             title="Imprimir todas as informações do dashboard no período selecionado"
           >
-            🖨️ {imprimindo ? 'Gerando...' : 'Imprimir relatório'}
+            🖨️ {imprimindo ? 'Preparando...' : 'Imprimir relatório'}
           </button>
           <div className="dash-periodo-toggle">
             {PERIODOS.map((p) => (
@@ -237,6 +248,14 @@ export function Dashboard() {
       )}
 
       {erro && <div className="alert-box">{erro}</div>}
+
+      {resumo && (
+        <div className="dash-print-cabecalho">
+          Relatório do dashboard · {labelPeriodoAtual(resumo.periodoDias, periodoCustom)} (
+          {new Date(resumo.periodoDesde).toLocaleDateString('pt-BR')} a {new Date(resumo.periodoAte).toLocaleDateString('pt-BR')}) ·
+          emitido em {new Date().toLocaleString('pt-BR')}
+        </div>
+      )}
 
       {carregando || !resumo ? (
         <p className="text-muted">Carregando...</p>
@@ -324,17 +343,17 @@ export function Dashboard() {
           {ehAdmin && resumo.lucroPorProduto && resumo.lucroPorProduto.length > 0 && (
             <div className="card" style={{ marginBottom: 24 }}>
               <div className="section-title" style={{ marginTop: 0 }}>Lucro por produto</div>
-              <LucroPorProduto dados={resumo.lucroPorProduto} />
+              <LucroPorProduto dados={resumo.lucroPorProduto} expandirTudo={imprimindo} />
             </div>
           )}
 
           <div className="dash-grid-2">
             <div className="card dash-card-amber">
-              <AlertaReposicao />
+              <AlertaReposicao expandirTudo={imprimindo} />
             </div>
             <div className="card dash-card-purple">
               <div className="section-title" style={{ marginTop: 0 }}>Mais vendidos por unidade</div>
-              <MelhoresProdutosPorCaixa dados={resumo.melhoresProdutosPorCaixa} />
+              <MelhoresProdutosPorCaixa dados={resumo.melhoresProdutosPorCaixa} expandirTudo={imprimindo} />
             </div>
           </div>
 

@@ -25,7 +25,8 @@ const COLUNAS_REPOSICAO = [
   { key: 'faltaRepor', header: 'Falta repor', render: (i) => <strong className="text-danger">{i.faltaRepor}</strong> },
 ];
 
-export function AlertaReposicao() {
+// expandirTudo: força o card aberto (usado na impressão do dashboard).
+export function AlertaReposicao({ expandirTudo = false }) {
   // Fechado por padrão, igual "Mais vendidos por unidade" — a análise da Clara só aparece
   // quando o admin clica na seta, pra não poluir o dashboard com texto o tempo todo.
   const [aberto, setAberto] = useState(false);
@@ -73,7 +74,7 @@ export function AlertaReposicao() {
         <IconChevronDown className={`dash-melhores-caixa-seta${aberto ? ' is-aberto' : ''}`} />
       </button>
 
-      {aberto && (
+      {(aberto || expandirTudo) && (
         <div style={{ marginTop: 12 }}>
           {carregando ? (
             <p className="text-muted">Clara está analisando o estoque das unidades...</p>
@@ -102,7 +103,7 @@ export function AlertaReposicao() {
                 </ul>
               )}
 
-              <div className="modal-actions" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
+              <div className="modal-actions dash-nao-imprimir" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
                 <button type="button" className="btn btn-primary btn-sm" onClick={abrirReposicaoMensal}>
                   📦 Ver o que repor
                 </button>

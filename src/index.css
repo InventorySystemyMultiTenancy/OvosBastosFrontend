@@ -1806,6 +1806,84 @@ a {
   }
 }
 
+/* ---------- Impressão do dashboard (A4) ----------
+   Ativada só quando o body tem .imprimindo-dashboard (botão "Imprimir relatório" do
+   Dashboard.jsx) — sem a classe, o @media print acima (recibo térmico) continua valendo
+   sozinho. Imprime a tela como ela é, gráficos inclusos, só tirando menu e botões. */
+.dash-print-cabecalho {
+  display: none;
+}
+
+@media print {
+  body.imprimindo-dashboard {
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.imprimindo-dashboard * {
+    visibility: visible;
+  }
+
+  body.imprimindo-dashboard .sidebar,
+  body.imprimindo-dashboard .sidebar-toggle,
+  body.imprimindo-dashboard .sidebar-backdrop,
+  body.imprimindo-dashboard .mobile-topbar,
+  body.imprimindo-dashboard .dash-greeting-controls,
+  body.imprimindo-dashboard .dash-nao-imprimir,
+  body.imprimindo-dashboard .dash-chart-dot-live,
+  body.imprimindo-dashboard .dash-melhores-caixa-seta {
+    display: none !important;
+  }
+
+  body.imprimindo-dashboard .app-shell {
+    display: block;
+    min-height: 0;
+    background: #fff;
+  }
+
+  body.imprimindo-dashboard .app-main,
+  body.imprimindo-dashboard .app-main.is-colapsada {
+    margin-left: 0 !important;
+  }
+
+  body.imprimindo-dashboard .main-content-inner {
+    padding: 0;
+    max-width: none;
+  }
+
+  body.imprimindo-dashboard .dash-print-cabecalho {
+    display: block;
+    font-size: 11px;
+    color: #555;
+    margin-bottom: 12px;
+  }
+
+  body.imprimindo-dashboard .dash-greeting-header {
+    margin-bottom: 8px;
+  }
+
+  body.imprimindo-dashboard .card,
+  body.imprimindo-dashboard .dash-kpi-card,
+  body.imprimindo-dashboard .stat-tile {
+    box-shadow: none;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.imprimindo-dashboard .dash-grid-2,
+  body.imprimindo-dashboard .dash-kpi-grid {
+    break-inside: avoid;
+  }
+
+  body.imprimindo-dashboard *,
+  body.imprimindo-dashboard *::before,
+  body.imprimindo-dashboard *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
 /* Carrinho flutuante (mobile) — escondido em telas largas, onde o carrinho já fica
    sempre visível na coluna lateral. */
 .caixa-fab-carrinho {

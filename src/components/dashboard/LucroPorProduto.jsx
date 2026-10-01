@@ -21,7 +21,8 @@ function Celulas({ item }) {
   );
 }
 
-export function LucroPorProduto({ dados }) {
+// expandirTudo: abre o detalhe por nível de todos os produtos (usado na impressão do dashboard).
+export function LucroPorProduto({ dados, expandirTudo = false }) {
   const [abertos, setAbertos] = useState(() => new Set());
 
   if (!dados || dados.length === 0) return <p className="text-muted">Sem vendas no período.</p>;
@@ -56,7 +57,7 @@ export function LucroPorProduto({ dados }) {
             // Só um nível vendido no período: o detalhamento repetiria a mesma linha do
             // produto, então nem mostra a seta de expandir.
             const temDetalhe = niveis.length > 1;
-            const aberto = temDetalhe && abertos.has(chave);
+            const aberto = temDetalhe && (expandirTudo || abertos.has(chave));
             return (
               <Fragment key={chave}>
                 <tr
