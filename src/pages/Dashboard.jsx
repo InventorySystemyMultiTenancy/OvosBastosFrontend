@@ -16,6 +16,7 @@ import { EstoquePorUnidadeBotao } from '../components/dashboard/EstoquePorUnidad
 import { FechamentoDiaBotao } from '../components/dashboard/FechamentoDiaBotao';
 import { MelhoresProdutosPorCaixa } from '../components/dashboard/MelhoresProdutosPorCaixa';
 import { CaixaDivergenciaAlerta } from '../components/dashboard/CaixaDivergenciaAlerta';
+import { gerarRelatorioDashboard } from '../utils/relatoriosPdf';
 import { IconLucro, IconFaturamento, IconGastos, IconVendas, IconArrowUp, IconArrowDown, IconCalendar } from '../components/icons';
 
 const PERIODOS = [
@@ -104,6 +105,7 @@ export function Dashboard() {
   const [dataDeInput, setDataDeInput] = useState('');
   const [dataAteInput, setDataAteInput] = useState('');
   const [erroData, setErroData] = useState('');
+  const [imprimindo, setImprimindo] = useState(false);
 
   useEffect(() => {
     setCarregando(true);
@@ -138,6 +140,22 @@ export function Dashboard() {
     setModalData(false);
   }
 
+  async function imprimirRelatorio() {
+    if (!resumo) return;
+    setImprimindo(true);
+    try {
+      await gerarRelatorioDashboard(resumo, {
+        periodoLabel: labelPeriodoAtual(resumo.periodoDias, periodoCustom),
+        comparacaoLabel: labelPeriodoAnterior(resumo.periodoDias, periodoCustom),
+        ehAdmin,
+      });
+    } catch (e) {
+      setErro(`Não foi possível gerar o relatório: ${e.message}`);
+    } finally {
+      setImprimindo(false);
+    }
+  }
+
   const primeiroNome = usuario?.nome?.split(' ')[0];
 
   return (
@@ -154,6 +172,15 @@ export function Dashboard() {
           </span>
           <EstoquePorUnidadeBotao />
           {ehAdmin && <FechamentoDiaBotao />}
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={imprimirRelatorio}
+            disabled={carregando || !resumo || imprimindo}
+            title="Imprimir todas as informações do dashboard no período selecionado"
+          >
+            🖨️ {imprimindo ? 'Gerando...' : 'Imprimir relatório'}
+          </button>
           <div className="dash-periodo-toggle">
             {PERIODOS.map((p) => (
               <button

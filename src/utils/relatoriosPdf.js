@@ -224,6 +224,228 @@ export async function gerarRelatorioFechamentoCaixa({ caixaNome, abertaEm, fecha
   doc.save(`fechamento-caixa-${Date.now()}.pdf`);
 }
 
+function formatPct(pct) {
+  if (pct === null || pct === undefined) return 'novo';
+  const sinal = pct > 0 ? '+' : '';
+  return `${sinal}${Number(pct).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+}
+
+// Relatório completo do dashboard (botão "Imprimir" no topo): tudo que aparece na tela,
+// respeitando o período escolhido (Hoje/7/30/90 dias ou data personalizada). Os gráficos
+// viram tabelas — mesmo dado, só que legível no papel. Abre direto o diálogo de impressão
+// numa aba nova; se o navegador bloquear o pop-up, baixa o PDF.
+export async function gerarRelatorioDashboard(resumo, { periodoLabel, comparacaoLabel, ehAdmin }) {
+  const desde = formatData(resumo.periodoDesde);
+  const ate = formatData(resumo.periodoAte);
+  const { doc, autoTable } = await criarDocumento('Relatório do Dashboard', `${periodoLabel} (${desde} a ${ate})`);
+
+  const estilo = {
+    headStyles: { fillColor: [240, 100, 92] },
+    styles: { fontSize: 9 },
+    footStyles: { fillColor: [253, 236, 236], textColor: [20, 20, 20], fontStyle: 'bold' },
+    margin: { left: 14, right: 14 },
+  };
+
+  let y = 48;
+  function secao(titulo) {
+    if (y > doc.internal.pageSize.getHeight() - 30) {
+      doc.addPage();
+      y = 18;
+    }
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text(titulo, 14, y);
+    doc.setFont(undefined, 'normal');
+    y += 3;
+  }
+  function tabela(opcoes) {
+    autoTable(doc, { ...estilo, ...opcoes, startY: y });
+    y = doc.lastAutoTable.finalY + 12;
+  }
+  function vazio(texto) {
+    doc.setFontSize(9);
+    doc.setTextColor(110, 110, 110);
+    doc.text(texto, 14, y + 5);
+    doc.setTextColor(20, 20, 20);
+    y += 14;
+  }
+
+  // Indicadores principais (cards do topo)
+  secao('Indicadores do período');
+  const indicadores = [];
+  if (ehAdmin && resumo.lucroLiquidoPeriodo !== null) {
+    indicadores.push(['Lucro Líquido', formatBRL(resumo.lucroLiquidoPeriodo), formatPct(resumo.variacaoLucroPct)]);
+  }
+  indicadores.push(['Faturamento', formatBRL(resumo.faturamentoPeriodo), formatPct(resumo.variacaoFaturamentoPct)]);
+  if (ehAdmin && resumo.despesasPeriodo !== null) {
+    indicadores.push(['Gastos', formatBRL(resumo.despesasPeriodo), formatPct(resumo.variacaoDespesasPct)]);
+  }
+  indicadores.push(['Vendas', resumo.pedidosPeriodo.toLocaleString('pt-BR'), formatPct(resumo.variacaoVendasPct)]);
+  indicadores.push(['Ticket médio', formatBRL(resumo.ticketMedio), '—']);
+  if (ehAdmin && resumo.custoProdutosPeriodo !== null) {
+    indicadores.push(['Custo dos produtos vendidos', formatBRL(resumo.custoProdutosPeriodo), '—']);
+  }
+  tabela({ head: [['Indicador', 'Valor', `Variação vs ${comparacaoLabel}`]], body: indicadores });
+
+  if (ehAdmin && resumo.divergenciasCaixa?.length > 0) {
+    secao('Divergências de caixa (em aberto)');
+    tabela({
+      head: [['Caixa', 'Fechou com', 'Abriu com', 'Diferença', 'Aberto em']],
+      body: resumo.divergenciasCaixa.map((d) => [
+        `${d.caixaNome}${d.caixaUnidade ? ` (${d.caixaUnidade})` : ''}`,
+        `${formatBRL(d.valorFechamento)} · ${d.usuarioFechamento || 'alguém'}`,
+        `${formatBRL(d.valorAbertura)} · ${d.usuarioAbertura}`,
+        `${Number(d.divergencia) > 0 ? '+' : ''}${formatBRL(d.divergencia)}`,
+        new Date(d.abertaEm).toLocaleString('pt-BR'),
+      ]),
+    });
+  }
+
+  secao('Rendimento por caixa');
+  if (resumo.rendimentoPorCaixa.length === 0) {
+    vazio('Nenhuma venda no período.');
+  } else {
+    tabela({
+      head: [['Caixa', 'Pedidos', 'Receitas', 'Ticket médio', ...(ehAdmin ? ['Despesas', 'Saldo'] : [])]],
+      body: resumo.rendimentoPorCaixa.map((c) => [
+        `${c.nome}${c.unidade ? ` (${c.unidade})` : ''}`,
+        c.pedidos,
+        formatBRL(c.receitas),
+        formatBRL(c.ticketMedio),
+        ...(ehAdmin ? [formatBRL(c.despesas), formatBRL(c.saldo)] : []),
+      ]),
+    });
+  }
+
+  secao('Produtos mais vendidos');
+  if (resumo.vendasPorProduto.length === 0) {
+    vazio('Nenhum produto vendido no período.');
+  } else {
+    tabela({
+      head: [['Produto', 'Unidades vendidas', 'Receita']],
+      body: resumo.vendasPorProduto.map((p) => [p.nome, p.quantidade.toLocaleString('pt-BR'), formatBRL(p.receita)]),
+    });
+  }
+
+  if (ehAdmin && resumo.lucroPorProduto?.length > 0) {
+    secao('Lucro por produto');
+    const corpo = [];
+    resumo.lucroPorProduto.forEach((p) => {
+      const linha = (nome, b, negrito) => {
+        const celulas = [
+          nome,
+          b.quantidade.toLocaleString('pt-BR'),
+          formatBRL(b.precoVenda),
+          b.precoCusto !== null ? formatBRL(b.precoCusto) : '—',
+          formatBRL(b.receita),
+          b.custoTotal !== null ? formatBRL(b.custoTotal) : '—',
+          b.lucroTotal !== null ? formatBRL(b.lucroTotal) : '—',
+        ];
+        return negrito ? celulas.map((content) => ({ content, styles: { fontStyle: 'bold' } })) : celulas;
+      };
+      corpo.push(linha(p.nome, p, true));
+      // Detalhe por nível (Unidade/Dúzia/Bandeja...) só quando o produto vendeu em mais de um.
+      if (p.niveis?.length > 1) p.niveis.forEach((n) => corpo.push(linha(`   ${n.nome}`, n, false)));
+    });
+    tabela({
+      head: [['Produto', 'Qtd.', 'Preço médio', 'Custo médio', 'Receita', 'Custo total', 'Lucro']],
+      body: corpo,
+      styles: { fontSize: 8 },
+    });
+  }
+
+  secao('Mais vendidos por unidade');
+  if (resumo.melhoresProdutosPorCaixa.length === 0) {
+    vazio('Nenhuma venda no período.');
+  } else {
+    tabela({
+      head: [['Caixa', 'Produto', 'Unidades', 'Receita']],
+      body: resumo.melhoresProdutosPorCaixa.flatMap((c) =>
+        c.produtos.map((p, i) => [
+          i === 0 ? `${c.nome}${c.unidade ? ` (${c.unidade})` : ''}` : '',
+          p.nome,
+          p.quantidade.toLocaleString('pt-BR'),
+          formatBRL(p.receita),
+        ])
+      ),
+    });
+  }
+
+  secao('Dias com mais vendas');
+  tabela({
+    head: [['Dia da semana', 'Pedidos', 'Total']],
+    body: resumo.vendasPorDiaSemana.map((d) => [d.label, d.pedidos, formatBRL(d.total)]),
+  });
+
+  secao('Horário de pico');
+  const horasComVenda = resumo.vendasPorHora.filter((h) => h.pedidos > 0);
+  if (horasComVenda.length === 0) {
+    vazio('Nenhuma venda no período.');
+  } else {
+    tabela({
+      head: [['Horário', 'Pedidos', 'Total']],
+      body: horasComVenda.map((h) => [h.label, h.pedidos, formatBRL(h.total)]),
+    });
+  }
+
+  secao('Resumo rápido');
+  tabela({
+    head: [['Indicador', 'Valor']],
+    body: [
+      ['Acumulado do dia (hoje)', formatBRL(resumo.faturamentoHoje)],
+      ['Pedidos confirmados hoje', resumo.pedidosHoje],
+      ['Faturamento do período', formatBRL(resumo.faturamentoPeriodo)],
+      ['Ticket médio no período', formatBRL(resumo.ticketMedio)],
+      ['Clientes com pedido no mês', resumo.clientesComPedidoNoMes],
+      ['Bandejas pendentes de devolução', resumo.bandejasPendentes],
+      ['Unidades disponíveis em estoque', resumo.estoqueDisponivel],
+      ['Produtos com estoque baixo', resumo.produtosEstoqueBaixo],
+    ],
+  });
+
+  secao('Vendas por dia');
+  tabela({
+    head: [['Data', 'Pedidos', 'Total']],
+    body: resumo.vendasPorDia.map((d) => [d.data.split('-').reverse().join('/'), d.pedidos, formatBRL(d.total)]),
+    foot: [['Total', resumo.pedidosPeriodo, formatBRL(resumo.faturamentoPeriodo)]],
+  });
+
+  secao('Quem mais compra');
+  if (resumo.topClientes.length === 0) {
+    vazio('Nenhum cliente comprou no período.');
+  } else {
+    tabela({
+      head: [['Cliente', 'Pedidos', 'Total']],
+      body: resumo.topClientes.map((c) => [c.nome, c.pedidos, formatBRL(c.total)]),
+    });
+  }
+
+  secao('Fiado em aberto');
+  const { fiado } = resumo;
+  tabela({
+    head: [['Cliente', 'Valor', 'Vencimento', 'Situação']],
+    body: fiado.contas.length
+      ? fiado.contas.map((c) => [c.cliente, formatBRL(c.valor), formatData(c.vencimento), c.vencida ? 'Vencida' : 'A vencer'])
+      : [['Nenhuma conta em aberto', '', '', '']],
+    foot: [
+      [`Em aberto: ${fiado.quantidadeEmAberto} conta(s)`, formatBRL(fiado.totalEmAberto), `Vencidas: ${fiado.quantidadeVencida}`, formatBRL(fiado.totalVencido)],
+    ],
+  });
+
+  const totalPaginas = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPaginas; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(140, 140, 140);
+    doc.text(`Página ${i} de ${totalPaginas}`, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 8, { align: 'right' });
+  }
+  doc.setTextColor(20, 20, 20);
+
+  doc.autoPrint();
+  const janela = window.open(doc.output('bloburl'), '_blank');
+  if (!janela) doc.save(`relatorio-dashboard-${Date.now()}.pdf`);
+}
+
 export async function gerarRelatorioEstoqueAtual(produtos) {
   const { doc, autoTable } = await criarDocumento('Relatório de Estoque Atual', `${produtos.length} produto(s) ativo(s)`);
 
