@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/Modal';
 import { PainelCobrancaMaquininha } from '../components/PainelCobrancaMaquininha';
 import { useCobrancaMaquininha } from '../hooks/useCobrancaMaquininha';
+import { useCustomerDisplay } from '../hooks/useCustomerDisplay';
 import { gerarRelatorioFechamentoCaixa } from '../utils/relatoriosPdf';
 import {
   IconBasket,
@@ -114,6 +115,8 @@ export function Caixa() {
   const [enviando, setEnviando] = useState(false);
   const [erroVenda, setErroVenda] = useState('');
   const [vendaConcluida, setVendaConcluida] = useState(null);
+
+  const display = useCustomerDisplay();
 
   const [sessaoInfo, setSessaoInfo] = useState(null);
   const [carregandoSessao, setCarregandoSessao] = useState(false);
@@ -515,12 +518,26 @@ export function Caixa() {
     (formaPagamento !== 'MAQUININHA' || !dividirCartao || divisaoCartaoValida) &&
     (formaPagamento !== 'CARTAO_MANUAL' || Boolean(metodoPagoPorFora));
 
+  // Mantém o display de cliente atualizado conforme o pedido é montado: total corrente do
+  // carrinho por padrão, e troco/falta receber quando a forma é dinheiro e já tem valor
+  // recebido informado — mesmo padrão usado no POS do projeto Salgados.
+  useEffect(() => {
+    if (!display.isConnected) return;
+    if (formaPagamento === 'DINHEIRO' && valorRecebido !== '') {
+      if (faltaReceber > 0) display.sendAmount(faltaReceber, 'pagar');
+      else display.sendAmount(troco, 'troco');
+    } else {
+      display.sendAmount(total, 'total');
+    }
+  }, [display.isConnected, total, formaPagamento, valorRecebido, faltaReceber, troco]);
+
   function alternarDividirCartao() {
     setDividirCartao((v) => !v);
     setFormaPagamento('MAQUININHA');
   }
 
   function limparVenda() {
+    display.clear();
     setCarrinho([]);
     setNomeCliente('');
     setDesconto(0);
@@ -562,6 +579,7 @@ export function Caixa() {
       if (!vendaId) return;
       try {
         const venda = await api.get(`/vendas/${vendaId}`);
+        display.clear();
         setVendaConcluida(venda);
         carregarProdutos();
         carregarSessao();
@@ -631,6 +649,7 @@ export function Caixa() {
         setAvisoMaquininha('');
         setVendaAguardandoPagamento(venda);
       } else {
+        display.clear();
         setVendaConcluida(venda);
         carregarProdutos();
         carregarSessao();
@@ -989,6 +1008,23 @@ export function Caixa() {
                 </button>
               </div>
             </div>
+
+            {display.isSupported ? (
+              <div className="display-panel">
+                <span className="display-panel-status">
+                  <span className={`display-panel-dot${display.isConnected ? ' connected' : ''}`} />
+                  {display.isConnected ? 'Display do cliente conectado' : 'Display do cliente desconectado'}
+                </span>
+                <button type="button" onClick={display.isConnected ? display.disconnect : display.connect}>
+                  {display.isConnected ? 'Desconectar' : 'Conectar Display'}
+                </button>
+              </div>
+            ) : (
+              <p className="display-panel-status display-panel-unsupported">
+                Display de cliente indisponível: use Google Chrome ou Microsoft Edge.
+              </p>
+            )}
+            {display.error && <div className="alert-box">{display.error.message}</div>}
 
             {carrinho.length === 0 ? (
               <div className="caixa-carrinho-vazio">
