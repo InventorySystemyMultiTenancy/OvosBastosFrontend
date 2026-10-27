@@ -9,7 +9,7 @@ function formatBRL(valor) {
 }
 
 const CONTA_RECEBER_VAZIA = { clienteId: '', valor: '', vencimento: '', caixaId: '', recorrente: false };
-const CONTA_PAGAR_VAZIA = { descricao: '', fornecedor: '', valor: '', vencimento: '', caixaId: '', recorrente: false };
+const CONTA_PAGAR_VAZIA = { descricao: '', fornecedor: '', valor: '', dataEmissao: '', vencimento: '', caixaId: '', recorrente: false, pago: false, pagoEm: '' };
 
 const LABEL_FORMA_PAGAMENTO = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão/Maquininha', BOLETO: 'Boleto', FIADO: 'Fiado' };
 const ICONE_FORMA_PAGAMENTO = { PIX: '⚡', DINHEIRO: '💵', CARTAO: '💳', BOLETO: '🧾', FIADO: '📋' };
@@ -55,6 +55,9 @@ export function VisaoGeralTab() {
 
   const [modalPagar, setModalPagar] = useState(false);
   const [formPagar, setFormPagar] = useState(CONTA_PAGAR_VAZIA);
+  const [lendoDocumento, setLendoDocumento] = useState(false);
+  const [leituraDocumento, setLeituraDocumento] = useState(null); // { arquivo, semVencimento } ou { erro }
+  const [verGastosTopo, setVerGastosTopo] = useState(false);
 
   const [modalRelatorioVendas, setModalRelatorioVendas] = useState(false);
   const [periodoRelatorio, setPeriodoRelatorio] = useState({ de: '', ate: '' });
@@ -83,14 +86,16 @@ export function VisaoGeralTab() {
   useEffect(() => { api.get('/clientes').then(setClientes).catch(() => {}); }, []);
   useEffect(() => { api.get('/caixas').then(setCaixas).catch(() => {}); }, []);
 
-  useEffect(() => {
+  function carregarLucroTopo() {
     setCarregandoLucroTopo(true);
     api
       .get(`/financeiro/relatorio-periodo?de=${periodoLucroTopo.de}&ate=${periodoLucroTopo.ate}`)
       .then(setResumoLucroTopo)
       .catch((e) => setErro(e.message))
       .finally(() => setCarregandoLucroTopo(false));
-  }, [periodoLucroTopo]);
+  }
+
+  useEffect(carregarLucroTopo, [periodoLucroTopo]);
 
   function abrirModalDataLucroTopo() {
     setDataDeInputTopo(periodoLucroTopo.de);
@@ -142,19 +147,63 @@ export function VisaoGeralTab() {
     }
   }
 
+  function abrirModalPagar() {
+    setFormPagar(CONTA_PAGAR_VAZIA);
+    setLeituraDocumento(null);
+    setModalPagar(true);
+  }
+
   async function criarContaPagar(e) {
     e.preventDefault();
-    await api.post('/financeiro/contas-pagar', {
-      descricao: formPagar.descricao,
-      fornecedor: formPagar.fornecedor,
-      valor: Number(formPagar.valor),
-      vencimento: formPagar.vencimento,
-      caixaId: formPagar.caixaId ? Number(formPagar.caixaId) : undefined,
-      recorrente: formPagar.recorrente,
-    });
-    setModalPagar(false);
-    setFormPagar(CONTA_PAGAR_VAZIA);
-    carregar();
+    try {
+      await api.post('/financeiro/contas-pagar', {
+        descricao: formPagar.descricao,
+        fornecedor: formPagar.fornecedor,
+        valor: Number(formPagar.valor),
+        dataEmissao: formPagar.dataEmissao || undefined,
+        vencimento: formPagar.vencimento,
+        caixaId: formPagar.caixaId ? Number(formPagar.caixaId) : undefined,
+        recorrente: formPagar.recorrente,
+        pago: formPagar.pago,
+        pagoEm: formPagar.pago && formPagar.pagoEm ? formPagar.pagoEm : undefined,
+      });
+      setModalPagar(false);
+      setFormPagar(CONTA_PAGAR_VAZIA);
+      carregar();
+      carregarLucroTopo();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  // Manda a foto/PDF da conta pra IA e preenche o formulário com o que ela leu — o admin
+  // confere e salva. Sem vencimento no documento, usa a data do documento como vencimento.
+  async function lerDocumentoPagar(e) {
+    const arquivo = e.target.files?.[0];
+    e.target.value = '';
+    if (!arquivo) return;
+    setLendoDocumento(true);
+    setLeituraDocumento(null);
+    try {
+      const fd = new FormData();
+      fd.append('documento', arquivo);
+      const lido = await api.upload('/financeiro/contas-pagar/ler-documento', fd);
+      setFormPagar((atual) => ({
+        ...atual,
+        descricao: lido.descricao || atual.descricao,
+        fornecedor: lido.fornecedor || atual.fornecedor,
+        valor: lido.valor != null ? String(lido.valor) : atual.valor,
+        dataEmissao: lido.dataEmissao || atual.dataEmissao,
+        vencimento: lido.vencimento || lido.dataEmissao || atual.vencimento,
+        pago: lido.pago,
+        pagoEm: lido.pago ? lido.dataPagamento || '' : '',
+      }));
+      setLeituraDocumento({ arquivo: arquivo.name, semVencimento: !lido.vencimento });
+    } catch (err) {
+      setLeituraDocumento({ erro: err.message });
+    } finally {
+      setLendoDocumento(false);
+    }
   }
 
   async function pagarConta(conta) {
@@ -165,6 +214,7 @@ export function VisaoGeralTab() {
         await api.put(`/financeiro/contas-pagar/${conta.id}/pagar`, {});
       }
       carregar();
+      carregarLucroTopo();
     } catch (err) {
       alert(err.message);
     }
@@ -310,6 +360,23 @@ export function VisaoGeralTab() {
     { key: 'saldo', header: 'Lucro (saldo)', render: (l) => <strong className={l.saldo >= 0 ? 'text-success' : 'text-danger'}>{formatBRL(l.saldo)}</strong> },
   ];
 
+  const gastosTopo = useMemo(() => {
+    if (!resumoLucroTopo) return [];
+    return [
+      ...resumoLucroTopo.contasPagas.map((c) => ({ ...c, data: c.pagoEm })),
+      ...(resumoLucroTopo.contasEmAberto || []).map((c) => ({ ...c, data: c.vencimento })),
+    ].sort((a, b) => new Date(a.data) - new Date(b.data));
+  }, [resumoLucroTopo]);
+
+  const colunasGastosTopo = [
+    { key: 'descricao', header: 'Gasto', render: (c) => c.descricao },
+    { key: 'fornecedor', header: 'Fornecedor', render: (c) => c.fornecedor || '—' },
+    { key: 'caixa', header: 'Unidade', render: (c) => c.caixa?.nome || '—' },
+    { key: 'valor', header: 'Valor', render: (c) => formatBRL(c.valor) },
+    { key: 'data', header: 'Data', render: (c) => `${c.pago ? 'Pago em' : 'Vence'} ${new Date(c.data).toLocaleDateString('pt-BR')}` },
+    { key: 'pago', header: 'Status', render: (c) => <span className={`badge ${c.pago ? 'badge-green' : 'badge-amber'}`}>{c.pago ? 'Pago' : 'Em aberto'}</span> },
+  ];
+
   const colunasReceber = [
     {
       key: 'cliente',
@@ -353,6 +420,7 @@ export function VisaoGeralTab() {
     { key: 'fornecedor', header: 'Fornecedor', render: (c) => c.fornecedor || '—' },
     { key: 'caixa', header: 'Unidade', render: (c) => c.caixa?.nome || '—' },
     { key: 'valor', header: 'Valor', render: (c) => formatBRL(c.valor) },
+    { key: 'dataEmissao', header: 'Data', render: (c) => (c.dataEmissao ? new Date(c.dataEmissao).toLocaleDateString('pt-BR') : '—') },
     { key: 'vencimento', header: 'Vencimento', render: (c) => new Date(c.vencimento).toLocaleDateString('pt-BR') },
     { key: 'pago', header: 'Status', render: (c) => <span className={`badge ${c.pago ? 'badge-green' : 'badge-amber'}`}>{c.pago ? 'Pago' : 'Em aberto'}</span> },
     {
@@ -374,7 +442,7 @@ export function VisaoGeralTab() {
       {erro && <div className="alert-box">{erro}</div>}
 
       <div className="page-header" style={{ marginBottom: 14 }}>
-        <div className="section-title" style={{ marginTop: 0, marginBottom: 0 }}>Lucro líquido do período</div>
+        <div className="section-title" style={{ marginTop: 0, marginBottom: 0 }}>Lucro e gastos do período</div>
         <button type="button" className="btn btn-secondary btn-sm" onClick={abrirModalDataLucroTopo}>
           📅 {periodoLucroTopo.de.slice(8, 10)}/{periodoLucroTopo.de.slice(5, 7)} – {periodoLucroTopo.ate.slice(8, 10)}/{periodoLucroTopo.ate.slice(5, 7)}
         </button>
@@ -396,11 +464,34 @@ export function VisaoGeralTab() {
               <div className={`stat-value ${resumoLucroTopo.lucro >= 0 ? 'text-success' : 'text-danger'}`}>{formatBRL(resumoLucroTopo.lucro)}</div>
               <div className="stat-label">Lucro líquido (faturamento − custo dos produtos)</div>
             </div>
+            <div className="stat-tile">
+              <div className="stat-value text-danger">{formatBRL(resumoLucroTopo.despesasTotal)}</div>
+              <div className="stat-label">Gastos pagos · {resumoLucroTopo.contasPagas.length} {resumoLucroTopo.contasPagas.length === 1 ? 'conta' : 'contas'}</div>
+            </div>
+            <div className="stat-tile">
+              <div className="stat-value">{formatBRL(resumoLucroTopo.despesasEmAbertoTotal)}</div>
+              <div className="stat-label">Gastos em aberto (vencendo no período)</div>
+            </div>
+            <div className="stat-tile">
+              <div className={`stat-value ${resumoLucroTopo.saldoFinal >= 0 ? 'text-success' : 'text-danger'}`}>{formatBRL(resumoLucroTopo.saldoFinal)}</div>
+              <div className="stat-label">Sobrou no período (lucro − gastos pagos)</div>
+            </div>
           </div>
-          <p className="text-muted" style={{ marginBottom: 28, fontSize: 12 }}>
-            Despesas operacionais pagas no período: <strong>{formatBRL(resumoLucroTopo.despesasTotal)}</strong> (não entram
-            no lucro líquido acima, que é só a margem dos produtos vendidos).
-          </p>
+          <div style={{ marginBottom: 28 }}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setVerGastosTopo((v) => !v)}>
+              {verGastosTopo ? 'Esconder gastos do período' : `Ver gastos do período (${gastosTopo.length})`}
+            </button>
+            {verGastosTopo && (
+              <div style={{ marginTop: 12 }}>
+                <Table
+                  columns={colunasGastosTopo}
+                  rows={gastosTopo}
+                  rowKey={(c) => c.id ?? `virtual-${c.origemRecorrenteId}-${c.vencimento}`}
+                  emptyMessage="Nenhum gasto pago ou vencendo nesse período."
+                />
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -505,7 +596,7 @@ export function VisaoGeralTab() {
 
       <div className="page-header" style={{ marginTop: 28, marginBottom: 8 }}>
         <div className="section-title" style={{ margin: 0 }}>Contas a Pagar</div>
-        <button className="btn btn-secondary btn-sm" onClick={() => setModalPagar(true)}>+ Nova conta a pagar</button>
+        <button className="btn btn-secondary btn-sm" onClick={abrirModalPagar}>+ Nova conta a pagar</button>
       </div>
       <Table columns={colunasPagar} rows={contasPagar} rowKey={(c) => c.id ?? `virtual-${c.origemRecorrenteId}`} />
 
@@ -557,6 +648,23 @@ export function VisaoGeralTab() {
       {modalPagar && (
         <Modal title="Nova conta a pagar" onClose={() => setModalPagar(false)}>
           <form onSubmit={criarContaPagar}>
+            <div className="card" style={{ marginBottom: 16, borderStyle: 'dashed' }}>
+              <strong>📎 Preencher com IA</strong>
+              <p className="text-muted" style={{ margin: '4px 0 10px', fontSize: 13 }}>
+                Envie a foto ou o PDF da conta (nota, boleto, recibo, fatura) — a IA lê e preenche os campos abaixo pra você conferir.
+              </p>
+              <label className="btn btn-secondary btn-sm" style={{ cursor: lendoDocumento ? 'wait' : 'pointer' }}>
+                {lendoDocumento ? 'Lendo documento...' : 'Enviar imagem ou PDF'}
+                <input type="file" accept="image/*,application/pdf" onChange={lerDocumentoPagar} disabled={lendoDocumento} hidden />
+              </label>
+              {leituraDocumento?.erro && <div className="alert-box" style={{ marginTop: 10, marginBottom: 0 }}>{leituraDocumento.erro}</div>}
+              {leituraDocumento?.arquivo && (
+                <p className="text-success" style={{ marginTop: 10, marginBottom: 0, fontSize: 13 }}>
+                  ✓ Dados lidos de <strong>{leituraDocumento.arquivo}</strong>. Confira antes de salvar.
+                  {leituraDocumento.semVencimento && ' O documento não mostra vencimento — usei a data do documento.'}
+                </p>
+              )}
+            </div>
             <div className="form-grid">
               <div className="field">
                 <label>Descrição *</label>
@@ -569,6 +677,10 @@ export function VisaoGeralTab() {
               <div className="field">
                 <label>Valor (R$) *</label>
                 <input type="number" min="0" step="0.01" value={formPagar.valor} onChange={(e) => setFormPagar({ ...formPagar, valor: e.target.value })} required />
+              </div>
+              <div className="field">
+                <label>Data do documento</label>
+                <input type="date" value={formPagar.dataEmissao} onChange={(e) => setFormPagar({ ...formPagar, dataEmissao: e.target.value })} />
               </div>
               <div className="field">
                 <label>Vencimento *</label>
@@ -592,6 +704,22 @@ export function VisaoGeralTab() {
                 Fixa mensal (repete todo mês a partir do vencimento)
               </label>
             </div>
+            <div className="field" style={{ marginTop: 4 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+                <input
+                  type="checkbox"
+                  checked={formPagar.pago}
+                  onChange={(e) => setFormPagar({ ...formPagar, pago: e.target.checked, pagoEm: e.target.checked ? formPagar.pagoEm : '' })}
+                />
+                Já está paga (senão fica em aberto)
+              </label>
+            </div>
+            {formPagar.pago && (
+              <div className="field">
+                <label>Pago em</label>
+                <input type="date" value={formPagar.pagoEm} onChange={(e) => setFormPagar({ ...formPagar, pagoEm: e.target.value })} />
+              </div>
+            )}
             <div className="modal-actions">
               <button type="button" className="btn btn-secondary" onClick={() => setModalPagar(false)}>Cancelar</button>
               <button type="submit" className="btn btn-primary">Salvar</button>
