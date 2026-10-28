@@ -44,6 +44,8 @@ export function VisaoGeralTab() {
   const [clientes, setClientes] = useState([]);
   const [caixas, setCaixas] = useState([]);
   const [resumoCaixas, setResumoCaixas] = useState(null);
+  // Filtro do "Lucro por Unidade" — período vazio = tudo desde sempre; caixaId vazio = todas.
+  const [filtroUnidade, setFiltroUnidade] = useState({ de: '', ate: '', caixaId: '' });
   const [vendasHojePorForma, setVendasHojePorForma] = useState(null);
   const [erro, setErro] = useState('');
 
@@ -78,11 +80,18 @@ export function VisaoGeralTab() {
     api.get(`/financeiro/contas-receber?mes=${mesSelecionado}`).then(setContasReceber).catch((e) => setErro(e.message));
     api.get(`/financeiro/contas-pagar?mes=${mesSelecionado}`).then(setContasPagar).catch((e) => setErro(e.message));
     api.get('/financeiro/fluxo-caixa?meses=6').then(setFluxo).catch((e) => setErro(e.message));
-    api.get('/financeiro/resumo-caixas').then(setResumoCaixas).catch((e) => setErro(e.message));
     api.get('/financeiro/vendas-hoje-por-forma').then(setVendasHojePorForma).catch((e) => setErro(e.message));
   }
 
+  function carregarResumoCaixas() {
+    const params = new URLSearchParams();
+    if (filtroUnidade.de) params.set('de', filtroUnidade.de);
+    if (filtroUnidade.ate) params.set('ate', filtroUnidade.ate);
+    api.get(`/financeiro/resumo-caixas?${params}`).then(setResumoCaixas).catch((e) => setErro(e.message));
+  }
+
   useEffect(carregar, [mesSelecionado]);
+  useEffect(carregarResumoCaixas, [filtroUnidade.de, filtroUnidade.ate]);
   useEffect(() => { api.get('/clientes').then(setClientes).catch(() => {}); }, []);
   useEffect(() => { api.get('/caixas').then(setCaixas).catch(() => {}); }, []);
 
@@ -171,6 +180,7 @@ export function VisaoGeralTab() {
       setFormPagar(CONTA_PAGAR_VAZIA);
       carregar();
       carregarLucroTopo();
+      carregarResumoCaixas();
     } catch (err) {
       alert(err.message);
     }
@@ -215,6 +225,7 @@ export function VisaoGeralTab() {
       }
       carregar();
       carregarLucroTopo();
+      carregarResumoCaixas();
     } catch (err) {
       alert(err.message);
     }
@@ -324,6 +335,11 @@ export function VisaoGeralTab() {
 
   const linhasResumoCaixas = useMemo(() => {
     if (!resumoCaixas) return [];
+    if (filtroUnidade.caixaId) {
+      const c = resumoCaixas.caixas.find((cx) => String(cx.id) === filtroUnidade.caixaId);
+      if (!c) return [];
+      return [{ chave: `caixa-${c.id}`, label: c.nome, sublabel: c.unidade, receitas: c.receitas, despesas: c.despesas, saldo: c.saldo, destaque: true }];
+    }
     const linhas = resumoCaixas.caixas.map((c) => ({
       chave: `caixa-${c.id}`,
       label: c.nome,
@@ -342,7 +358,7 @@ export function VisaoGeralTab() {
     }
     linhas.push({ chave: 'total', label: 'Total geral', sublabel: '', ...resumoCaixas.total, destaque: true });
     return linhas;
-  }, [resumoCaixas]);
+  }, [resumoCaixas, filtroUnidade.caixaId]);
 
   const colunasResumoCaixas = [
     {
@@ -567,6 +583,43 @@ export function VisaoGeralTab() {
       </div>
 
       <div className="section-title">Lucro por Unidade</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', marginBottom: 12 }}>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>De</label>
+          <input
+            type="date"
+            value={filtroUnidade.de}
+            max={filtroUnidade.ate || undefined}
+            onChange={(e) => setFiltroUnidade({ ...filtroUnidade, de: e.target.value })}
+          />
+        </div>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>Até</label>
+          <input
+            type="date"
+            value={filtroUnidade.ate}
+            min={filtroUnidade.de || undefined}
+            onChange={(e) => setFiltroUnidade({ ...filtroUnidade, ate: e.target.value })}
+          />
+        </div>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>Caixa</label>
+          <select value={filtroUnidade.caixaId} onChange={(e) => setFiltroUnidade({ ...filtroUnidade, caixaId: e.target.value })}>
+            <option value="">Todos os caixas</option>
+            {caixas.map((c) => <option key={c.id} value={c.id}>{c.nome} — {c.unidade}</option>)}
+          </select>
+        </div>
+        {(filtroUnidade.de || filtroUnidade.ate || filtroUnidade.caixaId) && (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setFiltroUnidade({ de: '', ate: '', caixaId: '' })}>
+            Limpar filtros
+          </button>
+        )}
+      </div>
+      <p className="text-muted" style={{ marginTop: 0, marginBottom: 8, fontSize: 12 }}>
+        {filtroUnidade.de || filtroUnidade.ate
+          ? `Período: ${filtroUnidade.de ? new Date(`${filtroUnidade.de}T00:00`).toLocaleDateString('pt-BR') : 'início'} até ${filtroUnidade.ate ? new Date(`${filtroUnidade.ate}T00:00`).toLocaleDateString('pt-BR') : 'hoje'}`
+          : 'Mostrando todo o histórico — escolha um período acima para filtrar.'}
+      </p>
       <Table
         columns={colunasResumoCaixas}
         rows={linhasResumoCaixas}
