@@ -10,9 +10,14 @@ function formatBRL(valor) {
 }
 
 const CONTA_RECEBER_VAZIA = { clienteId: '', valor: '', vencimento: '', caixaId: '', recorrente: false };
-const CONTA_PAGAR_VAZIA = { descricao: '', fornecedor: '', valor: '', dataEmissao: '', vencimento: '', caixaId: '', recorrente: false, pago: false, pagoEm: '', itensEstoque: [] };
-// nivelVendaId '' = quantidade direto em grão-base (ex: ovos avulsos).
-const ITEM_ESTOQUE_VAZIO = { incluir: true, descricao: '', produtoId: '', nivelVendaId: '', quantidade: '', valorTotal: '' };
+const CONTA_PAGAR_VAZIA = { descricao: '', fornecedor: '', valor: '', dataEmissao: '', vencimento: '', caixaId: '', recorrente: false, pago: false, pagoEm: '', itensEstoque: [], fretePorEmbalagem: '10' };
+// nivelVendaId '' = quantidade direto em grão-base (ex: ovos avulsos). valorUnitario é o preço
+// de UMA embalagem (ex: Vlr.Unitário da caixa na nota), sem o frete.
+const ITEM_ESTOQUE_VAZIO = { incluir: true, descricao: '', produtoId: '', nivelVendaId: '', quantidade: '', valorUnitario: '' };
+
+function formatCustoUnidade(valor) {
+  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 4, maximumFractionDigits: 4 });
+}
 
 const LABEL_FORMA_PAGAMENTO = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão/Maquininha', BOLETO: 'Boleto', FIADO: 'Fiado' };
 const ICONE_FORMA_PAGAMENTO = { PIX: '⚡', DINHEIRO: '💵', CARTAO: '💳', BOLETO: '🧾', FIADO: '📋' };
@@ -177,24 +182,34 @@ export function VisaoGeralTab() {
     setFormPagar((atual) => ({ ...atual, itensEstoque: atual.itensEstoque.filter((_, i) => i !== indice) }));
   }
 
-  // Prévia do que vai acontecer com o produto ao salvar: grãos que entram e custo novo no
-  // nível de referência (mesmo cálculo do backend — valor pago ÷ grãos, somando todas as
-  // linhas incluídas do mesmo produto).
+  // Prévia do que vai acontecer com o produto ao salvar — mesmo cálculo do backend
+  // (financeiro.controller.montarItensRecebimento): quantidade = embalagens × grãos da
+  // embalagem; custo por grão = (valor unitário da embalagem + frete) ÷ grãos da embalagem,
+  // ponderado entre todas as linhas incluídas do mesmo produto. Linha em grão-base não leva frete.
   function previaItemEstoque(item) {
     const produto = produtos.find((p) => String(p.id) === item.produtoId);
     if (!produto) return null;
     const niveisProduto = produto.niveisVenda || [];
     const nivelRef = niveisProduto.find((n) => n.ehBase);
-    const graoDe = (i) => {
-      const nivel = niveisProduto.find((n) => String(n.id) === i.nivelVendaId);
-      return Number(i.quantidade || 0) * (nivel ? nivel.quantidadeGrao : 1);
-    };
+    const frete = Number(formPagar.fretePorEmbalagem) || 0;
+    const graoPorEmbalagemDe = (i) => niveisProduto.find((n) => String(n.id) === i.nivelVendaId)?.quantidadeGrao || 1;
+    const freteDe = (i) => (graoPorEmbalagemDe(i) > 1 ? frete : 0);
     const linhasProduto = formPagar.itensEstoque.filter((i) => i.incluir && i.produtoId === item.produtoId && Number(i.quantidade) > 0);
-    const grao = linhasProduto.reduce((s, i) => s + graoDe(i), 0);
-    const temValor = linhasProduto.length > 0 && linhasProduto.every((i) => Number(i.valorTotal) > 0);
-    const custoGraoNovo = temValor && grao > 0 ? linhasProduto.reduce((s, i) => s + Number(i.valorTotal), 0) / grao : null;
+    const grao = linhasProduto.reduce((s, i) => s + Number(i.quantidade) * graoPorEmbalagemDe(i), 0);
+    const temValor = linhasProduto.length > 0 && linhasProduto.every((i) => Number(i.valorUnitario) > 0);
+    const valorTotal = linhasProduto.reduce((s, i) => s + Number(i.quantidade) * (Number(i.valorUnitario) + freteDe(i)), 0);
+    const custoGraoNovo = temValor && grao > 0 ? valorTotal / grao : null;
     const custoGraoAtual = produto.precoCusto != null ? Number(produto.precoCusto) : null;
-    return { produto, niveisProduto, nivelRef, grao: graoDe(item), custoGraoNovo, custoGraoAtual };
+    return {
+      produto,
+      niveisProduto,
+      nivelRef,
+      graoPorEmbalagem: graoPorEmbalagemDe(item),
+      grao: Number(item.quantidade || 0) * graoPorEmbalagemDe(item),
+      frete: freteDe(item),
+      custoGraoNovo,
+      custoGraoAtual,
+    };
   }
 
   function abrirModalPagar() {
@@ -222,8 +237,9 @@ export function VisaoGeralTab() {
             produtoId: Number(i.produtoId),
             nivelVendaId: i.nivelVendaId ? Number(i.nivelVendaId) : undefined,
             quantidade: Number(i.quantidade),
-            valorTotal: i.valorTotal !== '' ? Number(i.valorTotal) : undefined,
+            valorUnitario: i.valorUnitario !== '' ? Number(i.valorUnitario) : undefined,
           })),
+        fretePorEmbalagem: formPagar.fretePorEmbalagem !== '' ? Number(formPagar.fretePorEmbalagem) : 0,
       };
       const criada = await api.post('/financeiro/contas-pagar', corpo);
       if (criada.recebimentoId) {
@@ -267,7 +283,7 @@ export function VisaoGeralTab() {
           produtoId: String(i.produtoId),
           nivelVendaId: i.nivelVendaId ? String(i.nivelVendaId) : '',
           quantidade: String(i.quantidade),
-          valorTotal: i.valorTotal != null ? String(i.valorTotal) : '',
+          valorUnitario: i.valorUnitario != null ? String(i.valorUnitario) : '',
         })),
       }));
       setLeituraDocumento({ arquivo: arquivo.name, semVencimento: !lido.vencimento, naoIdentificados: lido.itensNaoIdentificados || [] });
@@ -852,9 +868,22 @@ export function VisaoGeralTab() {
 
             <div className="section-title" style={{ marginTop: 16, marginBottom: 4 }}>Entrada no estoque</div>
             <p className="text-muted" style={{ marginTop: 0, marginBottom: 10, fontSize: 12 }}>
-              Se for compra de produtos do estoque, os itens marcados somam ao estoque (depósito central) e o preço de custo
-              do produto passa a ser o desta compra (valor pago ÷ quantidade que chegou).
+              Se for compra de produtos do estoque, os itens marcados somam ao estoque (depósito central: embalagens × unidades
+              da embalagem) e o preço de custo do produto passa a ser o desta compra: (valor unitário da embalagem + frete) ÷
+              unidades da embalagem.
             </p>
+            {formPagar.itensEstoque.length > 0 && (
+              <div className="field" style={{ maxWidth: 220 }}>
+                <label>Frete por caixa/embalagem (R$)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formPagar.fretePorEmbalagem}
+                  onChange={(e) => setFormPagar({ ...formPagar, fretePorEmbalagem: e.target.value })}
+                />
+              </div>
+            )}
             {formPagar.itensEstoque.map((item, indice) => {
               const previa = previaItemEstoque(item);
               return (
@@ -888,22 +917,34 @@ export function VisaoGeralTab() {
                       <input type="number" min="1" step="1" value={item.quantidade} onChange={(e) => alterarItemEstoque(indice, { quantidade: e.target.value })} required={item.incluir} />
                     </div>
                     <div className="field">
-                      <label>Valor pago por esse item (R$)</label>
-                      <input type="number" min="0" step="0.01" value={item.valorTotal} onChange={(e) => alterarItemEstoque(indice, { valorTotal: e.target.value })} />
+                      <label>Valor unitário da embalagem (R$)</label>
+                      <input type="number" min="0" step="0.01" value={item.valorUnitario} onChange={(e) => alterarItemEstoque(indice, { valorUnitario: e.target.value })} />
                     </div>
                   </div>
                   {previa && item.incluir && (
-                    <p className="text-muted" style={{ margin: 0, fontSize: 12 }}>
-                      +{previa.grao.toLocaleString('pt-BR')} un. no estoque (hoje: {Number(previa.produto.quantidade || 0).toLocaleString('pt-BR')}).{' '}
-                      {previa.custoGraoNovo !== null && previa.nivelRef ? (
+                    <div className="text-muted" style={{ fontSize: 12 }}>
+                      <div>
+                        Entra no estoque: {Number(item.quantidade || 0).toLocaleString('pt-BR')} × {previa.graoPorEmbalagem} ={' '}
+                        <strong>{previa.grao.toLocaleString('pt-BR')} un.</strong> (hoje: {Number(previa.produto.quantidade || 0).toLocaleString('pt-BR')})
+                      </div>
+                      {previa.custoGraoNovo !== null ? (
                         <>
-                          Custo {previa.nivelRef.nome}: {previa.custoGraoAtual !== null ? `${formatBRL(previa.custoGraoAtual * previa.nivelRef.quantidadeGrao)} → ` : ''}
-                          <strong>{formatBRL(previa.custoGraoNovo * previa.nivelRef.quantidadeGrao)}</strong>
+                          <div>
+                            Custo por unidade: ({formatBRL(item.valorUnitario)}{previa.frete > 0 ? ` + ${formatBRL(previa.frete)} frete` : ''}) ÷ {previa.graoPorEmbalagem} ={' '}
+                            <strong>{formatCustoUnidade(previa.custoGraoNovo)}</strong>
+                            {previa.custoGraoAtual !== null && ` (hoje: ${formatCustoUnidade(previa.custoGraoAtual)})`}
+                          </div>
+                          {previa.nivelRef && previa.nivelRef.quantidadeGrao > 1 && (
+                            <div>
+                              Custo {previa.nivelRef.nome} (referência): {previa.custoGraoAtual !== null ? `${formatBRL(previa.custoGraoAtual * previa.nivelRef.quantidadeGrao)} → ` : ''}
+                              <strong>{formatBRL(previa.custoGraoNovo * previa.nivelRef.quantidadeGrao)}</strong>
+                            </div>
+                          )}
                         </>
                       ) : (
-                        'Sem valor do item — o preço de custo atual não muda.'
+                        <div>Sem valor unitário — o preço de custo atual não muda.</div>
                       )}
-                    </p>
+                    </div>
                   )}
                 </div>
               );
