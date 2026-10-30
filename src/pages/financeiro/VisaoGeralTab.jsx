@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
@@ -9,7 +10,9 @@ function formatBRL(valor) {
 }
 
 const CONTA_RECEBER_VAZIA = { clienteId: '', valor: '', vencimento: '', caixaId: '', recorrente: false };
-const CONTA_PAGAR_VAZIA = { descricao: '', fornecedor: '', valor: '', dataEmissao: '', vencimento: '', caixaId: '', recorrente: false, pago: false, pagoEm: '' };
+const CONTA_PAGAR_VAZIA = { descricao: '', fornecedor: '', valor: '', dataEmissao: '', vencimento: '', caixaId: '', recorrente: false, pago: false, pagoEm: '', itensEstoque: [] };
+// nivelVendaId '' = quantidade direto em grão-base (ex: ovos avulsos).
+const ITEM_ESTOQUE_VAZIO = { incluir: true, descricao: '', produtoId: '', nivelVendaId: '', quantidade: '', valorTotal: '' };
 
 const LABEL_FORMA_PAGAMENTO = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão/Maquininha', BOLETO: 'Boleto', FIADO: 'Fiado' };
 const ICONE_FORMA_PAGAMENTO = { PIX: '⚡', DINHEIRO: '💵', CARTAO: '💳', BOLETO: '🧾', FIADO: '📋' };
@@ -58,7 +61,9 @@ export function VisaoGeralTab() {
   const [modalPagar, setModalPagar] = useState(false);
   const [formPagar, setFormPagar] = useState(CONTA_PAGAR_VAZIA);
   const [lendoDocumento, setLendoDocumento] = useState(false);
-  const [leituraDocumento, setLeituraDocumento] = useState(null); // { arquivo, semVencimento } ou { erro }
+  const [leituraDocumento, setLeituraDocumento] = useState(null); // { arquivo, semVencimento, naoIdentificados } ou { erro }
+  const [produtos, setProdutos] = useState([]);
+  const [avisoEstoque, setAvisoEstoque] = useState(null);
   const [verGastosTopo, setVerGastosTopo] = useState(false);
 
   const [modalRelatorioVendas, setModalRelatorioVendas] = useState(false);
@@ -94,6 +99,7 @@ export function VisaoGeralTab() {
   useEffect(carregarResumoCaixas, [filtroUnidade.de, filtroUnidade.ate]);
   useEffect(() => { api.get('/clientes').then(setClientes).catch(() => {}); }, []);
   useEffect(() => { api.get('/caixas').then(setCaixas).catch(() => {}); }, []);
+  useEffect(() => { api.get('/produtos').then((lista) => setProdutos(lista.filter((p) => p.ativo !== false))).catch(() => {}); }, []);
 
   function carregarLucroTopo() {
     setCarregandoLucroTopo(true);
@@ -156,6 +162,41 @@ export function VisaoGeralTab() {
     }
   }
 
+  function alterarItemEstoque(indice, campos) {
+    setFormPagar((atual) => ({
+      ...atual,
+      itensEstoque: atual.itensEstoque.map((item, i) => (i === indice ? { ...item, ...campos } : item)),
+    }));
+  }
+
+  function adicionarItemEstoque() {
+    setFormPagar((atual) => ({ ...atual, itensEstoque: [...atual.itensEstoque, ITEM_ESTOQUE_VAZIO] }));
+  }
+
+  function removerItemEstoque(indice) {
+    setFormPagar((atual) => ({ ...atual, itensEstoque: atual.itensEstoque.filter((_, i) => i !== indice) }));
+  }
+
+  // Prévia do que vai acontecer com o produto ao salvar: grãos que entram e custo novo no
+  // nível de referência (mesmo cálculo do backend — valor pago ÷ grãos, somando todas as
+  // linhas incluídas do mesmo produto).
+  function previaItemEstoque(item) {
+    const produto = produtos.find((p) => String(p.id) === item.produtoId);
+    if (!produto) return null;
+    const niveisProduto = produto.niveisVenda || [];
+    const nivelRef = niveisProduto.find((n) => n.ehBase);
+    const graoDe = (i) => {
+      const nivel = niveisProduto.find((n) => String(n.id) === i.nivelVendaId);
+      return Number(i.quantidade || 0) * (nivel ? nivel.quantidadeGrao : 1);
+    };
+    const linhasProduto = formPagar.itensEstoque.filter((i) => i.incluir && i.produtoId === item.produtoId && Number(i.quantidade) > 0);
+    const grao = linhasProduto.reduce((s, i) => s + graoDe(i), 0);
+    const temValor = linhasProduto.length > 0 && linhasProduto.every((i) => Number(i.valorTotal) > 0);
+    const custoGraoNovo = temValor && grao > 0 ? linhasProduto.reduce((s, i) => s + Number(i.valorTotal), 0) / grao : null;
+    const custoGraoAtual = produto.precoCusto != null ? Number(produto.precoCusto) : null;
+    return { produto, niveisProduto, nivelRef, grao: graoDe(item), custoGraoNovo, custoGraoAtual };
+  }
+
   function abrirModalPagar() {
     setFormPagar(CONTA_PAGAR_VAZIA);
     setLeituraDocumento(null);
@@ -165,7 +206,7 @@ export function VisaoGeralTab() {
   async function criarContaPagar(e) {
     e.preventDefault();
     try {
-      await api.post('/financeiro/contas-pagar', {
+      const corpo = {
         descricao: formPagar.descricao,
         fornecedor: formPagar.fornecedor,
         valor: Number(formPagar.valor),
@@ -175,7 +216,20 @@ export function VisaoGeralTab() {
         recorrente: formPagar.recorrente,
         pago: formPagar.pago,
         pagoEm: formPagar.pago && formPagar.pagoEm ? formPagar.pagoEm : undefined,
-      });
+        itensEstoque: formPagar.itensEstoque
+          .filter((i) => i.incluir && i.produtoId && Number(i.quantidade) > 0)
+          .map((i) => ({
+            produtoId: Number(i.produtoId),
+            nivelVendaId: i.nivelVendaId ? Number(i.nivelVendaId) : undefined,
+            quantidade: Number(i.quantidade),
+            valorTotal: i.valorTotal !== '' ? Number(i.valorTotal) : undefined,
+          })),
+      };
+      const criada = await api.post('/financeiro/contas-pagar', corpo);
+      if (criada.recebimentoId) {
+        setAvisoEstoque(`Estoque e custo atualizados pela conta "${criada.descricao}" (recebimento #${criada.recebimentoId}). O estoque entrou no depósito central — distribua às unidades em Recebimentos.`);
+        api.get('/produtos').then((lista) => setProdutos(lista.filter((p) => p.ativo !== false))).catch(() => {});
+      }
       setModalPagar(false);
       setFormPagar(CONTA_PAGAR_VAZIA);
       carregar();
@@ -207,8 +261,16 @@ export function VisaoGeralTab() {
         vencimento: lido.vencimento || lido.dataEmissao || atual.vencimento,
         pago: lido.pago,
         pagoEm: lido.pago ? lido.dataPagamento || '' : '',
+        itensEstoque: (lido.itensEstoque || []).map((i) => ({
+          incluir: true,
+          descricao: i.descricao,
+          produtoId: String(i.produtoId),
+          nivelVendaId: i.nivelVendaId ? String(i.nivelVendaId) : '',
+          quantidade: String(i.quantidade),
+          valorTotal: i.valorTotal != null ? String(i.valorTotal) : '',
+        })),
       }));
-      setLeituraDocumento({ arquivo: arquivo.name, semVencimento: !lido.vencimento });
+      setLeituraDocumento({ arquivo: arquivo.name, semVencimento: !lido.vencimento, naoIdentificados: lido.itensNaoIdentificados || [] });
     } catch (err) {
       setLeituraDocumento({ erro: err.message });
     } finally {
@@ -456,6 +518,15 @@ export function VisaoGeralTab() {
   return (
     <div>
       {erro && <div className="alert-box">{erro}</div>}
+      {avisoEstoque && (
+        <div className="card" style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span className="text-success">✓ {avisoEstoque}</span>
+          <span style={{ display: 'flex', gap: 8 }}>
+            <Link className="btn btn-primary btn-sm" to="/admin/recebimentos">Ir para Recebimentos</Link>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAvisoEstoque(null)}>Fechar</button>
+          </span>
+        </div>
+      )}
 
       <div className="page-header" style={{ marginBottom: 14 }}>
         <div className="section-title" style={{ marginTop: 0, marginBottom: 0 }}>Lucro e gastos do período</div>
@@ -717,6 +788,11 @@ export function VisaoGeralTab() {
                   {leituraDocumento.semVencimento && ' O documento não mostra vencimento — usei a data do documento.'}
                 </p>
               )}
+              {leituraDocumento?.naoIdentificados?.length > 0 && (
+                <p className="text-muted" style={{ marginTop: 6, marginBottom: 0, fontSize: 12 }}>
+                  Itens do documento que não reconheci no catálogo (não entram no estoque): {leituraDocumento.naoIdentificados.join(', ')}.
+                </p>
+              )}
             </div>
             <div className="form-grid">
               <div className="field">
@@ -773,6 +849,66 @@ export function VisaoGeralTab() {
                 <input type="date" value={formPagar.pagoEm} onChange={(e) => setFormPagar({ ...formPagar, pagoEm: e.target.value })} />
               </div>
             )}
+
+            <div className="section-title" style={{ marginTop: 16, marginBottom: 4 }}>Entrada no estoque</div>
+            <p className="text-muted" style={{ marginTop: 0, marginBottom: 10, fontSize: 12 }}>
+              Se for compra de produtos do estoque, os itens marcados somam ao estoque (depósito central) e o preço de custo
+              do produto passa a ser o desta compra (valor pago ÷ quantidade que chegou).
+            </p>
+            {formPagar.itensEstoque.map((item, indice) => {
+              const previa = previaItemEstoque(item);
+              return (
+                <div key={indice} className="card" style={{ marginBottom: 10, padding: 12, opacity: item.incluir ? 1 : 0.55 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400, margin: 0 }}>
+                      <input type="checkbox" checked={item.incluir} onChange={(e) => alterarItemEstoque(indice, { incluir: e.target.checked })} />
+                      {item.descricao ? <span>No documento: <strong>{item.descricao}</strong></span> : 'Dar entrada no estoque'}
+                    </label>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => removerItemEstoque(indice)}>Remover</button>
+                  </div>
+                  <div className="form-grid">
+                    <div className="field">
+                      <label>Produto</label>
+                      <select value={item.produtoId} onChange={(e) => alterarItemEstoque(indice, { produtoId: e.target.value, nivelVendaId: '' })} required={item.incluir}>
+                        <option value="">Selecione</option>
+                        {produtos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>Embalagem</label>
+                      <select value={item.nivelVendaId} onChange={(e) => alterarItemEstoque(indice, { nivelVendaId: e.target.value })}>
+                        <option value="">Unidade (grão-base)</option>
+                        {(previa?.niveisProduto || []).map((n) => (
+                          <option key={n.id} value={n.id}>{n.nome} ({n.quantidadeGrao} un.)</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>Quantidade que chegou</label>
+                      <input type="number" min="1" step="1" value={item.quantidade} onChange={(e) => alterarItemEstoque(indice, { quantidade: e.target.value })} required={item.incluir} />
+                    </div>
+                    <div className="field">
+                      <label>Valor pago por esse item (R$)</label>
+                      <input type="number" min="0" step="0.01" value={item.valorTotal} onChange={(e) => alterarItemEstoque(indice, { valorTotal: e.target.value })} />
+                    </div>
+                  </div>
+                  {previa && item.incluir && (
+                    <p className="text-muted" style={{ margin: 0, fontSize: 12 }}>
+                      +{previa.grao.toLocaleString('pt-BR')} un. no estoque (hoje: {Number(previa.produto.quantidade || 0).toLocaleString('pt-BR')}).{' '}
+                      {previa.custoGraoNovo !== null && previa.nivelRef ? (
+                        <>
+                          Custo {previa.nivelRef.nome}: {previa.custoGraoAtual !== null ? `${formatBRL(previa.custoGraoAtual * previa.nivelRef.quantidadeGrao)} → ` : ''}
+                          <strong>{formatBRL(previa.custoGraoNovo * previa.nivelRef.quantidadeGrao)}</strong>
+                        </>
+                      ) : (
+                        'Sem valor do item — o preço de custo atual não muda.'
+                      )}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={adicionarItemEstoque}>+ Adicionar item ao estoque</button>
             <div className="modal-actions">
               <button type="button" className="btn btn-secondary" onClick={() => setModalPagar(false)}>Cancelar</button>
               <button type="submit" className="btn btn-primary">Salvar</button>
