@@ -19,10 +19,10 @@ import { CaixaDivergenciaAlerta } from '../components/dashboard/CaixaDivergencia
 import { gerarRelatorioDashboard } from '../utils/relatoriosPdf';
 import { IconLucro, IconFaturamento, IconGastos, IconVendas, IconArrowUp, IconArrowDown, IconCalendar } from '../components/icons';
 
-const PERIODOS = [
-  { dias: 1, label: 'Hoje' },
-  { dias: 7, label: '7 dias' },
-];
+const PERIODOS = [{ dias: 1, label: 'Hoje' }];
+
+// Enquanto "Mês atual" ou "Hoje" estão selecionados, o dashboard se atualiza sozinho.
+const INTERVALO_ATUALIZACAO_MS = 30 * 1000;
 
 const NOMES_MES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
@@ -47,6 +47,14 @@ function periodoMes(offset) {
 
 const MESES_ATALHO = [1, 2];
 
+// Mês em andamento: do dia 1 até hoje. O "ate" é recalculado a cada atualização automática,
+// então na virada do dia (ou do mês) o período acompanha sozinho.
+function periodoMesAtual() {
+  const hoje = new Date();
+  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  return { de: dataISOLocal(inicio), ate: dataISOLocal(hoje), mesAtual: true, mesLabel: `${nomeMes(inicio)} (até hoje)` };
+}
+
 function formatBRL(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -69,7 +77,8 @@ function labelPeriodoAtual(dias, custom) {
 function labelPeriodoAnterior(dias, custom) {
   if (custom?.mesLabel) {
     const [ano, mes] = custom.de.split('-').map(Number);
-    return nomeMes(new Date(ano, mes - 2, 1));
+    const anterior = nomeMes(new Date(ano, mes - 2, 1));
+    return custom.mesAtual ? `mesmos dias de ${anterior}` : anterior;
   }
   if (custom) return 'período anterior de mesmo tamanho';
   return dias === 1 ? 'ontem' : `${dias} dias anteriores`;
@@ -121,7 +130,7 @@ export function Dashboard() {
   const navigate = useNavigate();
   const ehAdmin = usuario?.perfil === 'ADMIN';
 
-  const [dias, setDias] = useState(7);
+  const [dias, setDias] = useState(1);
   // { de, ate, mesOffset?, mesLabel? } | null — abre no mês anterior fechado por padrão.
   const [periodoCustom, setPeriodoCustom] = useState(() => periodoMes(1));
   const mesesAtalho = MESES_ATALHO.map(periodoMes);
@@ -145,12 +154,33 @@ export function Dashboard() {
       .finally(() => setCarregando(false));
   }, [dias, periodoCustom]);
 
+  // Atualização em tempo real pros períodos que terminam "agora" (Mês atual e Hoje): busca de
+  // novo a cada 30s em segundo plano, sem mostrar "carregando". No Mês atual, se o dia virou,
+  // troca o período (o efeito acima recarrega com o novo "ate").
+  const periodoAoVivo = periodoCustom ? Boolean(periodoCustom.mesAtual) : dias === 1;
+  useEffect(() => {
+    if (!periodoAoVivo) return undefined;
+    const id = setInterval(() => {
+      if (document.hidden) return;
+      if (periodoCustom?.mesAtual) {
+        const novo = periodoMesAtual();
+        if (novo.de !== periodoCustom.de || novo.ate !== periodoCustom.ate) {
+          setPeriodoCustom(novo);
+          return;
+        }
+      }
+      const query = periodoCustom ? `de=${periodoCustom.de}&ate=${periodoCustom.ate}` : `dias=${dias}`;
+      api.get(`/dashboard?${query}`).then(setResumo).catch(() => {});
+    }, INTERVALO_ATUALIZACAO_MS);
+    return () => clearInterval(id);
+  }, [periodoAoVivo, periodoCustom, dias]);
+
   function selecionarPeriodoRelativo(d) {
     setPeriodoCustom(null);
     setDias(d);
   }
 
-  const periodoEscolhidoNaMao = periodoCustom && !periodoCustom.mesOffset;
+  const periodoEscolhidoNaMao = periodoCustom && !periodoCustom.mesOffset && !periodoCustom.mesAtual;
 
   function abrirModalData() {
     setDataDeInput(periodoEscolhidoNaMao ? periodoCustom.de : '');
@@ -237,6 +267,14 @@ export function Dashboard() {
                 {p.label}
               </button>
             ))}
+            <button
+              type="button"
+              className={`dash-periodo-btn${periodoCustom?.mesAtual ? ' is-active' : ''}`}
+              onClick={() => setPeriodoCustom(periodoMesAtual())}
+              title="Do dia 1 deste mês até hoje, atualizando sozinho"
+            >
+              Mês atual
+            </button>
             {mesesAtalho.map((m) => (
               <button
                 key={m.mesOffset}
