@@ -61,6 +61,11 @@ export function Caixa() {
   const [categoriasAbertas, setCategoriasAbertas] = useState(false);
   const categoriasRef = useRef(null);
   const [produtosVisiveis, setProdutosVisiveis] = useState(PRODUTOS_POR_PAGINA);
+  // Valor extra que este caixa cobra num item do catálogo (só admin edita) — { produto, nivel }.
+  const [modalAcrescimo, setModalAcrescimo] = useState(null);
+  const [acrescimoInput, setAcrescimoInput] = useState('');
+  const [salvandoAcrescimo, setSalvandoAcrescimo] = useState(false);
+  const [erroAcrescimo, setErroAcrescimo] = useState('');
 
   useEffect(() => {
     if (!categoriasAbertas) return;
@@ -479,6 +484,33 @@ export function Caixa() {
         },
       ];
     });
+  }
+
+  function abrirModalAcrescimo(produto, nivel) {
+    setAcrescimoInput(nivel.acrescimoCaixa ? String(nivel.acrescimoCaixa) : '');
+    setErroAcrescimo('');
+    setModalAcrescimo({ produto, nivel });
+  }
+
+  // Salva o valor extra deste caixa pro nível e já atualiza o preço no catálogo e nas linhas
+  // do carrinho desse nível — o backend passa a cobrar o preço novo na hora.
+  async function salvarAcrescimo(valor) {
+    const { produto, nivel } = modalAcrescimo;
+    setSalvandoAcrescimo(true);
+    setErroAcrescimo('');
+    try {
+      const salvo = await api.put(`/caixas/${caixaId}/acrescimos/${nivel.id}`, { valor: valor === '' ? 0 : Number(valor) });
+      const campos = { preco: salvo.preco, precoNormal: salvo.precoNormal, acrescimoCaixa: salvo.acrescimoCaixa };
+      setProdutos((atual) =>
+        atual.map((p) => (p.id === produto.id ? { ...p, niveisVenda: p.niveisVenda.map((n) => (n.id === nivel.id ? { ...n, ...campos } : n)) } : p))
+      );
+      setCarrinho((atual) => atual.map((i) => (i.nivelVendaId === nivel.id ? { ...i, precoVenda: salvo.preco } : i)));
+      setModalAcrescimo(null);
+    } catch (err) {
+      setErroAcrescimo(err.message);
+    } finally {
+      setSalvandoAcrescimo(false);
+    }
   }
 
   function aumentar(produtoId, nivelVendaId) {
@@ -967,6 +999,20 @@ export function Caixa() {
                                   </>
                                 )}
                               </div>
+                              {ehAdmin && caixaId && nivel.precoNormal !== undefined && (
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ marginTop: 6, width: '100%', fontSize: 11, padding: '2px 6px' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    abrirModalAcrescimo(p, nivel);
+                                  }}
+                                  title="Valor extra que este caixa cobra neste item"
+                                >
+                                  {nivel.acrescimoCaixa > 0 ? `Extra: +${formatBRL(nivel.acrescimoCaixa)} ✎` : '+ Valor extra'}
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
@@ -1585,6 +1631,59 @@ export function Caixa() {
           <div className="modal-actions">
             <button type="button" className="btn btn-primary" onClick={() => setAvisoDivergencia(null)}>Entendi, continuar</button>
           </div>
+        </Modal>
+      )}
+
+      {modalAcrescimo && (
+        <Modal
+          title={`Valor extra — ${modalAcrescimo.nivel.ehBase ? modalAcrescimo.produto.nome : `${modalAcrescimo.produto.nome} — ${modalAcrescimo.nivel.nome}`}`}
+          onClose={() => setModalAcrescimo(null)}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              salvarAcrescimo(acrescimoInput);
+            }}
+          >
+            <p className="text-muted" style={{ marginTop: 0 }}>
+              Valor somado ao preço deste item só em <strong>{caixas.find((c) => c.id === caixaId)?.nome || 'este caixa'}</strong>. Não muda
+              o preço do produto, o custo, o estoque nem os outros caixas. Na nota, no PDF e no carrinho aparece só o preço final.
+            </p>
+            <div className="form-grid">
+              <div className="field">
+                <label>Preço normal</label>
+                <input value={formatBRL(modalAcrescimo.nivel.precoNormal)} disabled />
+              </div>
+              <div className="field">
+                <label>Valor extra neste caixa (R$)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={acrescimoInput}
+                  onChange={(e) => setAcrescimoInput(e.target.value)}
+                  placeholder="0,00"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <p style={{ marginBottom: 0 }}>
+              Preço final neste caixa:{' '}
+              <strong>{formatBRL(Number(modalAcrescimo.nivel.precoNormal) + (Number(acrescimoInput) || 0))}</strong>
+            </p>
+            {erroAcrescimo && <div className="alert-box" style={{ marginTop: 12 }}>{erroAcrescimo}</div>}
+            <div className="modal-actions">
+              {modalAcrescimo.nivel.acrescimoCaixa > 0 && (
+                <button type="button" className="btn btn-secondary" onClick={() => salvarAcrescimo('')} disabled={salvandoAcrescimo}>
+                  Remover valor extra
+                </button>
+              )}
+              <button type="button" className="btn btn-secondary" onClick={() => setModalAcrescimo(null)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary" disabled={salvandoAcrescimo}>
+                {salvandoAcrescimo ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
 

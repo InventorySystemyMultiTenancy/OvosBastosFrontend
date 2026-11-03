@@ -22,9 +22,30 @@ import { IconLucro, IconFaturamento, IconGastos, IconVendas, IconArrowUp, IconAr
 const PERIODOS = [
   { dias: 1, label: 'Hoje' },
   { dias: 7, label: '7 dias' },
-  { dias: 30, label: '30 dias' },
-  { dias: 90, label: '90 dias' },
 ];
+
+const NOMES_MES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+function dataISOLocal(data) {
+  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
+}
+
+// Nome do mês, com o ano só quando não é o ano atual (ex: em janeiro, "Dezembro/2025").
+function nomeMes(data) {
+  const nome = NOMES_MES[data.getMonth()];
+  return data.getFullYear() === new Date().getFullYear() ? nome : `${nome}/${data.getFullYear()}`;
+}
+
+// Mês fechado `offset` meses atrás (1 = mês anterior, 2 = mês retrasado): do dia 1 ao
+// último dia. Vira um periodoCustom normal (de/ate) com mesOffset pra marcar o botão ativo.
+function periodoMes(offset) {
+  const hoje = new Date();
+  const inicio = new Date(hoje.getFullYear(), hoje.getMonth() - offset, 1);
+  const fim = new Date(hoje.getFullYear(), hoje.getMonth() - offset + 1, 0);
+  return { de: dataISOLocal(inicio), ate: dataISOLocal(fim), mesOffset: offset, mesLabel: nomeMes(inicio) };
+}
+
+const MESES_ATALHO = [1, 2];
 
 function formatBRL(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -40,11 +61,16 @@ function formatDataCurta(isoDate) {
 }
 
 function labelPeriodoAtual(dias, custom) {
+  if (custom?.mesLabel) return custom.mesLabel;
   if (custom) return `${formatDataCurta(custom.de)} a ${formatDataCurta(custom.ate)}`;
   return dias === 1 ? 'Hoje' : `Últimos ${dias} dias`;
 }
 
 function labelPeriodoAnterior(dias, custom) {
+  if (custom?.mesLabel) {
+    const [ano, mes] = custom.de.split('-').map(Number);
+    return nomeMes(new Date(ano, mes - 2, 1));
+  }
   if (custom) return 'período anterior de mesmo tamanho';
   return dias === 1 ? 'ontem' : `${dias} dias anteriores`;
 }
@@ -95,8 +121,10 @@ export function Dashboard() {
   const navigate = useNavigate();
   const ehAdmin = usuario?.perfil === 'ADMIN';
 
-  const [dias, setDias] = useState(30);
-  const [periodoCustom, setPeriodoCustom] = useState(null); // { de, ate } | null
+  const [dias, setDias] = useState(7);
+  // { de, ate, mesOffset?, mesLabel? } | null — abre no mês anterior fechado por padrão.
+  const [periodoCustom, setPeriodoCustom] = useState(() => periodoMes(1));
+  const mesesAtalho = MESES_ATALHO.map(periodoMes);
   const [resumo, setResumo] = useState(null);
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(true);
@@ -122,9 +150,11 @@ export function Dashboard() {
     setDias(d);
   }
 
+  const periodoEscolhidoNaMao = periodoCustom && !periodoCustom.mesOffset;
+
   function abrirModalData() {
-    setDataDeInput(periodoCustom?.de || '');
-    setDataAteInput(periodoCustom?.ate || '');
+    setDataDeInput(periodoEscolhidoNaMao ? periodoCustom.de : '');
+    setDataAteInput(periodoEscolhidoNaMao ? periodoCustom.ate : '');
     setErroData('');
     setModalData(true);
   }
@@ -207,20 +237,31 @@ export function Dashboard() {
                 {p.label}
               </button>
             ))}
+            {mesesAtalho.map((m) => (
+              <button
+                key={m.mesOffset}
+                type="button"
+                className={`dash-periodo-btn${periodoCustom?.mesOffset === m.mesOffset ? ' is-active' : ''}`}
+                onClick={() => setPeriodoCustom(m)}
+                title={`${formatDataCurta(m.de)} a ${formatDataCurta(m.ate)}`}
+              >
+                {m.mesLabel}
+              </button>
+            ))}
             <button
               type="button"
-              className={`dash-periodo-btn${periodoCustom ? ' is-active' : ''}`}
+              className={`dash-periodo-btn${periodoEscolhidoNaMao ? ' is-active' : ''}`}
               onClick={abrirModalData}
             >
-              📅 {periodoCustom ? `${formatDataCurta(periodoCustom.de)} – ${formatDataCurta(periodoCustom.ate)}` : 'Escolher data'}
+              📅 {periodoEscolhidoNaMao ? `${formatDataCurta(periodoCustom.de)} – ${formatDataCurta(periodoCustom.ate)}` : 'Escolher data'}
             </button>
-            {periodoCustom && (
+            {periodoEscolhidoNaMao && (
               <button
                 type="button"
                 className="dash-periodo-btn dash-periodo-limpar"
-                onClick={() => setPeriodoCustom(null)}
+                onClick={() => setPeriodoCustom(periodoMes(1))}
                 aria-label="Limpar período personalizado"
-                title="Voltar pro período relativo"
+                title="Voltar pro mês anterior"
               >
                 ✕
               </button>
