@@ -631,7 +631,18 @@ export function Caixa() {
   async function cancelarPagamentoEVenda() {
     if (!vendaAguardandoPagamento) return;
     setAvisoMaquininha('');
-    await cobranca.cancelarAtiva().catch(() => {});
+    // Só cancela a venda se a cobrança foi mesmo cancelada na maquininha. Se o Mercado Pago
+    // recusou (cliente já inserindo o cartão), a venda continua aguardando: cancelar aqui
+    // deixava a order viva no aparelho e o pagamento caía numa venda cancelada.
+    if (cobranca.resumo?.cobrancaAtiva) {
+      let resp;
+      try {
+        resp = await cobranca.cancelarAtiva();
+      } catch {
+        return; // o painel já mostra o erro e o polling continua aguardando o pagamento
+      }
+      if (!resp || resp.resumo.completo || resp.resumo.cobrancaAtiva) return;
+    }
     await tentarCancelarVenda(vendaAguardandoPagamento.id);
   }
 

@@ -42,6 +42,7 @@ export function useCobrancaMaquininha({ vendaId, timeoutSegundos, onQuitado, onT
   // aplicarResposta de dentro do polling/timeout sem os dois hooks precisarem depender um do
   // outro (evita recriar os timers toda vez que aplicarResposta muda de identidade).
   const aplicarRespostaRef = useRef(() => {});
+  const iniciarEsperaRef = useRef(() => {});
 
   const iniciarEspera = useCallback(() => {
     if (!pollRef.current) {
@@ -63,24 +64,31 @@ export function useCobrancaMaquininha({ vendaId, timeoutSegundos, onQuitado, onT
         pararTimers();
         const id = vendaIdRef.current;
         if (!id) return;
+        let resp = null;
+        let erroCancelamento = '';
         try {
-          const resp = await api.delete(`/vendas/${id}/pagamento-maquininha`);
-          setEstado(resp);
-          onTimeoutRef.current?.(resp);
-        } catch {
-          // cobrança pode já ter sido resolvida entre o disparo do timeout e a tentativa de
-          // cancelar (ex: aprovada bem na hora) — reconsulta pra decidir com o estado real
-          try {
-            const resp = await api.get(`/vendas/${id}/pagamento-maquininha`);
-            setEstado(resp);
-            onTimeoutRef.current?.(resp);
-          } catch {
-            onTimeoutRef.current?.(estadoRef.current);
-          }
+          resp = await api.delete(`/vendas/${id}/pagamento-maquininha`);
+        } catch (err) {
+          // Cancelamento recusado (cliente pagando agora) ou falha de rede — reconsulta o
+          // estado real antes de decidir qualquer coisa.
+          erroCancelamento = err.message;
+          resp = await api.get(`/vendas/${id}/pagamento-maquininha`).catch(() => null);
         }
+        // Sem saber o estado real, ou com a cobrança ainda ativa/paga, NÃO desiste da venda:
+        // volta a aguardar (o polling confirma sozinho se o pagamento passar). Só chama
+        // onTimeout (que cancela a venda) quando não há mais nenhuma cobrança viva.
+        if (!resp || resp.resumo.completo || resp.resumo.cobrancaAtiva) {
+          if (resp) aplicarRespostaRef.current(resp);
+          else iniciarEsperaRef.current();
+          if (erroCancelamento) setErro(erroCancelamento);
+          return;
+        }
+        setEstado(resp);
+        onTimeoutRef.current?.(resp);
       }, timeoutSegundos * 1000);
     }
   }, [timeoutSegundos, pararTimers]);
+  iniciarEsperaRef.current = iniciarEspera;
 
   const aplicarResposta = useCallback(
     (resp) => {
